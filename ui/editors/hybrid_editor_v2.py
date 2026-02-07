@@ -56,19 +56,17 @@ Tab 设计决策:
 """
 
 from __future__ import annotations
-from typing import TYPE_CHECKING
 
-import imgui
+from ui import imgui_shim as imgui
 
 from ui import tw, styles
 from ui import layout as ly
+from ui.styles import text_warning, text_error
+from ui.editors.common import draw_indented_separator
 from hybrid_item_v2 import HybridItemV2
 from specs import EffectTrigger
 from models import validate_hybrid_item
 from ui.state import state as ui_state
-
-if TYPE_CHECKING:
-    from ui.protocols import GUIProtocol
 
 
 # =============================================================================
@@ -82,7 +80,7 @@ _TAB_GAP = 2        # Tab 与内容区间距 (8px)
 _ERROR_GAP = 3      # 错误区与内容区间距 (12px)
 
 
-def draw_hybrid_editor_tabs(hybrid: HybridItemV2, gui: "GUIProtocol") -> None:
+def draw_hybrid_editor_tabs(hybrid: HybridItemV2) -> None:
     """混合物品编辑器 Tab Bar
 
     布局结构:
@@ -101,10 +99,12 @@ def draw_hybrid_editor_tabs(hybrid: HybridItemV2, gui: "GUIProtocol") -> None:
 
     Args:
         hybrid: 混合物品数据对象
-        gui: GUI 实例 (仅用于尚未迁移的 tabs, 后续移除)
     """
     # 导入 panel 模块
     from ui.editors.hybrid.base_panel import draw_base_panel
+    from ui.editors.hybrid.behavior_panel import draw_behavior_panel
+    from ui.editors.hybrid.stats_panel import draw_stats_panel
+    from ui.editors.hybrid.presentation_panel import draw_presentation_panel
 
     # 是否显示属性 Tab
     show_attrs = _should_show_attributes(hybrid) or isinstance(hybrid.trigger, EffectTrigger)
@@ -147,7 +147,7 @@ def draw_hybrid_editor_tabs(hybrid: HybridItemV2, gui: "GUIProtocol") -> None:
             # Tab: 行为
             if _tab_style(imgui.begin_tab_item)("行为")[0]:
                 imgui.unindent(ly.sz(_TAB_BAR_PX))
-                _draw_tab_content(lambda: gui._draw_hybrid_behavior(hybrid))
+                _draw_tab_content(lambda: draw_behavior_panel(hybrid))
                 imgui.indent(ly.sz(_TAB_BAR_PX))
                 imgui.end_tab_item()
 
@@ -155,14 +155,14 @@ def draw_hybrid_editor_tabs(hybrid: HybridItemV2, gui: "GUIProtocol") -> None:
             if show_attrs:
                 if _tab_style(imgui.begin_tab_item)("属性")[0]:
                     imgui.unindent(ly.sz(_TAB_BAR_PX))
-                    _draw_tab_content(lambda: gui._draw_hybrid_stats(hybrid))
+                    _draw_tab_content(lambda: draw_stats_panel(hybrid))
                     imgui.indent(ly.sz(_TAB_BAR_PX))
                     imgui.end_tab_item()
 
             # Tab: 呈现
             if _tab_style(imgui.begin_tab_item)("呈现")[0]:
                 imgui.unindent(ly.sz(_TAB_BAR_PX))
-                _draw_tab_content(lambda: gui._draw_hybrid_presentation(hybrid))
+                _draw_tab_content(lambda: draw_presentation_panel(hybrid))
                 imgui.indent(ly.sz(_TAB_BAR_PX))
                 imgui.end_tab_item()
 
@@ -177,7 +177,7 @@ def draw_hybrid_editor_tabs(hybrid: HybridItemV2, gui: "GUIProtocol") -> None:
     errors = validate_hybrid_item(hybrid, ui_state.project, include_warnings=True)
     if errors:
         ly.gap_y(_ERROR_GAP)
-        _draw_validation_errors(errors, gui)
+        _draw_validation_errors(errors)
 
 
 def _draw_tab_content(draw_fn) -> None:
@@ -196,10 +196,33 @@ def _draw_tab_content(draw_fn) -> None:
     imgui.unindent(ly.sz(_CONTENT_P))
 
 
-def _draw_validation_errors(errors: list[str], gui: "GUIProtocol") -> None:
-    """绘制验证错误区域"""
+def _draw_validation_errors(errors: list[str]) -> None:
+    """绘制验证错误区域 (standalone, 不依赖 gui)"""
     with tw.bg_abyss_900 | tw.border_blood_700 | tw.child_border_size(1) | tw.rounded_md | tw.p_3:
-        gui._draw_validation_errors(errors)
+        draw_indented_separator()
+        imgui.text("消息:")
+        for error in errors:
+            if error.endswith("):"):
+                continue
+            content = error.lstrip()
+            if content.startswith("• WARNING:"):
+                imgui.text("  ")
+                imgui.same_line()
+                text_warning("!")
+                imgui.same_line()
+                text_warning(content[10:].strip())
+            elif content.startswith("•"):
+                imgui.text("  ")
+                imgui.same_line()
+                text_error("X")
+                imgui.same_line()
+                text_error(content[1:].strip())
+            else:
+                imgui.text("  ")
+                imgui.same_line()
+                text_error("X")
+                imgui.same_line()
+                text_error(error)
 
 
 def _should_show_attributes(hybrid: HybridItemV2) -> bool:

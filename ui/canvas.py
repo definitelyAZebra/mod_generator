@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any, Callable, TYPE_CHECKING
 
-import imgui  # type: ignore
+from ui import imgui_shim as imgui
 
 from constants import CHAR_MODEL_ORIGIN
 
@@ -268,6 +268,13 @@ class InfiniteCanvas:
         self.center_x = x
         self.center_y = y
 
+    def reset_view(self) -> None:
+        """重置视口到默认状态（中心原点、默认缩放）"""
+        self.center_x = 0.0
+        self.center_y = 0.0
+        self.zoom = 4.0
+        self._cancel_drag()
+
     # ========================================================================
     # 绘制
     # ========================================================================
@@ -474,8 +481,7 @@ class InfiniteCanvas:
             self._pan_start_center = (self.center_x, self.center_y)
 
         # 空格 + 左键拖拽平移（备选）
-        # 使用 imgui.is_key_down() 检测空格键 (KEY_SPACE = 32)
-        space_pressed = imgui.is_key_down(32)
+        space_pressed = imgui.is_key_down(imgui.KEY_SPACE)
         if space_pressed and not self._dragging_id and not self._is_panning:
             if imgui.is_mouse_clicked(0):
                 self._is_panning = True

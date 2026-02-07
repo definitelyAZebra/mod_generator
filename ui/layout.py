@@ -71,7 +71,7 @@ from contextlib import contextmanager
 import inspect
 import os
 
-import imgui
+from ui import imgui_shim as imgui
 
 from ui.state import dpi_scale
 from ui.styles import StyleContext

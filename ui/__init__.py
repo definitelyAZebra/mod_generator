@@ -13,7 +13,6 @@
 - dialogs.py: 对话框模块函数
 - popups.py: 弹窗服务
 - menu.py: 主菜单 (MenuMixin)
-- item_list.py: 物品列表 (ItemListMixin)
 - protocols.py: 类型协议 (GUIProtocol)
 
 [已废弃，保留向后兼容]:
@@ -44,7 +43,6 @@ _LAZY_MODULES = {
     'fonts': 'ui.fonts',
     'texture_manager': 'ui.texture_manager',
     'menu': 'ui.menu',
-    'item_list': 'ui.item_list',
     'popups': 'ui.popups',
     'dialogs': 'ui.dialogs',
     'components': 'ui.components',  # Styled UI components
@@ -99,8 +97,6 @@ _LAZY_ATTRS = {
     'apply_global_style': ('ui.styles', 'apply_global_style'),
     # menu
     'MenuMixin': ('ui.menu', 'MenuMixin'),
-    # item_list
-    'ItemListMixin': ('ui.item_list', 'ItemListMixin'),
     # texture_manager
     'load_texture': ('ui.texture_manager', 'load_texture'),
     'unload_all_textures': ('ui.texture_manager', 'unload_all_textures'),
@@ -171,13 +167,12 @@ if TYPE_CHECKING:
         draw_checkerboard as draw_checkerboard,
     )
     from ui.menu import MenuMixin as MenuMixin
-    from ui.item_list import ItemListMixin as ItemListMixin
 
 
 __all__ = [
     # 子模块
     'config', 'styles', 'tw', 'grid', 'fonts',
-    'texture_manager', 'menu', 'item_list', 'popups', 'dialogs',
+    'texture_manager', 'menu', 'popups', 'dialogs',
     # sizing 常量
     'INPUT_XS', 'INPUT_S', 'INPUT_M', 'INPUT_L', 'INPUT_XL',
     'GRID_COL', 'GRID_GAP', 'GRID_DEBUG',
@@ -196,7 +191,7 @@ __all__ = [
     'ThemeMixin', 'text_secondary', 'text_success', 'text_warning',
     'text_error', 'text_accent', 'get_current_theme_colors', 'apply_global_style',
     # Mixins
-    'MenuMixin', 'ItemListMixin',
+    'MenuMixin',
     # texture_manager
     'load_texture', 'unload_all_textures', 'draw_checkerboard',
 ]

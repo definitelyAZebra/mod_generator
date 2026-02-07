@@ -39,7 +39,7 @@ from __future__ import annotations
 from typing import Callable
 from contextlib import contextmanager
 
-import imgui
+from ui import imgui_shim as imgui
 
 from ui.state import dpi_scale
 from ui import tw

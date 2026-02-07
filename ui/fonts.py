@@ -39,7 +39,7 @@ import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-import imgui  # type: ignore
+from ui import imgui_shim as imgui
 
 from ui import config
 from ui.state import dpi_scale
@@ -335,8 +335,8 @@ def _load_font_for_size(
             io.fonts.add_font_from_file_ttf(
                 en_path,
                 font_size,
-                font_config=extra_cfg,
-                glyph_ranges=extra_ranges,
+                font_cfg=extra_cfg.handle,
+                glyph_ranges=extra_ranges.ranges_ptr,
             )
         except Exception as e:
             print(f"[fonts] 英文字体加载失败 ({size_token}): {e}")
@@ -358,8 +358,8 @@ def _load_font_for_size(
             io.fonts.add_font_from_file_ttf(
                 cn_path,
                 font_size,
-                font_config=font_cfg,
-                glyph_ranges=ranges,
+                font_cfg=font_cfg.handle,
+                glyph_ranges=ranges.ranges_ptr,
             )
 
             # 2c. 额外 CJK 字符 (GB2312 不包含的)
@@ -378,8 +378,8 @@ def _load_font_for_size(
                 io.fonts.add_font_from_file_ttf(
                     cn_path,
                     font_size,
-                    font_config=cjk_cfg,
-                    glyph_ranges=cjk_ranges,
+                    font_cfg=cjk_cfg.handle,
+                    glyph_ranges=cjk_ranges.ranges_ptr,
                 )
         except Exception as e:
             print(f"[fonts] 中文字体加载失败 ({size_token}): {e}")
@@ -399,8 +399,8 @@ def _load_font_for_size(
             io.fonts.add_font_from_file_ttf(
                 icon_path,
                 icon_size,
-                font_config=icon_cfg,
-                glyph_ranges=icon_ranges,
+                font_cfg=icon_cfg.handle,
+                glyph_ranges=icon_ranges.ranges_ptr,
             )
         except Exception as e:
             print(f"[fonts] 图标字体加载失败 ({size_token}): {e}")
@@ -423,11 +423,11 @@ def load_fonts(renderer: Any) -> FontSet:
     global _fonts
 
     io = imgui.get_io()
-    io.fonts.clear()
+    io.fonts.clear_fonts()
 
     # 字体纹理尺寸
     # 4 个字号 + GB2312 字符集 = 4096 足够
-    io.fonts.texture_desired_width = 4096
+    io.fonts.tex_max_width = 4096
 
     # 使用 font_config.py 中的固定路径
     en_path = ENGLISH_FONT if os.path.exists(ENGLISH_FONT) else ""

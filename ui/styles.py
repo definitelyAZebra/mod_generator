@@ -33,7 +33,7 @@ from __future__ import annotations
 from typing import Any, Callable, TypeVar, TYPE_CHECKING
 from contextlib import contextmanager
 
-import imgui  # type: ignore
+from ui import imgui_shim as imgui
 
 from ui.state import dpi_scale
 

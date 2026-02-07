@@ -14,7 +14,7 @@
 import warnings
 from contextlib import contextmanager
 
-import imgui  # type: ignore
+from ui import imgui_shim as imgui
 
 from ui import styles
 

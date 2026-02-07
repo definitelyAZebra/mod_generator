@@ -46,7 +46,7 @@ Tailwind 映射:
 from __future__ import annotations
 from contextlib import contextmanager
 
-import imgui
+from ui import imgui_shim as imgui
 
 from ui import tw
 from ui import layout as ly

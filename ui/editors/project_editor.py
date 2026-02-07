@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import os
 
-import imgui
+from ui import imgui_shim as imgui
 from ui import layout as ly
 from ui import tw
 from ui.icons import (

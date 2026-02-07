@@ -7,7 +7,7 @@
 
 from typing import TYPE_CHECKING, Any
 
-import imgui  # type: ignore
+from ui import imgui_shim as imgui
 
 from ui import config
 from ui.state import state as ui_state, dpi_scale

@@ -13,7 +13,7 @@
 import os
 from typing import Callable
 
-import imgui
+from ui import imgui_shim as imgui
 
 from ui.styles import text_error, text_secondary, text_success, text_warning
 

@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING, Any, TypedDict
 
-import imgui  # type: ignore
+from ui import imgui_shim as imgui
 from OpenGL.GL import (  # type: ignore
     GL_NEAREST,
     GL_RGBA,

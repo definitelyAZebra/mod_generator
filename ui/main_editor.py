@@ -10,9 +10,8 @@
 """
 
 from __future__ import annotations
-from typing import TYPE_CHECKING
 
-import imgui
+from ui import imgui_shim as imgui
 
 from ui.state import state as ui_state, dpi_scale
 from ui import layout as ly
@@ -20,11 +19,8 @@ from ui import tw
 from ui.theme import PARCHMENT
 from ui.styles import gap_s
 
-if TYPE_CHECKING:
-    from ui.protocols import GUIProtocol
 
-
-def draw_main_editor(width: float, height: float, gui: "GUIProtocol") -> None:
+def draw_main_editor(width: float, height: float) -> None:
     """主编辑区路由分发
 
     ⚠️ 架构：纯路由，不创建容器
@@ -39,7 +35,6 @@ def draw_main_editor(width: float, height: float, gui: "GUIProtocol") -> None:
     Args:
         width: 面板宽度 (像素，已应用 DPI)
         height: 面板高度 (像素，已应用 DPI)
-        gui: GUI 实例 (提供 mixin 方法)
     """
     nav_type = ui_state.nav_item_type
 
@@ -49,26 +44,23 @@ def draw_main_editor(width: float, height: float, gui: "GUIProtocol") -> None:
         draw_project_editor(width, height)
 
     elif nav_type == "weapon":
-        _draw_weapon_main(width, height, gui)
+        _draw_weapon_main(width, height)
 
     elif nav_type == "armor":
-        _draw_armor_main(width, height, gui)
+        _draw_armor_main(width, height)
 
     elif nav_type == "hybrid":
-        _draw_hybrid_main(width, height, gui)
+        _draw_hybrid_main(width, height)
 
     else:
         _draw_empty_state(width, height, "请从左侧导航选择要编辑的内容")
 
 
-def _draw_weapon_main(width: float, height: float, gui: "GUIProtocol") -> None:
-    """绘制武器编辑器主区域
-
-    TODO: 重构为完全自治的组件
-    """
+def _draw_weapon_main(width: float, height: float) -> None:
+    """绘制武器编辑器主区域"""
     from ui.panels import panel_style
+    from ui.editors.weapon_editor import draw_weapon_editor
 
-    # 临时容器 - 待重构
     with panel_style:
         imgui.begin_child("WeaponEditor", width, height, border=False, flags=imgui.WINDOW_NO_SCROLLBAR)
 
@@ -78,25 +70,21 @@ def _draw_weapon_main(width: float, height: float, gui: "GUIProtocol") -> None:
     if current_index < 0 or current_index >= len(weapons):
         _draw_empty_hint("请从左侧列表选择一个武器进行编辑")
     else:
-        # 使用原有的武器编辑器
         d = dpi_scale()
         padding = gap_s()
         ly.gap_y_px(padding / d)
         imgui.indent(padding)
-        gui.draw_weapon_editor()
+        draw_weapon_editor()
         imgui.unindent()
 
     imgui.end_child()
 
 
-def _draw_armor_main(width: float, height: float, gui: "GUIProtocol") -> None:
-    """绘制装备编辑器主区域
-
-    TODO: 重构为完全自治的组件
-    """
+def _draw_armor_main(width: float, height: float) -> None:
+    """绘制装备编辑器主区域"""
     from ui.panels import panel_style
+    from ui.editors.armor_editor import draw_armor_editor
 
-    # 临时容器 - 待重构
     with panel_style:
         imgui.begin_child("ArmorEditor", width, height, border=False, flags=imgui.WINDOW_NO_SCROLLBAR)
 
@@ -106,18 +94,17 @@ def _draw_armor_main(width: float, height: float, gui: "GUIProtocol") -> None:
     if current_index < 0 or current_index >= len(armors):
         _draw_empty_hint("请从左侧列表选择一个装备进行编辑")
     else:
-        # 使用原有的装备编辑器
         d = dpi_scale()
         padding = gap_s()
         ly.gap_y_px(padding / d)
         imgui.indent(padding)
-        gui.draw_armor_editor()
+        draw_armor_editor()
         imgui.unindent()
 
     imgui.end_child()
 
 
-def _draw_hybrid_main(width: float, height: float, gui: "GUIProtocol") -> None:
+def _draw_hybrid_main(width: float, height: float) -> None:
     """绘制混合物品编辑器主区域
 
     ⚠️ 容器类型: Child Window (自己创建)
@@ -162,7 +149,7 @@ def _draw_hybrid_main(width: float, height: float, gui: "GUIProtocol") -> None:
     else:
         # 绘制混合物品编辑器 - 边距由 hybrid_editor_v2 控制
         hybrid = hybrids[current_index]
-        draw_hybrid_editor_tabs(hybrid, gui)
+        draw_hybrid_editor_tabs(hybrid)
 
     imgui.end_child()
 

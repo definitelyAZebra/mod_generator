@@ -38,7 +38,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Callable, TYPE_CHECKING
 
-import imgui  # type: ignore
+from ui import imgui_shim as imgui
 
 from constants import (
     CHAR_MODEL_ORIGIN,
@@ -469,14 +469,24 @@ def race_combo(id_suffix: str, current: str) -> str:
 
 # 画布实例缓存
 _preview_canvases: dict[str, "InfiniteCanvas"] = {}
+# 上次预览的内容路径（用于检测内容变更并重置视口）
+_preview_last_paths: dict[str, str] = {}
 
 
-def _get_preview_canvas(id_suffix: str) -> "InfiniteCanvas":
-    """获取或创建预览画布"""
+def _get_preview_canvas(id_suffix: str, content_path: str = "") -> "InfiniteCanvas":
+    """获取或创建预览画布
+
+    当 content_path 变化时自动重置画布视口，避免不同物品共用缩放状态。
+    """
     from ui.canvas import InfiniteCanvas
     if id_suffix not in _preview_canvases:
         _preview_canvases[id_suffix] = InfiniteCanvas(id_suffix)
-    return _preview_canvases[id_suffix]
+    canvas = _preview_canvases[id_suffix]
+    # 检测内容是否变化
+    if content_path and _preview_last_paths.get(id_suffix) != content_path:
+        _preview_last_paths[id_suffix] = content_path
+        canvas.reset_view()
+    return canvas
 
 
 def texture_preview(
@@ -510,7 +520,7 @@ def texture_preview(
     from ui.texture_manager import load_texture
     from constants import VALID_AREA_SIZE
 
-    canvas = _get_preview_canvas(id_suffix)
+    canvas = _get_preview_canvas(id_suffix, content_path=path)
     items: list[CanvasItem] = []
     selected_ids: set[str] = set()
 

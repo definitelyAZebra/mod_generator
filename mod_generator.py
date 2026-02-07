@@ -5,16 +5,15 @@ Stoneshard 装备模组编辑器 - 主程序
 基于 ImGui 的图形界面，用于创建和编辑 Stoneshard 游戏的武器/装备模组。
 
 模块化架构:
-- ui/layout.py: 布局系统 (Layout, GridLayout)
-- ui/theme.py: 主题系统 (ThemeMixin)
-- ui/texture_manager.py: 贴图加载与缓存 (load_texture, unload_all_textures)
-- ui/dialogs.py: 对话框模块函数 (file_dialog, new_project_dialog, ...)
-- ui/popups.py: 弹窗服务 (popups.error/success/save_prompt)
+- ui/styles.py: 主题系统 (ThemeMixin)
+- ui/texture_manager.py: 贴图加载与缓存
+- ui/dialogs.py: 对话框模块函数
+- ui/popups.py: 弹窗服务
 - ui/menu.py: 主菜单 (MenuMixin)
-- ui/item_list.py: 物品列表 (ItemListMixin)
-- ui/editors/common.py: 通用编辑器方法 (CommonEditorMixin)
-- ui/editors/weapon_editor.py: 武器编辑器 (WeaponEditorMixin)
-- ui/editors/armor_editor.py: 装备编辑器 (ArmorEditorMixin)
+- ui/editors/common.py: 通用编辑器工具函数
+- ui/editors/weapon_editor.py: 武器编辑器 (draw_weapon_editor)
+- ui/editors/armor_editor.py: 装备编辑器 (draw_armor_editor)
+- ui/editors/hybrid/: 混合物品编辑器 (4 panel 模块)
 """
 
 import os
@@ -22,8 +21,8 @@ import sys
 from pathlib import Path
 
 import glfw
-import imgui  # type: ignore
-from imgui.integrations.glfw import GlfwRenderer  # type: ignore
+from ui import imgui_shim as imgui
+from ui.imgui_shim import GlfwRenderer
 from OpenGL.GL import (
     GL_COLOR_BUFFER_BIT,
     glClear,
@@ -44,12 +43,7 @@ from ui.styles import ThemeMixin, apply_preflight
 from ui.texture_manager import unload_all_textures
 from ui import popups
 from ui.menu import MenuMixin, draw_main_menu, get_toolbar_height
-from ui.item_list import ItemListMixin
 from ui.fonts import load_fonts
-from ui.editors.common import CommonEditorMixin
-from ui.editors.weapon_editor import WeaponEditorMixin
-from ui.editors.armor_editor import ArmorEditorMixin
-from ui.editors.hybrid_editor import HybridEditorMixin
 
 # 导入常量和模型
 from generator import CodeGenerator, copy_item_textures_v2
@@ -230,23 +224,18 @@ def generate_mod_with_validation(project: ModProject) -> None:
 class ModGeneratorGUI(
     ThemeMixin,
     MenuMixin,
-    ItemListMixin,
-    CommonEditorMixin,
-    WeaponEditorMixin,
-    ArmorEditorMixin,
-    HybridEditorMixin,
 ):
-    """主 GUI 类 - 使用 Mixin 模式组合功能
+    """主 GUI 类
 
-    Mixin 继承顺序决定方法解析顺序 (MRO):
+    Mixin:
     1. ThemeMixin - 主题和颜色
     2. MenuMixin - 主菜单
-    3. ItemListMixin - 物品列表和面板
-    4. CommonEditorMixin - 通用编辑器方法
-    5. WeaponEditorMixin - 武器编辑器
-    6. ArmorEditorMixin - 装备编辑器
-    7. HybridEditorMixin - 混合物品编辑器
-    8. TextureEditorMixin - 贴图编辑器
+
+    已提取为独立模块:
+    - 通用编辑器 → ui/editors/common.py (模块级函数)
+    - 武器编辑器 → ui/editors/weapon_editor.py (draw_weapon_editor)
+    - 装备编辑器 → ui/editors/armor_editor.py (draw_armor_editor)
+    - 混合物品编辑器 → ui/editors/hybrid/ (4 个 panel 模块)
     """
 
     def __init__(self):
@@ -380,17 +369,12 @@ class ModGeneratorGUI(
             # 两栏布局: 导航 | 主编辑区
             draw_two_column_layout(
                 draw_navigator=draw_navigator,
-                draw_main=lambda w, h: draw_main_editor(w, h, self),
+                draw_main=draw_main_editor,
             )
 
         imgui.end()
 
-        # 注意: draw_item_panel, draw_weapon_list, draw_armor_list, draw_hybrid_list,
-        #       _draw_item_list, _generate_unique_id 方法已移动到 ui/item_list.py (ItemListMixin)
-        # 注意: draw_weapon_editor 方法已移动到 ui/editors/weapon_editor.py (WeaponEditorMixin)
-        # 注意: draw_armor_editor 方法已移动到 ui/editors/armor_editor.py (ArmorEditorMixin)
-        # 注意: draw_hybrid_editor 及相关方法已移动到 ui/editors/hybrid_editor.py (HybridEditorMixin)
-        # 注意: _draw_textures_editor 及相关方法已移动到 ui/editors/texture_editor.py (TextureEditorMixin)
+        # 所有编辑器已提取为独立模块函数，不再通过 Mixin 挂载
 
 def _draw_welcome_screen():
     """绘制欢迎界面 - 简洁的单卡片设计

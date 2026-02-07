@@ -12,7 +12,7 @@
 import os
 from typing import Callable, Union
 
-import imgui
+from ui import imgui_shim as imgui
 
 from ui.editors.common import draw_indented_separator
 from ui.styles import gap_m

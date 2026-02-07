@@ -28,7 +28,7 @@ from __future__ import annotations
 import copy
 from typing import Any, Callable, TYPE_CHECKING
 
-import imgui
+from ui import imgui_shim as imgui
 
 from ui.state import state as ui_state, dpi_scale
 from ui import layout as ly
