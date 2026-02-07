@@ -32,7 +32,7 @@ _LAZY_MODULES = {
     'config': 'ui.config',
     'styles': 'ui.styles',
     'tw': 'ui.tw',            # Tailwind-style tokens
-    'theme': 'ui.theme',      # [已废弃] 保留向后兼容
+    'theme': 'ui.theme',      # 主题色板 (crystal/abyss/parchment/...)
     'fonts': 'ui.fonts',
     'texture_manager': 'ui.texture_manager',
     'menu': 'ui.menu',

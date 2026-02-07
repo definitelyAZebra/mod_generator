@@ -333,35 +333,6 @@ def tooltip(text: str):
         imgui.set_tooltip(text)
 
 # =============================================================================
-# 按钮 Helper
-# =============================================================================
-
-def btn(label: str, w: float = 0, h: float = 0) -> bool:
-    """[DEPRECATED] 绘制按钮 - 请改用 (tw.btn_* | tw.btn_md)(imgui.button)(label)
-
-    推荐新写法:
-        if (tw.btn_primary | tw.btn_md)(imgui.button)("确定"):
-            do_something()
-
-    旧写法 (仍可用但不推荐):
-        with tw.btn_primary:
-            if ly.btn("确定", 40, 9):
-                do_something()
-
-    Args:
-        label: 按钮文字
-        w: 宽度 (Tailwind 单位, 40 = 160px)
-        h: 高度 (Tailwind 单位, 9 = 36px)
-
-    Returns:
-        bool: 是否点击
-    """
-    width = w * 4 * dpi_scale() if w > 0 else 0
-    height = h * 4 * dpi_scale() if h > 0 else 0
-    return imgui.button(label, width=width, height=height)
-
-
-# =============================================================================
 # 居中文本
 # =============================================================================
 
@@ -467,58 +438,6 @@ def icon_label(
             imgui.text(text)
     else:
         imgui.text(text)
-
-
-# =============================================================================
-# 居中容器
-# =============================================================================
-
-@contextmanager
-def hcenter(width: float):
-    """水平居中容器
-
-    Args:
-        width: 内容宽度 (像素)
-    """
-    window_width = imgui.get_window_width()
-    imgui.set_cursor_pos_x((window_width - width * dpi_scale()) / 2)
-    yield
-
-
-@contextmanager
-def vcenter(height: float):
-    """垂直居中容器
-
-    Args:
-        height: 内容高度 (像素)
-    """
-    window_height = imgui.get_window_height()
-    imgui.set_cursor_pos_y((window_height - height * dpi_scale()) / 2)
-    yield
-
-
-@contextmanager
-def center(width: float, height: float):
-    """完全居中容器"""
-    window_width = imgui.get_window_width()
-    window_height = imgui.get_window_height()
-    imgui.set_cursor_pos((
-        (window_width - width * dpi_scale()) / 2,
-        (window_height - height * dpi_scale()) / 2
-    ))
-    yield
-
-
-def vcenter_start(content_height: float) -> None:
-    """设置垂直居中起点 (非 context manager)"""
-    window_height = imgui.get_window_height()
-    imgui.set_cursor_pos_y((window_height - content_height * dpi_scale()) / 2)
-
-
-def hcenter_start(content_width: float) -> None:
-    """设置水平居中起点 (非 context manager)"""
-    window_width = imgui.get_window_width()
-    imgui.set_cursor_pos_x((window_width - content_width * dpi_scale()) / 2)
 
 
 # =============================================================================
@@ -793,22 +712,6 @@ def content_region() -> tuple[float, float]:
 def scaled(px: float) -> float:
     """返回 DPI 缩放后的像素值"""
     return px * dpi_scale()
-
-
-# =============================================================================
-# [DEPRECATED] 便捷 spacing 函数 - 请使用 gap_y(n) 代替
-# =============================================================================
-def sp_0(): gap_y(0)
-def sp_1(): gap_y(1)
-def sp_2(): gap_y(2)
-def sp_3(): gap_y(3)
-def sp_4(): gap_y(4)
-def sp_5(): gap_y(5)
-def sp_6(): gap_y(6)
-def sp_8(): gap_y(8)
-def sp_10(): gap_y(10)
-def sp_12(): gap_y(12)
-def sp_16(): gap_y(16)
 
 
 @contextmanager
@@ -2537,8 +2440,6 @@ __all__ = [
     'icon_label',
     # 容器
     'row', 'col', 'card', 'CardState', 'panel', 'clear_panel_cache',
-    # 按钮
-    'btn',
     # 尺寸转换
     'sz', 'sz_raw', 'scaled',
     # 杂项
@@ -2593,10 +2494,4 @@ __all__ = [
 
     # ===== 右键菜单 =====
     'context_menu', 'menu_item', 'menu_separator',
-
-    # ===== [DEPRECATED] 手动居中 - 请使用 auto_* 系列 =====
-    'hcenter', 'vcenter', 'center', 'vcenter_start', 'hcenter_start',
-
-    # ===== [DEPRECATED] sp_* 系列 - 请使用 gap_y() =====
-    'sp_0', 'sp_1', 'sp_2', 'sp_3', 'sp_4', 'sp_5', 'sp_6', 'sp_8', 'sp_10', 'sp_12', 'sp_16',
 ]
