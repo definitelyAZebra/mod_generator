@@ -212,7 +212,7 @@ def draw_project_editor(width: float, height: float) -> None:
     # -------------------------------------------------------------------------
     project_dir = os.path.dirname(project.file_path) if project.file_path else ""
 
-    with ly.panel("path_card", tw.ABYSS_850, padding=_CARD_PADDING, rounding=_CARD_ROUNDING):
+    with ly.panel("path_card", tw.ABYSS_900, padding=_CARD_PADDING, rounding=_CARD_ROUNDING):
         # 路径文本 - 只显示路径信息，不显示保存状态（无 dirty tracking）
         icon_style = tw.text_crystal_400 if project_dir else tw.text_parchment_600
         text_style = tw.text_parchment_300 if project_dir else tw.text_parchment_500

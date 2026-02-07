@@ -251,8 +251,8 @@ def _draw_project_header() -> None:
         padding_x=HEADER_PADDING_X,
         padding_y=HEADER_PADDING_Y,
         rounding=0,
-        bg_color=tw.ABYSS_850,           # 比父窗口深
-        selected_color=tw.ABYSS_650,     # 选中时变亮
+        bg_color=tw.ABYSS_900,           # 比父窗口深
+        selected_color=tw.ABYSS_600,     # 选中时变亮
         hover_color=tw.ABYSS_700,        # hover 次亮
     ) as state:
         # 使用 hstack 布局: 图标 + 文字
@@ -318,7 +318,7 @@ def _draw_section(
         f"section_{section_id}",
         padding_x=SECTION_PADDING_X,
         padding_y=SECTION_PADDING_Y,
-        hover_color=tw.ABYSS_650,
+        hover_color=tw.ABYSS_600,
         bg_color=None,  # 透明背景
     ) as row:
         # 左侧内容: chevron + icon + label + count
@@ -422,7 +422,7 @@ def _draw_item_list(
             rounding=0,
             bg_color=None,               # 透明 (父窗口背景是 ABYSS_700)
             selected_color=tw.ABYSS_600, # 选中最亮
-            hover_color=tw.ABYSS_650,    # hover 次亮
+            hover_color=tw.ABYSS_600,    # hover 次亮
         ) as state:
             # 物品名称 + 可选的类型标签
             display_name = item.localization.get_display_name()

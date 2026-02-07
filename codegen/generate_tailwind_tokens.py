@@ -162,42 +162,42 @@ COLORS = {
     # 详细设计理念请参阅: ui/theme.py
     # =========================================================================
 
-    # 深渊 (Abyss) - 带紫调的深黑背景
+    # 深渊 (Abyss) - 冷蓝紫中性暗色背景 (H≈248°, 低饱和度)
     "abyss": {
-        500: "#332f44", 600: "#262334", 650: "#201d2c", 700: "#1a1825",
-        800: "#12111a", 850: "#0e0d13", 900: "#0a0a0c", 950: "#060608",
+        50: "#f1f1f4", 100: "#e3e2e9", 200: "#cccad8", 300: "#a9a6bf",
+        400: "#7e78a0", 500: "#544f73", 600: "#36334d", 700: "#1e1c2b",
+        800: "#13121c", 900: "#0a0a10", 950: "#06060a",
     },
 
-    # 羊皮纸 (Parchment) - 温暖的米黄色 (文字)
+    # 羊皮纸 (Parchment) - 温暖米黄色文字 (H≈38°)
     "parchment": {
-        50: "#f5f0e6", 100: "#e8dfc9", 200: "#d4c4a8", 300: "#c4b393",
-        400: "#af9c7b", 500: "#998667", 600: "#806f54",
-        700: "#665842", 800: "#4b402f",
+        50: "#f4efe6", 100: "#e7ddca", 200: "#d7c6a8", 300: "#c9b38d",
+        400: "#b89e70", 500: "#a88a57", 600: "#8c734a", 700: "#6d5a3c",
+        800: "#4e412c", 900: "#332b1e", 950: "#201b13",
     },
 
-    # 金边 (Goldrim) - 暗黑2经典金色
+    # 金边 (Goldrim) - 暗黑2经典金色 (H≈42°, 高饱和度)
     "goldrim": {
-        50: "#fdf5e0", 100: "#f9e8bd", 200: "#efcf80",
-        300: "#daa520", 400: "#c9a227", 500: "#b8860b",
-        600: "#8b6914", 700: "#3d3426", 800: "#2a2419", 900: "#1a160e",
+        50: "#fdf8e8", 100: "#f9edc8", 200: "#efd690", 300: "#e0b952",
+        400: "#d1a22e", 500: "#aa842c", 600: "#856828", 700: "#624d22",
+        800: "#42341a", 900: "#2a2213", 950: "#18140c",
     },
 
-    # 紫水晶 (Crystal) - 主强调色 (中等饱和度灰紫, 暗黑2风格)
+    # 紫水晶 (Crystal) - 主强调色 (H≈260°, 冷饱和紫, 高饱和度)
     "crystal": {
-        50: "#f0ebf5", 100: "#ded1e6",
-        200: "#c8b4d4", 300: "#a890b8", 400: "#9070a0",
-        500: "#7a5c8a", 600: "#614874", 700: "#4a3858",
-        800: "#352942", 900: "#221a2c",
+        50: "#f5f2fd", 100: "#ebe5fb", 200: "#dcd0f6", 300: "#c6b3ef",
+        400: "#ae93e6", 500: "#9a79dd", 600: "#845cd1", 700: "#6e40c4",
+        800: "#5a359d", 900: "#4c2e7f", 950: "#2d1c4a",
     },
 
-    # 血红 (Blood) - 生命/危险
+    # 血红 (Blood) - 生命/危险 (H≈3°)
     "blood": {
-        50: "#fdecec", 100: "#f8d5d5", 200: "#ecaeae", 300: "#d67070",
-        400: "#b33939", 500: "#922b21", 600: "#7b241c",
-        700: "#5d1b15", 800: "#40130e", 900: "#280c09",
+        50: "#fdeded", 100: "#f9d2d2", 200: "#f3a7a5", 300: "#e76460",
+        400: "#c92821", 500: "#97221b", 600: "#801f19", 700: "#5d1913",
+        800: "#3e120e", 900: "#290d0a", 950: "#140705",
     },
 
-    # 岩石 - 中性深灰 (边框/分隔线), 使用 Tailwind 原生 stone
+    # 岩石 (Stone) - 中性暖灰, 使用 Tailwind 原生 stone
 }
 
 # Tailwind CSS v3.4.17 Official Spacing (in rem, converted to px at 16px base)
@@ -341,8 +341,9 @@ def generate_file() -> str:
         '语义别名:',
         '  • btn_primary = btn_crystal (紫水晶按钮)',
         '  • btn_secondary = btn_abyss (深渊按钮)',
-        '  • text_primary = text_crystal_400',
-        '  • text_muted = text_parchment_300',
+        '  • text_default / text_muted / text_subtle / text_faint (文字层级)',
+        '  • text_accent = text_crystal_400 (强调色)',
+        '  • bg_app / bg_surface / bg_elevated / bg_input (背景层级)',
         '',
         '详细设计理念和使用指南请参阅: ui/theme.py',
         '==============================================================================',
@@ -518,7 +519,7 @@ def generate_file() -> str:
 
     # Only generate frame_bg for commonly used dark colors (abyss, stone, slate dark shades)
     frame_bg_colors = [
-        ('abyss', [700, 800, 900]),
+        ('abyss', [600, 700, 800, 900]),
         ('stone', [800, 900, 950]),
         ('slate', [700, 800, 900, 950]),
         ('gray', [700, 800, 900, 950]),
@@ -799,27 +800,39 @@ def generate_file() -> str:
         '# Semantic Aliases',
         '# =============================================================================',
         '',
-        '# Text states (使用 stoneshard_asset_browser 配色)',
-        'text_muted = text_parchment_300',
+        '# --- Text Hierarchy (内容层级, 从亮到暗) ---',
+        '# text_bright  → 最亮, 选中/活跃状态',
+        '# text_default → 主阅读文字',
+        '# text_muted   → 次要内容, 标签',
+        '# text_subtle  → 图标, 提示, 占位符',
+        '# text_faint   → 最暗, 禁用/装饰',
+        'text_bright = text_parchment_50',
         'text_default = text_parchment_100',
+        'text_muted = text_parchment_300',
+        'text_subtle = text_parchment_500',
+        'text_faint = text_parchment_600',
         '',
-        '# Status text',
+        '# --- Accent Text (强调色文字) ---',
+        'text_accent = text_crystal_400',
+        'text_accent_muted = text_crystal_300',
+        'text_gold = text_goldrim_400',
+        '',
+        '# --- Status Text (语义状态) ---',
         'text_success = text_green_500',
         'text_warning = text_goldrim_400',
-        'text_danger = text_blood_500',
-        'text_error = text_blood_500',
+        'text_danger = text_blood_400',
+        'text_error = text_blood_400',
         'text_info = text_blue_500',
         '',
-        '# Status backgrounds',
+        '# --- Status Backgrounds ---',
         'bg_success = bg_green_600',
         'bg_warning = bg_goldrim_600',
         'bg_danger = bg_blood_600',
         'bg_error = bg_blood_600',
         'bg_info = bg_blue_600',
         '',
-        '# Primary/Secondary (使用主题色)',
-        'text_primary = text_crystal_400',
-        'text_secondary = text_parchment_300',
+        '# --- Primary/Secondary (主题色) ---',
+        '# primary = crystal (紫水晶), secondary = abyss (深渊)',
         'bg_primary = bg_crystal_600',
         'bg_secondary = bg_abyss_800',
         '',
@@ -840,10 +853,10 @@ def generate_file() -> str:
     lines.extend([
         '',
         '# =============================================================================',
-        '# Semantic Layer Tokens - 语义层级背景',
+        '# Semantic Layer Tokens - UI 层级系统',
         '# =============================================================================',
-        '# 用于 UI 层级系统，从深到浅:',
-        '#   bg_app (最底层) -> bg_surface (面板) -> bg_elevated (浮层) -> bg_overlay (遮罩)',
+        '# 从深到浅: bg_app → bg_surface → bg_elevated → bg_overlay',
+        '# 输入框: bg_input (略亮于 bg_elevated, 让控件可辨识)',
         '',
         '# 应用层 - 最深的背景，用于窗口底层',
         'bg_app = bg_abyss_900',
@@ -855,7 +868,7 @@ def generate_file() -> str:
         'bg_elevated = bg_abyss_700',
         '',
         '# 输入层 - 输入框、选择框的背景',
-        'bg_input = bg_abyss_650',
+        'bg_input = bg_abyss_600',
         '',
         '# 遮罩层 - 模态框背景遮罩',
         'bg_overlay = alpha(0.7) | bg_black',
@@ -895,7 +908,7 @@ def generate_file() -> str:
         'card_default = bg_abyss_800 | rounded_lg | p_3 | child_rounded_lg',
         '',
         '# 面板 - 用于侧边栏、工具栏等',
-        'panel_default = bg_abyss_850 | rounded_md | p_2',
+        'panel_default = bg_abyss_900 | rounded_md | p_2',
         '',
         '# 输入框 - 用于 input_text 等输入控件',
         'input_default = frame_bg_abyss_700 | rounded | border_stone_700 | frame_border_size(1)',
