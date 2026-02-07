@@ -61,7 +61,6 @@ from ui import imgui_shim as imgui
 
 from ui import tw, styles
 from ui import layout as ly
-from ui.styles import text_warning, text_error
 from ui.editors.common import draw_indented_separator
 from hybrid_item_v2 import HybridItemV2
 from specs import EffectTrigger
@@ -208,21 +207,21 @@ def _draw_validation_errors(errors: list[str]) -> None:
             if content.startswith("• WARNING:"):
                 imgui.text("  ")
                 imgui.same_line()
-                text_warning("!")
+                tw.text_warning(imgui.text)("!")
                 imgui.same_line()
-                text_warning(content[10:].strip())
-            elif content.startswith("•"):
+                tw.text_warning(imgui.text)(content[10:].strip())
+            elif content.startswith("\u2022"):
                 imgui.text("  ")
                 imgui.same_line()
-                text_error("X")
+                tw.text_error(imgui.text)("X")
                 imgui.same_line()
-                text_error(content[1:].strip())
+                tw.text_error(imgui.text)(content[1:].strip())
             else:
                 imgui.text("  ")
                 imgui.same_line()
-                text_error("X")
+                tw.text_error(imgui.text)("X")
                 imgui.same_line()
-                text_error(error)
+                tw.text_error(imgui.text)(error)
 
 
 def _should_show_attributes(hybrid: HybridItemV2) -> bool:

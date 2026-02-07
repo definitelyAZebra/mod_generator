@@ -14,8 +14,7 @@ import os
 from typing import Callable
 
 from ui import imgui_shim as imgui
-
-from ui.styles import text_error, text_secondary, text_success, text_warning
+from ui import tw
 
 
 # ==================== 模块级状态 ====================
@@ -65,7 +64,7 @@ def _draw_error_popup() -> None:
     imgui.set_next_window_size(450, 0, imgui.ONCE)
     if imgui.begin_popup_modal("错误", flags=imgui.WINDOW_ALWAYS_AUTO_RESIZE)[0]:
         imgui.dummy(0, 4)
-        text_error("[X] 发生错误")
+        tw.text_error(imgui.text)("[X] 发生错误")
         imgui.dummy(0, 8)
         imgui.text_wrapped(_error_msg or "发生未知错误")
         imgui.dummy(0, 12)
@@ -85,10 +84,10 @@ def _draw_success_popup() -> None:
         mod_dir = _success_dir or "."
 
         imgui.dummy(0, 8)
-        text_success("[OK] 模组生成成功！")
+        tw.text_success(imgui.text)("[OK] 模组生成成功！")
         imgui.dummy(0, 8)
 
-        text_secondary("输出目录:")
+        tw.text_muted(imgui.text)("输出目录:")
         imgui.text_wrapped(mod_dir)
 
         imgui.dummy(0, 16)
@@ -113,7 +112,7 @@ def _draw_save_popup() -> None:
     imgui.set_next_window_size(350, 0, imgui.ONCE)
     if imgui.begin_popup_modal("保存项目", flags=imgui.WINDOW_ALWAYS_AUTO_RESIZE)[0]:
         imgui.dummy(0, 4)
-        text_warning("[!] 需要保存项目")
+        tw.text_warning(imgui.text)("[!] 需要保存项目")
         imgui.dummy(0, 8)
         imgui.text("生成模组前需要先保存项目。")
         imgui.text("是否现在保存？")

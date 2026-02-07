@@ -29,8 +29,8 @@ from specs import (
     WeaponCharTexture, MultiPoseCharTexture, NoCharTexture,
     AnimatedSlot, StaticSlot, LootSlot, loot_speed_to_preview_fps,
 )
+from ui import tw
 from ui.layout import tooltip
-from ui.styles import text_secondary
 
 # 任何拥有 textures: ItemTexturesV2 属性的物品
 AnyItemWithTextures = Union[Weapon, Armor, HybridItemV2]
@@ -234,7 +234,7 @@ def _draw_pose_slot(
         imgui.text_colored("*", 1.0, 0.5, 0.5, 1.0)
     elif not is_enabled:
         imgui.same_line()
-        text_secondary("(禁用)")
+        tw.text_muted(imgui.text)("(禁用)")
 
     # 编辑按钮
     if is_enabled:
@@ -254,13 +254,13 @@ def _draw_pose_slot(
         requires = char.UI_ENABLE_REQUIRES.get(slot_name, ())
         missing = [r for r in requires if not getattr(char, r).has_texture()]
         if missing:
-            text_secondary(f"需先设置: {', '.join(missing)}")
+            tw.text_muted(imgui.text)(f"需先设置: {', '.join(missing)}")
 
     # 预览（使用 resolve 获取实际显示的贴图）
     resolved_slot, fallback_from = char.resolve(slot_name)
     if resolved_slot.has_texture():
         if fallback_from:
-            text_secondary(f"(使用 {_POSE_SLOTS.get(fallback_from, (fallback_from,))[0]})")
+            tw.text_muted(imgui.text)(f"(使用 {_POSE_SLOTS.get(fallback_from, (fallback_from,))[0]})")
         # 使用 fallback 时用自己的 origin，否则用 resolved 的 origin
         preview_origin = slot.origin if fallback_from else resolved_slot.origin
         texture_preview(
@@ -295,7 +295,7 @@ def draw_multi_pose_armor_textures(
     from ui.widgets import race_combo, tab_index
 
     imgui.text("穿戴状态贴图")
-    text_secondary("需要为站立和休息状态各准备贴图，女性版贴图可选")
+    tw.text_muted(imgui.text)("需要为站立和休息状态各准备贴图，女性版贴图可选")
 
     # 模特种族选择
     imgui.same_line()
@@ -386,7 +386,7 @@ def draw_textures_editor(
             )
 
         case NoCharTexture():
-            text_secondary(f"{item.slot} 槽位无需穿戴贴图")
+            tw.text_muted(imgui.text)(f"{item.slot} 槽位无需穿戴贴图")
 
     draw_indented_separator()
 

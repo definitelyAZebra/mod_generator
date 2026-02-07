@@ -15,9 +15,7 @@
 - menu.py: 主菜单
 
 [已废弃，保留向后兼容]:
-- style.py: 旧 Primer token 系统 → 使用 tw.py
-- sizing.py: 尺寸常量 → 已合并到 styles.py
-- theme.py: 主题 Mixin → 已合并到 styles.py
+- theme.py: 主题色板定义 → 将合并到 tw.py
 
 使用方式：
     from ui import tw
@@ -33,10 +31,8 @@ from typing import TYPE_CHECKING
 # 模块名 -> 导入路径
 _LAZY_MODULES = {
     'config': 'ui.config',
-    'style': 'ui.style',      # [已废弃] 保留向后兼容
     'styles': 'ui.styles',
     'tw': 'ui.tw',            # Tailwind-style tokens
-    'sizing': 'ui.sizing',    # [已废弃] 保留向后兼容
     'grid': 'ui.grid',
     'theme': 'ui.theme',      # [已废弃] 保留向后兼容
     'fonts': 'ui.fonts',
@@ -85,14 +81,6 @@ _LAZY_ATTRS = {
     'tooltip': ('ui.grid', 'tooltip'),
     # fonts
     'load_fonts': ('ui.fonts', 'load_fonts'),
-    # theme (从 styles.py 导入)
-    'text_secondary': ('ui.styles', 'text_secondary'),
-    'text_success': ('ui.styles', 'text_success'),
-    'text_warning': ('ui.styles', 'text_warning'),
-    'text_error': ('ui.styles', 'text_error'),
-    'text_accent': ('ui.styles', 'text_accent'),
-    'get_current_theme_colors': ('ui.styles', 'get_current_theme_colors'),
-    'apply_global_style': ('ui.styles', 'apply_global_style'),
     # texture_manager
     'load_texture': ('ui.texture_manager', 'load_texture'),
     'unload_all_textures': ('ui.texture_manager', 'unload_all_textures'),
@@ -148,10 +136,6 @@ if TYPE_CHECKING:
         input_l as input_l, input_xl as input_xl,
         grid_col as grid_col, grid_gap as grid_gap,
         gap_xs as gap_xs, gap_s as gap_s, gap_m as gap_m, gap_l as gap_l,
-        text_secondary as text_secondary, text_success as text_success,
-        text_warning as text_warning, text_error as text_error,
-        text_accent as text_accent, get_current_theme_colors as get_current_theme_colors,
-        apply_global_style as apply_global_style,
     )
     from ui.grid import GridLayout as GridLayout, item_width as item_width, tooltip as tooltip
     from ui.fonts import load_fonts as load_fonts
@@ -180,9 +164,6 @@ __all__ = [
     'GridLayout', 'item_width', 'tooltip',
     # fonts
     'load_fonts',
-    # theme (从 styles.py)
-    'text_secondary', 'text_success', 'text_warning',
-    'text_error', 'text_accent', 'get_current_theme_colors', 'apply_global_style',
     # texture_manager
     'load_texture', 'unload_all_textures', 'draw_checkerboard',
 ]

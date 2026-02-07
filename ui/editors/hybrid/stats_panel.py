@@ -29,10 +29,10 @@
 from __future__ import annotations
 
 from ui import imgui_shim as imgui
-
+from ui import tw
 from ui.layout import tooltip
 from ui.styles import (
-    gap_m, grid_gap, text_secondary,
+    gap_m, grid_gap,
     SPAN_INPUT, SPAN_BADGE,
 )
 import ui.styles as styles
@@ -61,9 +61,8 @@ from specs import (
 # 本地辅助
 # =============================================================================
 
-def _get_current_theme_colors() -> dict:
-    """获取当前主题颜色（兼容层）"""
-    return styles.get_current_theme_colors()
+# red-500 @ 20% — 用于删除按钮 hover
+_BADGE_HOVER_REMOVE = (0.9373, 0.2667, 0.2667, 0.2)
 
 
 # =============================================================================
@@ -126,8 +125,6 @@ def _render_attribute_grid(
     SPAN_ADD_BTN = SPAN_BADGE
     SPAN_LABEL = 4
 
-    theme_colors = _get_current_theme_colors()
-
     for idx, item in enumerate(display_list):
         key = item["key"]
         name = item.get("name", key)
@@ -148,7 +145,7 @@ def _render_attribute_grid(
         # === Column 2: Label ===
         label_w = styles.span(SPAN_LABEL)
         imgui.align_text_to_frame_padding()
-        text_secondary(name)
+        tw.text_muted(imgui.text)(name)
         text_w = imgui.calc_text_size(name).x
         if text_w < label_w:
             imgui.same_line(spacing=0)
@@ -187,8 +184,8 @@ def _render_attribute_grid(
         delete_w = styles.span(SPAN_BADGE)
         if not is_basic:
             imgui.push_style_color(imgui.COLOR_BUTTON, 0, 0, 0, 0)
-            imgui.push_style_color(imgui.COLOR_BUTTON_HOVERED, *theme_colors["badge_hover_remove"])
-            imgui.push_style_color(imgui.COLOR_BUTTON_ACTIVE, *theme_colors["badge_hover_remove"])
+            imgui.push_style_color(imgui.COLOR_BUTTON_HOVERED, *_BADGE_HOVER_REMOVE)
+            imgui.push_style_color(imgui.COLOR_BUTTON_ACTIVE, *_BADGE_HOVER_REMOVE)
             if imgui.button(f"×##del_{key}", delete_w, 0):
                 to_remove.append(key)
             imgui.pop_style_color(3)
@@ -238,7 +235,7 @@ def _draw_add_attribute_popup(
                 filtered.append((group, attr, name, desc))
 
         if not filtered:
-            text_secondary("无匹配属性")
+            tw.text_muted(imgui.text)("无匹配属性")
 
         last_group = None
         last_group_open = False
@@ -254,7 +251,7 @@ def _draw_add_attribute_popup(
                     group_visible = last_group_open
                 else:
                     imgui.dummy(0, 2)
-                    text_secondary(f"--- {group} ---")
+                    tw.text_muted(imgui.text)(f"--- {group} ---")
                     group_visible = True
                     last_group_open = False
                 last_group = group

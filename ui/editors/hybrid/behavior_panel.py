@@ -35,12 +35,12 @@
 from __future__ import annotations
 
 from ui import imgui_shim as imgui
+from ui import tw
 
 from ui.grid import GridLayout
 from ui.layout import tooltip, item_width
 from ui.styles import (
     gap_m, gap_s, grid_gap,
-    text_secondary, text_error as _text_error,
     SPAN_INPUT, SPAN_BADGE, GRID_DEBUG,
 )
 import ui.styles as styles
@@ -105,7 +105,7 @@ def draw_behavior_panel(hybrid: HybridItemV2) -> None:
     Args:
         hybrid: 混合物品数据对象
     """
-    grid = GridLayout(text_secondary)
+    grid = GridLayout(lambda t: tw.text_muted(imgui.text)(t))
 
     # ━━━ 形态行 ━━━
     _draw_equipment_section(grid, hybrid)
@@ -552,7 +552,7 @@ def _draw_fragments_popup(hybrid: HybridItemV2) -> None:
     if imgui.begin_popup("fragments_popup"):
         imgui.text("拆解碎片")
         imgui.separator()
-        text_secondary("拆解物品时可获得的材料碎片")
+        tw.text_muted(imgui.text)("拆解物品时可获得的材料碎片")
 
         frag_data = [
             ("cloth01", "布1"), ("cloth02", "布2"), ("cloth03", "布3"), ("cloth04", "布4"),
@@ -599,13 +599,13 @@ def _draw_generation_preview_popup(hybrid: HybridItemV2) -> None:
         imgui.separator()
 
         if spawn_is_excluded(hybrid.spawn):
-            text_secondary("物品已排除随机生成")
+            tw.text_muted(imgui.text)("物品已排除随机生成")
             imgui.text("不会出现在宝箱掉落、商店库存中")
         else:
             # 容器掉落
             imgui.text("容器掉落:")
             if hybrid.container_spawn == SpawnRuleType.NONE:
-                text_secondary("  关闭")
+                tw.text_muted(imgui.text)("  关闭")
             elif hybrid.container_spawn == SpawnRuleType.EQUIPMENT:
                 _draw_container_preview(hybrid, is_equipment=True)
             else:
@@ -616,7 +616,7 @@ def _draw_generation_preview_popup(hybrid: HybridItemV2) -> None:
             # 商店进货
             imgui.text("商店进货:")
             if hybrid.shop_spawn == SpawnRuleType.NONE:
-                text_secondary("  关闭")
+                tw.text_muted(imgui.text)("  关闭")
             else:
                 _draw_shop_preview(hybrid)
 
@@ -642,7 +642,7 @@ def _draw_container_preview(hybrid: HybridItemV2, is_equipment: bool) -> None:
                     eq_categories.append("armor")
 
         if not eq_categories:
-            text_secondary("  (无匹配)")
+            tw.text_muted(imgui.text)("  (无匹配)")
             return
 
         all_matches = []
@@ -651,7 +651,7 @@ def _draw_container_preview(hybrid: HybridItemV2, is_equipment: bool) -> None:
             all_matches.extend(matches)
 
         if not all_matches:
-            text_secondary("  (无匹配)")
+            tw.text_muted(imgui.text)("  (无匹配)")
             return
 
         names = list(dict.fromkeys(m["entry_name_cn"] for m in all_matches))
@@ -659,14 +659,14 @@ def _draw_container_preview(hybrid: HybridItemV2, is_equipment: bool) -> None:
         imgui.text_wrapped(f"  {display}")
     else:
         if not (hybrid.cat or hybrid.subcats):
-            text_secondary("  (请设置分类)")
+            tw.text_muted(imgui.text)("  (请设置分类)")
             return
 
         matches = find_matching_slots(
             hybrid.cat, tuple(hybrid.subcats), tags_tuple, hybrid.tier,
         )
         if not matches:
-            text_secondary("  (无匹配)")
+            tw.text_muted(imgui.text)("  (无匹配)")
             return
 
         names = list(dict.fromkeys(m["entry_name_cn"] for m in matches))
@@ -679,7 +679,7 @@ def _draw_shop_preview(hybrid: HybridItemV2) -> None:
 
     if hybrid.shop_spawn == SpawnRuleType.ITEM:
         if not (hybrid.cat or hybrid.subcats):
-            text_secondary("  (请设置分类)")
+            tw.text_muted(imgui.text)("  (请设置分类)")
             return
         item_cats = set([hybrid.cat] + list(hybrid.subcats))
         item_tags = set(hybrid.effective_tags.split()) if hybrid.effective_tags else set()
@@ -747,7 +747,7 @@ def _draw_shop_preview(hybrid: HybridItemV2) -> None:
                     matching.append(f"{town}·{name}" if town else name)
 
     if not matching:
-        text_secondary("  (无匹配)")
+        tw.text_muted(imgui.text)("  (无匹配)")
         return
 
     display = ", ".join(matching)

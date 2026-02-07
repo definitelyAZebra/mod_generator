@@ -51,7 +51,8 @@ from specs import Origin, AbsoluteFps, RelativeSpeed
 from ui.dialogs import file_dialog
 from ui.layout import tooltip
 from ui.state import dpi_scale
-from ui.styles import text_secondary, StyleContext
+from ui import tw
+from ui.styles import StyleContext
 
 if TYPE_CHECKING:
     from ui.canvas import InfiniteCanvas, CanvasOutput
@@ -153,8 +154,7 @@ def tab_index(
 
     # 获取 accent 颜色
     if accent_color is None:
-        from ui.styles import get_current_theme_colors
-        accent_color = get_current_theme_colors().get("accent")
+        accent_color = tw.CRYSTAL_500
 
     for i, label in enumerate(labels):
         if i > 0:
@@ -267,7 +267,7 @@ def animation_frame(
         if imgui.button(f"{pause_label}##{id_suffix}_pause"):
             state.paused = not state.paused
         imgui.same_line()
-        text_secondary(f"{state.frame + 1}/{count}")
+        tw.text_muted(imgui.text)(f"{state.frame + 1}/{count}")
 
     # 自动播放
     if not state.paused and fps > 0:
@@ -325,7 +325,7 @@ def single_texture_input(
 
         imgui.same_line()
         filename = os.path.basename(path)
-        text_secondary(filename)
+        tw.text_muted(imgui.text)(filename)
         if imgui.is_item_hovered():
             imgui.set_tooltip(path)
     else:
@@ -405,7 +405,7 @@ def loot_speed_input(
             f"  • 值为 1.0 时: 实际播放速度 = {GAME_FPS} × 1.0 = 40 fps\n\n"
             f"提示: 手持贴图默认相对帧率为 0.25 (即 {GAME_FPS // 4} fps)。\n最小值: 0.001"
         )
-        text_secondary(f"实际播放速度: {GAME_FPS * speed.multiplier:.3f} fps (游戏 {GAME_FPS} fps 时)")
+        tw.text_muted(imgui.text)(f"实际播放速度: {GAME_FPS * speed.multiplier:.3f} fps (游戏 {GAME_FPS} fps 时)")
 
     return speed
 
@@ -746,7 +746,7 @@ def frame_strip(
             state.paused = not state.paused
 
         imgui.same_line()
-        text_secondary(f"{fps:.0f}fps")
+        tw.text_muted(imgui.text)(f"{fps:.0f}fps")
 
         # 自动播放
         if not state.paused and fps > 0:

@@ -9,9 +9,8 @@ from enum import Enum
 from typing import Any
 
 from ui import imgui_shim as imgui
-
+from ui import tw
 from ui.styles import gap_l, gap_m, gap_s  # type: ignore
-from ui.styles import text_secondary, text_warning, text_error
 from ui.layout import tooltip
 
 from attribute_data import ATTRIBUTE_TRANSLATIONS, ATTRIBUTE_DESCRIPTIONS
@@ -154,21 +153,21 @@ def draw_validation_errors(errors: list[str]) -> None:
         if content.startswith("• WARNING:"):
             imgui.text("  ")
             imgui.same_line()
-            text_warning("!")
+            tw.text_warning(imgui.text)("!")
             imgui.same_line()
-            text_warning(content[10:].strip())
-        elif content.startswith("•"):
+            tw.text_warning(imgui.text)(content[10:].strip())
+        elif content.startswith("\u2022"):
             imgui.text("  ")
             imgui.same_line()
-            text_error("X")
+            tw.text_error(imgui.text)("X")
             imgui.same_line()
-            text_error(content[1:].strip())
+            tw.text_error(imgui.text)(content[1:].strip())
         else:
             imgui.text("  ")
             imgui.same_line()
-            text_error("X")
+            tw.text_error(imgui.text)("X")
             imgui.same_line()
-            text_error(error)
+            tw.text_error(imgui.text)(error)
 
 
 # =============================================================================
@@ -185,7 +184,7 @@ def draw_basic_properties(
     # 系统ID - 占满宽度
     imgui.text(f"{type_name}系统ID")
     imgui.same_line()
-    text_secondary(f"(生成ID: {item.id})")
+    tw.text_muted(imgui.text)(f"(生成ID: {item.id})")
     imgui.push_item_width(-1)
     changed, item.name = imgui.input_text(f"##{id_suffix}_sysid", item.name, 256)
     imgui.pop_item_width()
@@ -435,7 +434,7 @@ def draw_localization_editor(
 
     # 主语言
     primary_label = LANGUAGE_LABELS.get(PRIMARY_LANGUAGE, PRIMARY_LANGUAGE)
-    text_secondary(f"{primary_label} (主语言)")
+    tw.text_muted(imgui.text)(f"{primary_label} (主语言)")
 
     if not item.localization.has_language(PRIMARY_LANGUAGE):
         item.localization.languages[PRIMARY_LANGUAGE] = {
@@ -445,7 +444,7 @@ def draw_localization_editor(
 
     primary_data = item.localization.languages[PRIMARY_LANGUAGE]
 
-    text_secondary("名称")
+    tw.text_muted(imgui.text)("名称")
     imgui.push_item_width(-1)
     changed, val = imgui.input_text(
         f"##{PRIMARY_LANGUAGE}_name{suffix}", primary_data["name"], 256
@@ -456,7 +455,7 @@ def draw_localization_editor(
         imgui.set_tooltip("主语言名称（建议填写）")
     imgui.pop_item_width()
 
-    text_secondary("描述")
+    tw.text_muted(imgui.text)("描述")
     imgui.push_item_width(-1)
     desc_height = 50 + (font_size - 14) * 3
     changed, val = imgui.input_text_multiline(
@@ -483,19 +482,19 @@ def draw_localization_editor(
         imgui.separator()
         imgui.dummy(0, gap_s())
         label = LANGUAGE_LABELS.get(lang, lang)
-        text_secondary(f"{label}")
+        tw.text_muted(imgui.text)(f"{label}")
         imgui.same_line()
         if imgui.button(f"删除##{lang}{suffix}"):
             langs_to_remove.append(lang)
 
-        text_secondary("名称")
+        tw.text_muted(imgui.text)("名称")
         imgui.push_item_width(-1)
         changed, val = imgui.input_text(f"##{lang}_name{suffix}", data["name"], 256)
         if changed:
             data["name"] = val
         imgui.pop_item_width()
 
-        text_secondary("描述")
+        tw.text_muted(imgui.text)("描述")
         imgui.push_item_width(-1)
         desc_height = 50 + (font_size - 14) * 3
         changed, val = imgui.input_text_multiline(

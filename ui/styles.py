@@ -1014,90 +1014,6 @@ def scaled(px: float) -> float:
 
 
 # =============================================================================
-# 语义化文字绘制函数
-# ⚠️ DEPRECATED: 请使用 tw.text_* tokens 代替
-#   text_secondary -> with tw.text_muted: imgui.text(...)
-#   text_success   -> with tw.text_success: imgui.text(...)
-#   text_error     -> with tw.text_danger: imgui.text(...)
-# =============================================================================
-
-# 语义颜色定义 (使用 Tailwind 色板)
-_SEMANTIC_COLORS: dict[str, RGBA] = {
-    "secondary": (0.3922, 0.4549, 0.5451, 1.0),  # slate-500
-    "muted": (0.3922, 0.4549, 0.5451, 1.0),      # slate-500
-    "success": (0.1333, 0.7725, 0.3686, 1.0),    # green-500
-    "warning": (0.9804, 0.5490, 0.0235, 1.0),    # amber-500
-    "error": (0.9373, 0.2667, 0.2667, 1.0),      # red-500
-    "danger": (0.9373, 0.2667, 0.2667, 1.0),     # red-500
-    "accent": (0.2314, 0.5098, 0.9647, 1.0),     # blue-500
-    "info": (0.2314, 0.5098, 0.9647, 1.0),       # blue-500
-}
-
-
-def text_secondary(text: str) -> None:
-    """[DEPRECATED] 请使用 with tw.text_muted: imgui.text(...)"""
-    imgui.text_colored(text, *_SEMANTIC_COLORS["secondary"])
-
-
-def text_muted(text: str) -> None:
-    """[DEPRECATED] 请使用 with tw.text_muted: imgui.text(...)"""
-    imgui.text_colored(text, *_SEMANTIC_COLORS["muted"])
-
-
-def text_success(text: str) -> None:
-    """[DEPRECATED] 请使用 with tw.text_success: imgui.text(...)"""
-    imgui.text_colored(text, *_SEMANTIC_COLORS["success"])
-
-
-def text_warning(text: str) -> None:
-    """[DEPRECATED] 请使用 with tw.text_warning: imgui.text(...)"""
-    imgui.text_colored(text, *_SEMANTIC_COLORS["warning"])
-
-
-def text_error(text: str) -> None:
-    """[DEPRECATED] 请使用 with tw.text_danger: imgui.text(...)"""
-    imgui.text_colored(text, *_SEMANTIC_COLORS["error"])
-
-
-def text_danger(text: str) -> None:
-    """[DEPRECATED] 请使用 with tw.text_danger: imgui.text(...)"""
-    imgui.text_colored(text, *_SEMANTIC_COLORS["danger"])
-
-
-def text_accent(text: str) -> None:
-    """[DEPRECATED] 请使用 with tw.text_primary: imgui.text(...)"""
-    imgui.text_colored(text, *_SEMANTIC_COLORS["accent"])
-
-
-def text_info(text: str) -> None:
-    """[DEPRECATED] 请使用 with tw.text_info: imgui.text(...)"""
-    imgui.text_colored(text, *_SEMANTIC_COLORS["info"])
-
-
-def get_semantic_color(name: str) -> RGBA:
-    """[DEPRECATED] 请使用 tw.py 中的颜色常量"""
-    return _SEMANTIC_COLORS.get(name, (1.0, 1.0, 1.0, 1.0))
-
-
-def get_current_theme_colors() -> dict[str, RGBA]:
-    """[DEPRECATED] 请使用 tw.py 中的颜色 tokens"""
-    return {
-        "text_secondary": _SEMANTIC_COLORS["secondary"],
-        "success": _SEMANTIC_COLORS["success"],
-        "warning": _SEMANTIC_COLORS["warning"],
-        "error": _SEMANTIC_COLORS["error"],
-        "accent": _SEMANTIC_COLORS["accent"],
-        # Badge 颜色 (简化版)
-        "badge_subcat": (0.2314, 0.5098, 0.9647, 0.2),   # blue-500 @ 20%
-        "badge_tag": (0.1333, 0.7725, 0.3686, 0.2),      # green-500 @ 20%
-        "badge_quality": (0.9804, 0.5490, 0.0235, 0.2),  # amber-500 @ 20%
-        "badge_special": (0.9804, 0.2941, 0.0824, 0.2),  # orange-600 @ 20%
-        "badge_hover_remove": (0.9373, 0.2667, 0.2667, 0.2),  # red-500 @ 20%
-        "badge_hover_locked": (0.3922, 0.4549, 0.5451, 0.2),  # slate-500 @ 20%
-    }
-
-
-# =============================================================================
 # 尺寸系统 (旧版 Grid 系统)
 # ⚠️ DEPRECATED: 请使用 ly.sz() / Tailwind 单位系统代替
 #   em(4)    -> ly.sz(4) 或直接使用 Tailwind 单位
@@ -1291,10 +1207,3 @@ def apply_preflight() -> None:
     c[imgui.COLOR_NAV_WINDOWING_HIGHLIGHT] = (1.0, 1.0, 1.0, 0.7)
     c[imgui.COLOR_NAV_WINDOWING_DIM_BACKGROUND] = (0.0, 0.0, 0.0, 0.2)
     c[imgui.COLOR_MODAL_WINDOW_DIM_BACKGROUND] = (0.0, 0.0, 0.0, 0.35)
-
-
-# 向后兼容别名
-def apply_global_style() -> None:
-    """[已废弃] 使用 apply_preflight() 代替"""
-    apply_preflight()
-
