@@ -5,8 +5,6 @@
 使用 Tailwind 风格的 tw/layout helpers 设计。
 """
 
-from typing import TYPE_CHECKING, Any
-
 from ui import imgui_shim as imgui
 
 from ui import config
@@ -18,14 +16,6 @@ from ui.icons import (
     FA_FILE, FA_FOLDER_OPEN, FA_FLOPPY_DISK,
     FA_DOWNLOAD
 )
-
-if TYPE_CHECKING:
-    from ui.protocols import GUIProtocol
-
-
-class MenuMixin:
-    """主菜单 Mixin"""
-    window: Any
 
 
 # =============================================================================
@@ -227,7 +217,7 @@ def _draw_generate_button() -> None:
     """
     with tw.btn_crystal | tw.rounded_sm:
         if imgui.button(f"{FA_DOWNLOAD} 生成模组"):
-            from mod_generator import generate_mod_with_validation
+            from generation import generate_mod_with_validation
             generate_mod_with_validation(ui_state.project)
     if imgui.is_item_hovered():
         imgui.set_tooltip("生成 Mod 文件到输出目录")

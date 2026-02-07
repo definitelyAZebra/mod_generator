@@ -4,7 +4,7 @@
 使用惰性加载优化启动性能。子模块在首次访问时才导入。
 
 模块结构：
-- styles.py: 核心样式系统 (StyleContext, 颜色/尺寸函数, ThemeMixin)
+- styles.py: 核心样式系统 (StyleContext, 颜色/尺寸函数)
 - tw.py: Tailwind-style tokens (bg_slate_800, text_white, p_4, ...)
 - config.py: 全局配置状态 (get_font_scale, ...)
 - grid.py: 布局工具 (GridLayout, item_width, tooltip)
@@ -12,8 +12,7 @@
 - texture_manager.py: 贴图加载与缓存
 - dialogs.py: 对话框模块函数
 - popups.py: 弹窗服务
-- menu.py: 主菜单 (MenuMixin)
-- protocols.py: 类型协议 (GUIProtocol)
+- menu.py: 主菜单
 
 [已废弃，保留向后兼容]:
 - style.py: 旧 Primer token 系统 → 使用 tw.py
@@ -87,7 +86,6 @@ _LAZY_ATTRS = {
     # fonts
     'load_fonts': ('ui.fonts', 'load_fonts'),
     # theme (从 styles.py 导入)
-    'ThemeMixin': ('ui.styles', 'ThemeMixin'),
     'text_secondary': ('ui.styles', 'text_secondary'),
     'text_success': ('ui.styles', 'text_success'),
     'text_warning': ('ui.styles', 'text_warning'),
@@ -95,8 +93,6 @@ _LAZY_ATTRS = {
     'text_accent': ('ui.styles', 'text_accent'),
     'get_current_theme_colors': ('ui.styles', 'get_current_theme_colors'),
     'apply_global_style': ('ui.styles', 'apply_global_style'),
-    # menu
-    'MenuMixin': ('ui.menu', 'MenuMixin'),
     # texture_manager
     'load_texture': ('ui.texture_manager', 'load_texture'),
     'unload_all_textures': ('ui.texture_manager', 'unload_all_textures'),
@@ -139,7 +135,6 @@ def __dir__():
 
 # 类型协议（仅用于类型检查，不影响运行时）
 if TYPE_CHECKING:
-    from ui.protocols import GUIProtocol
     from ui import config as config
     from ui import styles as styles
     from ui.styles import (
@@ -153,7 +148,6 @@ if TYPE_CHECKING:
         input_l as input_l, input_xl as input_xl,
         grid_col as grid_col, grid_gap as grid_gap,
         gap_xs as gap_xs, gap_s as gap_s, gap_m as gap_m, gap_l as gap_l,
-        ThemeMixin as ThemeMixin,
         text_secondary as text_secondary, text_success as text_success,
         text_warning as text_warning, text_error as text_error,
         text_accent as text_accent, get_current_theme_colors as get_current_theme_colors,
@@ -166,7 +160,6 @@ if TYPE_CHECKING:
         unload_all_textures as unload_all_textures,
         draw_checkerboard as draw_checkerboard,
     )
-    from ui.menu import MenuMixin as MenuMixin
 
 
 __all__ = [
@@ -188,10 +181,8 @@ __all__ = [
     # fonts
     'load_fonts',
     # theme (从 styles.py)
-    'ThemeMixin', 'text_secondary', 'text_success', 'text_warning',
+    'text_secondary', 'text_success', 'text_warning',
     'text_error', 'text_accent', 'get_current_theme_colors', 'apply_global_style',
-    # Mixins
-    'MenuMixin',
     # texture_manager
     'load_texture', 'unload_all_textures', 'draw_checkerboard',
 ]

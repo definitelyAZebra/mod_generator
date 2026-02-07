@@ -1298,32 +1298,3 @@ def apply_global_style() -> None:
     """[已废弃] 使用 apply_preflight() 代替"""
     apply_preflight()
 
-
-# =============================================================================
-# ThemeMixin (向后兼容)
-# ⚠️ DEPRECATED: 请使用 tw.py tokens 代替
-# =============================================================================
-
-class ThemeMixin:
-    """[DEPRECATED] 主题管理 Mixin - 请使用 tw.py tokens 代替"""
-
-    @property
-    def theme_colors(self) -> dict[str, RGBA]:
-        """获取当前主题颜色（向后兼容）"""
-        return get_current_theme_colors()
-
-    # 便捷方法
-    def text_secondary(self, text: str) -> None:
-        text_secondary(text)
-
-    def text_success(self, text: str) -> None:
-        text_success(text)
-
-    def text_warning(self, text: str) -> None:
-        text_warning(text)
-
-    def text_error(self, text: str) -> None:
-        text_error(text)
-
-    def text_accent(self, text: str) -> None:
-        text_accent(text)
