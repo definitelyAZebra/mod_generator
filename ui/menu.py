@@ -11,7 +11,6 @@ from ui import config
 from ui.state import state as ui_state, dpi_scale
 from ui import tw
 from ui import layout as ly
-from ui import styles
 from ui.icons import (
     FA_FILE, FA_FOLDER_OPEN, FA_FLOPPY_DISK,
     FA_DOWNLOAD
@@ -75,7 +74,7 @@ def draw_main_menu() -> None:
     toolbar_style = (
         tw.bg_abyss_900 |
         tw.px_2 | tw.py_1 |  # WindowPadding - 工具栏容器内边距
-        styles.border_size(0)
+        tw.border_size(0)
     )
 
     with toolbar_style:
@@ -192,7 +191,7 @@ def _draw_file_buttons() -> None:
     # 保存
     imgui.same_line()
     has_path = bool(ui_state.project and ui_state.project.file_path)
-    save_style = btn_style if has_path else btn_style | styles.alpha(0.4)
+    save_style = btn_style if has_path else btn_style | tw.alpha(0.4)
     with save_style:
         if imgui.button(f"{FA_FLOPPY_DISK} 保存") and has_path:
             ui_state.project.save()

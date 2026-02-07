@@ -1331,12 +1331,13 @@ def icon_btn(
             add_weapon()
     """
     from ui import styles as _styles
+    from ui import tw as _tw
 
     btn_size = sz(size)
     clicked = False
 
     # 应用样式
-    ctx = style if style else _styles.noop()
+    ctx = style if style else _tw.noop
     if disabled:
         ctx = ctx | _styles.disabled()
 

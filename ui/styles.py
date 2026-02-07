@@ -3,23 +3,23 @@
 
 提供 Tailwind 风格的样式系统：
 - StyleContext 类支持 `|` 运算符组合
-- 底层构建函数供 token 生成器使用
+- 底层构建函数供 tw.py token 生成器使用
 - 便捷工具 (push_id, disabled_if, group 等)
 
 使用方式:
     from ui import tw
 
     # 组合样式 (像 Tailwind 一样)
-    with tw.bg_slate_800 | tw.text_white | tw.p_4 | tw.rounded_lg:
+    with tw.bg_abyss_800 | tw.text_parchment_100 | tw.p_4 | tw.rounded_lg:
         imgui.text("Hello, Tailwind!")
 
     # 多个样式组合
-    card_style = tw.bg_gray_800 | tw.rounded_xl | tw.p_6
+    card_style = tw.bg_abyss_700 | tw.rounded_xl | tw.p_6
     with card_style:
         imgui.text("Card content")
 
     # 条件样式
-    with tw.text_green_500 if is_valid else tw.text_red_500:
+    with tw.text_crystal_400 if is_valid else tw.text_blood_500:
         imgui.text(status)
 
 设计原则:
@@ -27,6 +27,8 @@
     2. 预构建 - 所有 tokens 都是预构建的 StyleContext 常量
     3. 组合式 - 用 `|` 组合，不需要函数调用
     4. Agent 友好 - 命名遵循 Tailwind 惯例
+
+⚠️ 本文件是底层基础设施。UI 代码应使用 tw.* tokens，不要直接调用这里的构建函数。
 """
 
 from __future__ import annotations
@@ -57,31 +59,33 @@ AGENT_GUIDE = """
 ║                                                                              ║
 ║  IMPORT:                                                                     ║
 ║    from ui import tw                                                         ║
+║    from ui import layout as ly                                               ║
 ║                                                                              ║
 ║  USAGE (like Tailwind CSS):                                                  ║
-║    with tw.bg_slate_800 | tw.text_white | tw.p_4 | tw.rounded_lg:           ║
+║    with tw.bg_abyss_800 | tw.text_parchment_100 | tw.p_4 | tw.rounded_lg:   ║
 ║        imgui.text("Hello!")                                                  ║
 ║                                                                              ║
-║  COLORS (22 palettes × 11 shades: 50,100,200,...,900,950):                  ║
-║    Text:   tw.text_gray_500, tw.text_blue_600, tw.text_red_500, ...         ║
-║    BG:     tw.bg_slate_800, tw.bg_white, tw.bg_black, ...                   ║
-║    Border: tw.border_gray_700, tw.border_blue_500, ...                      ║
+║  THEME COLORS (暗黑2 + 紫水晶风格):                                         ║
+║    Crystal  紫水晶: tw.text_crystal_*, tw.btn_crystal  (主强调)              ║
+║    Abyss    深渊:   tw.bg_abyss_*                      (深色背景)            ║
+║    Parchment羊皮纸: tw.text_parchment_*                (文字色)              ║
+║    Blood    血红:   tw.text_blood_*, tw.btn_danger      (危险/错误)           ║
+║    Goldrim  金边:   tw.text_goldrim_*                   (次强调/警告)         ║
+║    Stone    岩石:   tw.border_stone_*                   (边框/分隔)           ║
 ║                                                                              ║
-║    Palettes: slate, gray, zinc, neutral, stone,                             ║
-║              red, orange, amber, yellow, lime, green, emerald, teal,        ║
-║              cyan, sky, blue, indigo, violet, purple, fuchsia, pink, rose   ║
+║  SEMANTIC:                                                                   ║
+║    tw.btn_primary (= btn_crystal), tw.btn_secondary (= btn_abyss)           ║
+║    tw.btn_danger, tw.btn_success, tw.btn_warning                             ║
+║    tw.text_muted (= text_parchment_300)                                      ║
 ║                                                                              ║
-║  SPACING (padding):                                                          ║
-║    tw.p_0, tw.p_1, tw.p_2, tw.p_4, tw.p_6, tw.p_8, ...                      ║
-║    (p_1 = 4px, p_2 = 8px, p_4 = 16px, p_8 = 32px)                           ║
+║  SPACING / RADIUS / SIZE:                                                    ║
+║    tw.p_0..p_16 (padding), tw.rounded_sm..rounded_full                       ║
+║    tw.btn_xs..btn_xl (按钮尺寸), tw.w_*..tw.h_* (宽高)                       ║
 ║                                                                              ║
-║  BORDER RADIUS:                                                              ║
-║    tw.rounded_none, tw.rounded_sm, tw.rounded, tw.rounded_md,               ║
-║    tw.rounded_lg, tw.rounded_xl, tw.rounded_2xl, tw.rounded_full            ║
-║                                                                              ║
-║  SEMANTIC (convenience aliases):                                             ║
-║    tw.text_muted, tw.text_success, tw.text_danger, tw.text_warning          ║
-║    tw.bg_success, tw.bg_danger, tw.bg_warning, tw.bg_info                   ║
+║  LAYOUT:                                                                     ║
+║    ly.gap_y(n), ly.hstack(gap=N), ly.vstack(gap=N)                           ║
+║    ly.columns(N), ly.grid(cols=N), ly.form_row(label)                        ║
+║    ly.scroll_y(height=N), ly.split_h(ratio), ly.sz(n)                        ║
 ║                                                                              ║
 ║  COMBINING:                                                                  ║
 ║    style1 | style2 | style3    # Combine multiple styles                    ║

@@ -33,7 +33,6 @@ from ui import imgui_shim as imgui
 from ui.state import state as ui_state, dpi_scale
 from ui import layout as ly
 from ui import tw
-from ui import styles
 from ui.icons import (
     FA_PLUS, FA_TRASH, FA_COPY, FA_GEM,
     FA_SWORD, FA_SHIELD, FA_FLASK,
@@ -349,7 +348,7 @@ def _draw_section(
 
         # 右侧添加按钮 - 使用 row.right 自动右对齐
         with row.right:
-            btn_style = styles.btn_ghost(tw.ABYSS_600, tw.ABYSS_500) | tw.text_crystal_400
+            btn_style = tw.button_colors(tw.TRANSPARENT, tw.ABYSS_600, tw.ABYSS_500) | tw.text_crystal_400
             if ly.icon_btn(
                 FA_PLUS, f"{section_id}_add",
                 size=TOOLBAR_BTN_SIZE,
