@@ -10,7 +10,7 @@ from typing import Any
 
 from ui import imgui_shim as imgui
 from ui import tw
-from ui.styles import gap_l, gap_m, gap_s  # type: ignore
+from ui import layout as ly
 from ui.layout import tooltip
 
 from attribute_data import ATTRIBUTE_TRANSLATIONS, ATTRIBUTE_DESCRIPTIONS
@@ -299,12 +299,12 @@ def draw_basic_properties(
     item.fireproof = draw_inline_checkbox(
         f"防火##{id_suffix}", item.fireproof, "未被拾取时是否会被火焰摧毁"
     )
-    imgui.same_line(spacing=gap_l())
+    imgui.same_line(spacing=ly.sz(5.25))
     item.no_drop = draw_inline_checkbox(
         f"不可掉落##{id_suffix}", item.no_drop, "可能无法从宝箱中获取"
     )
     if isinstance(item, Armor):
-        imgui.same_line(spacing=gap_l())
+        imgui.same_line(spacing=ly.sz(5.25))
         item.is_open = draw_inline_checkbox(
             f"开放式##{id_suffix}",
             item.is_open,
@@ -430,7 +430,7 @@ def draw_localization_editor(
                     }
         imgui.end_popup()
 
-    imgui.dummy(0, gap_s())
+    ly.gap_y(2)
 
     # 主语言
     primary_label = LANGUAGE_LABELS.get(PRIMARY_LANGUAGE, PRIMARY_LANGUAGE)
@@ -467,7 +467,7 @@ def draw_localization_editor(
     if changed:
         primary_data["description"] = val
     imgui.pop_item_width()
-    imgui.dummy(0, gap_m())
+    ly.gap_y(3.5)
 
     # 其他语言
     langs_to_remove = []
@@ -480,7 +480,7 @@ def draw_localization_editor(
         data = item.localization.languages[lang]
 
         imgui.separator()
-        imgui.dummy(0, gap_s())
+        ly.gap_y(2)
         label = LANGUAGE_LABELS.get(lang, lang)
         tw.text_muted(imgui.text)(f"{label}")
         imgui.same_line()
@@ -503,7 +503,7 @@ def draw_localization_editor(
         if changed:
             data["description"] = val
         imgui.pop_item_width()
-        imgui.dummy(0, gap_s())
+        ly.gap_y(2)
 
     for lang in langs_to_remove:
         del item.localization.languages[lang]

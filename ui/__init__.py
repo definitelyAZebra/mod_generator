@@ -7,7 +7,6 @@
 - styles.py: 核心样式系统 (StyleContext, 颜色/尺寸函数)
 - tw.py: Tailwind-style tokens (bg_slate_800, text_white, p_4, ...)
 - config.py: 全局配置状态 (get_font_scale, ...)
-- grid.py: 布局工具 (GridLayout, item_width, tooltip)
 - fonts.py: 字体管理 (load_fonts, 字体路径常量)
 - texture_manager.py: 贴图加载与缓存
 - dialogs.py: 对话框模块函数
@@ -33,7 +32,6 @@ _LAZY_MODULES = {
     'config': 'ui.config',
     'styles': 'ui.styles',
     'tw': 'ui.tw',            # Tailwind-style tokens
-    'grid': 'ui.grid',
     'theme': 'ui.theme',      # [已废弃] 保留向后兼容
     'fonts': 'ui.fonts',
     'texture_manager': 'ui.texture_manager',
@@ -46,39 +44,6 @@ _LAZY_MODULES = {
 # 属性名 -> (模块路径, 属性名)
 # 现在从 styles.py 导入 sizing 和 theme 相关内容
 _LAZY_ATTRS = {
-    # sizing 常量和函数 (从 styles.py 导入)
-    'em': ('ui.styles', 'em'),
-    'span': ('ui.styles', 'span'),
-    'INPUT_XS': ('ui.styles', 'INPUT_XS'),
-    'INPUT_S': ('ui.styles', 'INPUT_S'),
-    'INPUT_M': ('ui.styles', 'INPUT_M'),
-    'INPUT_L': ('ui.styles', 'INPUT_L'),
-    'INPUT_XL': ('ui.styles', 'INPUT_XL'),
-    'GRID_COL': ('ui.styles', 'GRID_COL'),
-    'GRID_GAP': ('ui.styles', 'GRID_GAP'),
-    'GRID_DEBUG': ('ui.styles', 'GRID_DEBUG'),
-    'SPAN_INPUT': ('ui.styles', 'SPAN_INPUT'),
-    'SPAN_BADGE': ('ui.styles', 'SPAN_BADGE'),
-    'SPAN_ID': ('ui.styles', 'SPAN_ID'),
-    'GAP_XS': ('ui.styles', 'GAP_XS'),
-    'GAP_S': ('ui.styles', 'GAP_S'),
-    'GAP_M': ('ui.styles', 'GAP_M'),
-    'GAP_L': ('ui.styles', 'GAP_L'),
-    'input_xs': ('ui.styles', 'input_xs'),
-    'input_s': ('ui.styles', 'input_s'),
-    'input_m': ('ui.styles', 'input_m'),
-    'input_l': ('ui.styles', 'input_l'),
-    'input_xl': ('ui.styles', 'input_xl'),
-    'grid_col': ('ui.styles', 'grid_col'),
-    'grid_gap': ('ui.styles', 'grid_gap'),
-    'gap_xs': ('ui.styles', 'gap_xs'),
-    'gap_s': ('ui.styles', 'gap_s'),
-    'gap_m': ('ui.styles', 'gap_m'),
-    'gap_l': ('ui.styles', 'gap_l'),
-    # grid
-    'GridLayout': ('ui.grid', 'GridLayout'),
-    'item_width': ('ui.grid', 'item_width'),
-    'tooltip': ('ui.grid', 'tooltip'),
     # fonts
     'load_fonts': ('ui.fonts', 'load_fonts'),
     # texture_manager
@@ -125,19 +90,6 @@ def __dir__():
 if TYPE_CHECKING:
     from ui import config as config
     from ui import styles as styles
-    from ui.styles import (
-        em as em, span as span,
-        INPUT_XS as INPUT_XS, INPUT_S as INPUT_S, INPUT_M as INPUT_M,
-        INPUT_L as INPUT_L, INPUT_XL as INPUT_XL,
-        GRID_COL as GRID_COL, GRID_GAP as GRID_GAP, GRID_DEBUG as GRID_DEBUG,
-        SPAN_INPUT as SPAN_INPUT, SPAN_BADGE as SPAN_BADGE, SPAN_ID as SPAN_ID,
-        GAP_XS as GAP_XS, GAP_S as GAP_S, GAP_M as GAP_M, GAP_L as GAP_L,
-        input_xs as input_xs, input_s as input_s, input_m as input_m,
-        input_l as input_l, input_xl as input_xl,
-        grid_col as grid_col, grid_gap as grid_gap,
-        gap_xs as gap_xs, gap_s as gap_s, gap_m as gap_m, gap_l as gap_l,
-    )
-    from ui.grid import GridLayout as GridLayout, item_width as item_width, tooltip as tooltip
     from ui.fonts import load_fonts as load_fonts
     from ui.texture_manager import (
         load_texture as load_texture,
@@ -148,20 +100,8 @@ if TYPE_CHECKING:
 
 __all__ = [
     # 子模块
-    'config', 'styles', 'tw', 'grid', 'fonts',
+    'config', 'styles', 'tw', 'fonts',
     'texture_manager', 'menu', 'popups', 'dialogs',
-    # sizing 常量
-    'INPUT_XS', 'INPUT_S', 'INPUT_M', 'INPUT_L', 'INPUT_XL',
-    'GRID_COL', 'GRID_GAP', 'GRID_DEBUG',
-    'SPAN_INPUT', 'SPAN_BADGE', 'SPAN_ID',
-    'GAP_XS', 'GAP_S', 'GAP_M', 'GAP_L',
-    # sizing 函数
-    'em', 'span',
-    'input_xs', 'input_s', 'input_m', 'input_l', 'input_xl',
-    'grid_col', 'grid_gap',
-    'gap_xs', 'gap_s', 'gap_m', 'gap_l',
-    # grid
-    'GridLayout', 'item_width', 'tooltip',
     # fonts
     'load_fonts',
     # texture_manager

@@ -314,6 +314,25 @@ def same_line(gap: float = 0) -> None:
 
 
 # =============================================================================
+# 便利函数 (从旧版 grid.py 迁入)
+# =============================================================================
+
+@contextmanager
+def item_width(width: float):
+    """上下文管理器：自动 push/pop item width"""
+    imgui.push_item_width(width)
+    try:
+        yield
+    finally:
+        imgui.pop_item_width()
+
+
+def tooltip(text: str):
+    """在前一个控件悬停时显示提示，简化 is_item_hovered + set_tooltip 模式"""
+    if text and imgui.is_item_hovered():
+        imgui.set_tooltip(text)
+
+# =============================================================================
 # 按钮 Helper
 # =============================================================================
 
@@ -2506,32 +2525,6 @@ def columns(num_cols: int = 2, gap: float = 4, widths: list[float] | None = None
         yield ctx
 
 
-# =============================================================================
-# 旧版 Grid 系统 (向后兼容)
-# ⚠️ DEPRECATED: 以下内容将在未来版本移除，请使用 tw/styles 系统
-# =============================================================================
-
-# [DEPRECATED] 从 styles 导出尺寸常量和函数
-from ui.styles import (
-    # 常量
-    INPUT_XS, INPUT_S, INPUT_M, INPUT_L, INPUT_XL,
-    GRID_COL, GRID_GAP, GRID_DEBUG,
-    SPAN_INPUT, SPAN_BADGE, SPAN_ID,
-    GAP_XS, GAP_S, GAP_M, GAP_L,
-    # 函数
-    em, span,
-    input_xs, input_s, input_m, input_l, input_xl,
-    grid_col, grid_gap,
-    gap_xs, gap_s, gap_m, gap_l,
-)
-
-# [DEPRECATED] 从 grid 导出布局工具
-from ui.grid import (
-    GridLayout,
-    item_width,
-    tooltip,
-)
-
 __all__ = [
     # ===== 核心布局 API (推荐使用) =====
     # 间距
@@ -2551,6 +2544,8 @@ __all__ = [
     # 杂项
     'next_line', 'divider', 'hr',
     'window_size', 'content_region', 'clear_layout_cache',
+    # 便利函数
+    'item_width', 'tooltip',
 
     # ===== Flex 布局 =====
     'hstack', 'vstack', 'item', 'slot', 'spacer',
@@ -2604,13 +2599,4 @@ __all__ = [
 
     # ===== [DEPRECATED] sp_* 系列 - 请使用 gap_y() =====
     'sp_0', 'sp_1', 'sp_2', 'sp_3', 'sp_4', 'sp_5', 'sp_6', 'sp_8', 'sp_10', 'sp_12', 'sp_16',
-
-    # ===== [DEPRECATED] 旧版 Grid 系统 =====
-    'SPAN_INPUT', 'SPAN_BADGE', 'SPAN_ID',
-    'GAP_XS', 'GAP_S', 'GAP_M', 'GAP_L',
-    'em', 'span',
-    'input_xs', 'input_s', 'input_m', 'input_l', 'input_xl',
-    'grid_col', 'grid_gap',
-    'gap_xs', 'gap_s', 'gap_m', 'gap_l',
-    'GridLayout', 'item_width', 'tooltip',
 ]

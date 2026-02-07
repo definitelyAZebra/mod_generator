@@ -17,7 +17,6 @@ from ui.state import state as ui_state, dpi_scale
 from ui import layout as ly
 from ui import tw
 from ui.theme import PARCHMENT
-from ui.styles import gap_s
 
 
 def draw_main_editor(width: float, height: float) -> None:

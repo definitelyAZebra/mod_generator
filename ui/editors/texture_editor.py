@@ -15,7 +15,6 @@ from typing import Callable, Union
 from ui import imgui_shim as imgui
 
 from ui.editors.common import draw_indented_separator
-from ui.styles import gap_m
 from ui.state import state as ui_state
 
 from constants import (
@@ -325,7 +324,7 @@ def draw_multi_pose_armor_textures(
 
     # 三列布局
     available_width = imgui.get_content_region_available_width()
-    col_width = (available_width - gap_m() * 2) / 3
+    col_width = (available_width - ly.sz(3.5) * 2) / 3
 
     imgui.columns(3, f"poses_{id_suffix}", False)
     imgui.set_column_width(0, col_width)

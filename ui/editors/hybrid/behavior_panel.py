@@ -28,7 +28,7 @@
     │ 生成组: [排除随机] [容器生成] [商店生成] [预测]          grid-cols-4     │
     └─────────────────────────────────────────────────────────────────────────┘
 
-注意: 本面板暂用旧版 GridLayout，后续将迁移到 ly.columns()。
+注意: 本面板使用模块级辅助函数 (_label/_next/_field_width 等) 实现 grid 布局。
 ================================================================================
 """
 
@@ -36,14 +36,8 @@ from __future__ import annotations
 
 from ui import imgui_shim as imgui
 from ui import tw
-
-from ui.grid import GridLayout
+from ui import layout as ly
 from ui.layout import tooltip, item_width
-from ui.styles import (
-    gap_m, gap_s, grid_gap,
-    SPAN_INPUT, SPAN_BADGE, GRID_DEBUG,
-)
-import ui.styles as styles
 
 from hybrid_item_v2 import HybridItemV2
 from constants import (
@@ -96,6 +90,67 @@ def _enum_combo(label: str, current_value, options: list, labels: dict):
 
 
 # =============================================================================
+# Grid 布局辅助 (替代旧版 GridLayout)
+#
+# 列宽常量 (Tailwind 单位: 1 = 4px)
+#   COL_W   = 26 → 104px  输入框/标签列宽
+#   COL_GAP = 2  → 8px    列间距
+# =============================================================================
+
+COL_W = ly.sz(26)     # 104px — 输入框/标签列宽
+COL_GAP = ly.sz(2)    # 8px — 列间距
+
+
+def _label(text: str) -> None:
+    """绘制 muted 标签，占用 COL_W 宽度"""
+    tw.text_muted(imgui.text)(text)
+    text_w = imgui.calc_text_size(text).x
+    if text_w < COL_W:
+        imgui.same_line(spacing=0)
+        imgui.dummy(COL_W - text_w, 0)
+
+
+def _next() -> None:
+    """移动到下一列"""
+    imgui.same_line(spacing=COL_GAP)
+
+
+def _field_width() -> None:
+    """设置下一个控件宽度为 COL_W"""
+    imgui.set_next_item_width(COL_W)
+
+
+def _text_cell(text: str) -> None:
+    """绘制只读文本，占用 COL_W 宽度"""
+    imgui.align_text_to_frame_padding()
+    imgui.text(text)
+    text_w = imgui.calc_text_size(text).x
+    if text_w < COL_W:
+        imgui.same_line(spacing=0)
+        imgui.dummy(COL_W - text_w, 0)
+
+
+def _button_cell(label: str) -> bool:
+    """绘制按钮，占用 COL_W 宽度，返回是否点击"""
+    clicked = imgui.button(label)
+    btn_w = imgui.get_item_rect_size()[0]
+    if btn_w < COL_W:
+        imgui.same_line(spacing=0)
+        imgui.dummy(COL_W - btn_w, 0)
+    return clicked
+
+
+def _checkbox_cell(label: str, value: bool) -> tuple:
+    """绘制 checkbox，占用 COL_W 宽度，返回 (changed, new_value)"""
+    changed, new_value = imgui.checkbox(label, value)
+    cb_w = imgui.get_item_rect_size()[0]
+    if cb_w < COL_W:
+        imgui.same_line(spacing=0)
+        imgui.dummy(COL_W - cb_w, 0)
+    return changed, new_value
+
+
+# =============================================================================
 # 主入口
 # =============================================================================
 
@@ -105,30 +160,28 @@ def draw_behavior_panel(hybrid: HybridItemV2) -> None:
     Args:
         hybrid: 混合物品数据对象
     """
-    grid = GridLayout(lambda t: tw.text_muted(imgui.text)(t))
-
     # ━━━ 形态行 ━━━
-    _draw_equipment_section(grid, hybrid)
+    _draw_equipment_section(hybrid)
 
-    imgui.dummy(0, gap_m())
+    ly.gap_y(3.5)
 
     # ━━━ 触发组 ━━━
-    _draw_trigger_section(grid, hybrid)
+    _draw_trigger_section(hybrid)
 
     # ━━━ 耐久组（条件显示）━━━
     if hybrid.has_durability:
-        imgui.dummy(0, gap_m())
-        _draw_durability_section(grid, hybrid)
+        ly.gap_y(3.5)
+        _draw_durability_section(hybrid)
 
     # ━━━ 次数组（条件显示）━━━
     if charge_has_charges(hybrid.charges):
-        imgui.dummy(0, gap_m())
-        _draw_charges_section(grid, hybrid)
+        ly.gap_y(3.5)
+        _draw_charges_section(hybrid)
 
-    imgui.dummy(0, gap_m())
+    ly.gap_y(3.5)
 
     # ━━━ 生成组 ━━━
-    _draw_spawn_section(grid, hybrid)
+    _draw_spawn_section(hybrid)
 
 
 # =============================================================================
@@ -154,27 +207,27 @@ def _get_eq_mode(hybrid: HybridItemV2) -> str:
     return "none"
 
 
-def _draw_equipment_section(grid: GridLayout, hybrid: HybridItemV2) -> None:
+def _draw_equipment_section(hybrid: HybridItemV2) -> None:
     current_eq_mode = _get_eq_mode(hybrid)
 
     # Label 行
-    grid.label_header("装备形态", SPAN_INPUT)
+    _label("装备形态")
     if is_weapon_mode(hybrid.equipment):
-        grid.next_cell()
-        grid.label_header("武器类型", SPAN_INPUT)
-        grid.next_cell()
-        grid.label_header("平衡", SPAN_INPUT)
+        _next()
+        _label("武器类型")
+        _next()
+        _label("平衡")
     elif is_armor_mode(hybrid.equipment):
-        grid.next_cell()
-        grid.label_header("护甲类型", SPAN_INPUT)
-        grid.next_cell()
-        grid.label_header("护甲分类", SPAN_INPUT)
+        _next()
+        _label("护甲类型")
+        _next()
+        _label("护甲分类")
         if hybrid.slot not in ["hand", "Ring", "Amulet"]:
-            grid.next_cell()
-            grid.label_header("碎片数", SPAN_INPUT)
+            _next()
+            _label("碎片数")
 
     # Control 行
-    grid.field_width(SPAN_INPUT)
+    _field_width()
     new_eq_mode = _enum_combo(
         "##eq_mode", current_eq_mode,
         list(_EQUIPMENT_MODE_LABELS.keys()), _EQUIPMENT_MODE_LABELS,
@@ -193,8 +246,8 @@ def _draw_equipment_section(grid: GridLayout, hybrid: HybridItemV2) -> None:
     if is_weapon_mode(hybrid.equipment):
         assert isinstance(hybrid.equipment, WeaponEquip)
         weapon_eq = hybrid.equipment
-        grid.next_cell()
-        grid.field_width(SPAN_INPUT)
+        _next()
+        _field_width()
         new_wt = _enum_combo(
             "##wep_type", weapon_eq.weapon_type,
             list(HYBRID_WEAPON_TYPES.keys()), HYBRID_WEAPON_TYPES,
@@ -202,8 +255,8 @@ def _draw_equipment_section(grid: GridLayout, hybrid: HybridItemV2) -> None:
         if new_wt != weapon_eq.weapon_type:
             object.__setattr__(weapon_eq, "weapon_type", new_wt)
 
-        grid.next_cell()
-        grid.field_width(SPAN_INPUT)
+        _next()
+        _field_width()
         balance_options = {"0": "0", "1": "1", "2": "2", "3": "3", "4": "4"}
         new_balance = int(_enum_combo(
             "##wep_balance", str(weapon_eq.balance),
@@ -215,8 +268,8 @@ def _draw_equipment_section(grid: GridLayout, hybrid: HybridItemV2) -> None:
     elif is_armor_mode(hybrid.equipment):
         assert isinstance(hybrid.equipment, ArmorEquip)
         armor_eq = hybrid.equipment
-        grid.next_cell()
-        grid.field_width(SPAN_INPUT)
+        _next()
+        _field_width()
         old_armor_type = armor_eq.armor_type
         new_armor_type = _enum_combo(
             "##armor_type", armor_eq.armor_type,
@@ -225,13 +278,13 @@ def _draw_equipment_section(grid: GridLayout, hybrid: HybridItemV2) -> None:
         if new_armor_type != old_armor_type:
             object.__setattr__(armor_eq, "armor_type", new_armor_type)
 
-        grid.next_cell()
-        grid.text_cell(hybrid.armor_class, SPAN_INPUT)
+        _next()
+        _text_cell(hybrid.armor_class)
 
         if hybrid.slot not in ["hand", "Ring", "Amulet"]:
-            grid.next_cell()
+            _next()
             frag_count = sum(hybrid.fragments.values())
-            if grid.button_cell(f"({frag_count})##frags", SPAN_INPUT):
+            if _button_cell(f"({frag_count})##frags"):
                 imgui.open_popup("fragments_popup")
             _draw_fragments_popup(hybrid)
 
@@ -247,7 +300,7 @@ _TRIGGER_MODE_LABELS = {
 }
 
 
-def _draw_trigger_section(grid: GridLayout, hybrid: HybridItemV2) -> None:
+def _draw_trigger_section(hybrid: HybridItemV2) -> None:
     current_trigger_mode = "none"
     if isinstance(hybrid.trigger, EffectTrigger):
         current_trigger_mode = "effect"
@@ -255,13 +308,13 @@ def _draw_trigger_section(grid: GridLayout, hybrid: HybridItemV2) -> None:
         current_trigger_mode = "skill"
 
     # Label 行
-    grid.label_header("触发模式", SPAN_INPUT)
+    _label("触发模式")
     if isinstance(hybrid.trigger, SkillTrigger):
-        grid.next_cell()
-        grid.label_header("技能", SPAN_INPUT)
+        _next()
+        _label("技能")
 
     # Control 行
-    grid.field_width(SPAN_INPUT)
+    _field_width()
     old_trigger_mode = current_trigger_mode
     new_trigger_mode = _enum_combo(
         "##trigger_mode", current_trigger_mode,
@@ -283,8 +336,8 @@ def _draw_trigger_section(grid: GridLayout, hybrid: HybridItemV2) -> None:
 
     if isinstance(hybrid.trigger, SkillTrigger):
         skill_trigger = hybrid.trigger
-        grid.next_cell()
-        grid.field_width(SPAN_INPUT)
+        _next()
+        _field_width()
         current_skill = skill_trigger.skill_object
         current_label = SKILL_OBJECT_NAMES.get(current_skill, current_skill) if current_skill else "-- 选择 --"
         if imgui.begin_combo("##skill_object", current_label):
@@ -310,7 +363,7 @@ def _draw_trigger_section(grid: GridLayout, hybrid: HybridItemV2) -> None:
 # 耐久
 # =============================================================================
 
-def _draw_durability_section(grid: GridLayout, hybrid: HybridItemV2) -> None:
+def _draw_durability_section(hybrid: HybridItemV2) -> None:
     durability: HasDurability | None = None
     match hybrid.equipment:
         case WeaponEquip(durability=d) if isinstance(d, HasDurability):
@@ -324,29 +377,29 @@ def _draw_durability_section(grid: GridLayout, hybrid: HybridItemV2) -> None:
     has_charges = charge_has_charges(hybrid.charges)
 
     # Label 行
-    grid.label_header("耐久上限", SPAN_INPUT)
-    grid.next_cell()
+    _label("耐久上限")
+    _next()
     if has_charges:
-        grid.label_header("磨损%", SPAN_INPUT)
-        grid.next_cell()
-    grid.label_header("耐久归零销毁", SPAN_INPUT)
+        _label("磨损%")
+        _next()
+    _label("耐久归零销毁")
 
     # Control 行
-    grid.field_width(SPAN_INPUT)
+    _field_width()
     changed, new_dur_max = imgui.input_int("##dur_max", durability.duration_max)
     if changed:
         object.__setattr__(durability, "duration_max", max(1, new_dur_max))
-    grid.next_cell()
+    _next()
 
     if has_charges:
-        grid.field_width(SPAN_INPUT)
+        _field_width()
         changed, new_wear = imgui.input_int("##wear", durability.wear_per_use)
         tooltip("每次使用消耗的耐久百分比")
         if changed:
             object.__setattr__(durability, "wear_per_use", max(0, min(100, new_wear)))
-        grid.next_cell()
+        _next()
 
-    _, new_destroy = grid.checkbox_cell("##dur_del", durability.destroy_on_zero, SPAN_INPUT)
+    _, new_destroy = _checkbox_cell("##dur_del", durability.destroy_on_zero)
     if new_destroy != durability.destroy_on_zero:
         object.__setattr__(durability, "destroy_on_zero", new_destroy)
 
@@ -361,19 +414,19 @@ _CHARGE_MODE_LABELS = {
 }
 
 
-def _draw_charges_section(grid: GridLayout, hybrid: HybridItemV2) -> None:
+def _draw_charges_section(hybrid: HybridItemV2) -> None:
     is_unlimited = isinstance(hybrid.charges, UnlimitedCharges)
     current_charge_mode = "unlimited" if is_unlimited else "limited"
 
     # --- 第一行: 模式 / 值 / 显示 ---
-    grid.label_header("次数模式", SPAN_INPUT)
-    grid.next_cell()
-    grid.label_header("次数值", SPAN_INPUT)
-    grid.next_cell()
-    grid.label_header("显次数点", SPAN_INPUT)
+    _label("次数模式")
+    _next()
+    _label("次数值")
+    _next()
+    _label("显次数点")
 
     # Control 行
-    grid.field_width(SPAN_INPUT)
+    _field_width()
     new_charge_mode = _enum_combo(
         "##charge_mode", current_charge_mode,
         list(_CHARGE_MODE_LABELS.keys()), _CHARGE_MODE_LABELS,
@@ -385,17 +438,17 @@ def _draw_charges_section(grid: GridLayout, hybrid: HybridItemV2) -> None:
         else:
             hybrid.charges = LimitedCharges()
 
-    grid.next_cell()
+    _next()
     if isinstance(hybrid.charges, UnlimitedCharges):
-        grid.text_cell("∞", SPAN_INPUT)
+        _text_cell("∞")
     elif isinstance(hybrid.charges, LimitedCharges):
         charges = hybrid.charges
-        grid.field_width(SPAN_INPUT)
+        _field_width()
         changed, new_max = imgui.input_int("##charge", charges.max_charges)
         if changed:
             object.__setattr__(charges, "max_charges", max(1, new_max))
 
-    grid.next_cell()
+    _next()
     current_draw = False
     match hybrid.charges:
         case LimitedCharges(draw_charges=d):
@@ -403,7 +456,7 @@ def _draw_charges_section(grid: GridLayout, hybrid: HybridItemV2) -> None:
         case UnlimitedCharges(draw_charges=d):
             current_draw = d
 
-    _, new_draw = grid.checkbox_cell("##show_charge", current_draw, SPAN_INPUT)
+    _, new_draw = _checkbox_cell("##show_charge", current_draw)
     tooltip("在物品贴图左下角绘制小点表示剩余次数")
     if new_draw != current_draw:
         object.__setattr__(hybrid.charges, "draw_charges", new_draw)
@@ -412,25 +465,25 @@ def _draw_charges_section(grid: GridLayout, hybrid: HybridItemV2) -> None:
     if isinstance(hybrid.charges, LimitedCharges):
         is_artifact = isinstance(hybrid.quality, ArtifactQuality)
 
-        grid.label_header("自动恢复", SPAN_INPUT)
+        _label("自动恢复")
         has_recovery = recovery_has_recovery(hybrid.charge_recovery)
         if has_recovery:
-            grid.next_cell()
-            grid.label_header("恢复间隔", SPAN_INPUT)
+            _next()
+            _label("恢复间隔")
         if not hybrid.has_durability and not is_artifact:
-            grid.next_cell()
-            grid.label_header("耗尽销毁", SPAN_INPUT)
+            _next()
+            _label("耗尽销毁")
 
         # Control 行
         if is_artifact:
             if not has_recovery:
                 hybrid.charge_recovery = IntervalRecovery()
             imgui.push_style_var(imgui.STYLE_ALPHA, 0.5)
-            grid.checkbox_cell("##recovery_locked", True, SPAN_INPUT)
+            _checkbox_cell("##recovery_locked", True)
             imgui.pop_style_var()
             tooltip("文物自动恢复")
         else:
-            _, new_recovery = grid.checkbox_cell("##recovery", has_recovery, SPAN_INPUT)
+            _, new_recovery = _checkbox_cell("##recovery", has_recovery)
             if new_recovery != has_recovery:
                 if new_recovery:
                     hybrid.charge_recovery = IntervalRecovery()
@@ -440,16 +493,16 @@ def _draw_charges_section(grid: GridLayout, hybrid: HybridItemV2) -> None:
         if recovery_has_recovery(hybrid.charge_recovery):
             assert isinstance(hybrid.charge_recovery, IntervalRecovery)
             recovery = hybrid.charge_recovery
-            grid.next_cell()
-            grid.field_width(SPAN_INPUT)
+            _next()
+            _field_width()
             changed, new_interval = imgui.input_int("##interval", recovery.interval)
             if changed:
                 object.__setattr__(recovery, "interval", max(1, new_interval))
 
         if not hybrid.has_durability and not is_artifact:
-            grid.next_cell()
-            _, hybrid.delete_on_charge_zero = grid.checkbox_cell(
-                "##charge_del", hybrid.delete_on_charge_zero, SPAN_INPUT,
+            _next()
+            _, hybrid.delete_on_charge_zero = _checkbox_cell(
+                "##charge_del", hybrid.delete_on_charge_zero,
             )
 
 
@@ -457,7 +510,7 @@ def _draw_charges_section(grid: GridLayout, hybrid: HybridItemV2) -> None:
 # 生成规则
 # =============================================================================
 
-def _draw_spawn_section(grid: GridLayout, hybrid: HybridItemV2) -> None:
+def _draw_spawn_section(hybrid: HybridItemV2) -> None:
     spawn_rule_labels = {
         SpawnRuleType.EQUIPMENT: "按装备池",
         SpawnRuleType.ITEM: "按道具池",
@@ -470,17 +523,17 @@ def _draw_spawn_section(grid: GridLayout, hybrid: HybridItemV2) -> None:
     current_shop = hybrid.shop_spawn
 
     # Label 行
-    grid.label_header("排除随机生成", SPAN_INPUT)
-    grid.next_cell()
+    _label("排除随机生成")
+    _next()
     if not is_excluded:
-        grid.label_header("容器生成", SPAN_INPUT)
-        grid.next_cell()
-        grid.label_header("商店生成", SPAN_INPUT)
-        grid.next_cell()
-    grid.label_header("生成预测", SPAN_INPUT)
+        _label("容器生成")
+        _next()
+        _label("商店生成")
+        _next()
+    _label("生成预测")
 
     # Control 行
-    _, new_excluded = grid.checkbox_cell("##exc_random", is_excluded, SPAN_INPUT)
+    _, new_excluded = _checkbox_cell("##exc_random", is_excluded)
     tooltip("排除随机生成：物品不会在宝箱/商店随机出现\n启用后其他标签设置不生效")
     if new_excluded != is_excluded:
         if new_excluded:
@@ -488,12 +541,12 @@ def _draw_spawn_section(grid: GridLayout, hybrid: HybridItemV2) -> None:
         else:
             hybrid.spawn = RandomSpawn()
 
-    grid.next_cell()
+    _next()
     if not new_excluded and isinstance(hybrid.spawn, RandomSpawn):
         spawn = hybrid.spawn
 
         # 容器
-        grid.field_width(SPAN_INPUT)
+        _field_width()
         container_options = (
             [SpawnRuleType.EQUIPMENT, SpawnRuleType.ITEM, SpawnRuleType.NONE]
             if can_use_equipment
@@ -513,9 +566,9 @@ def _draw_spawn_section(grid: GridLayout, hybrid: HybridItemV2) -> None:
             "• 不生成：不在容器中随机出现"
         )
 
-        grid.next_cell()
+        _next()
         # 商店
-        grid.field_width(SPAN_INPUT)
+        _field_width()
         shop_options = (
             [SpawnRuleType.EQUIPMENT, SpawnRuleType.ITEM, SpawnRuleType.NONE]
             if can_use_equipment
@@ -535,10 +588,10 @@ def _draw_spawn_section(grid: GridLayout, hybrid: HybridItemV2) -> None:
             "• 不生成：不在商店随机出现"
         )
 
-        grid.next_cell()
+        _next()
 
     # 生成预测按钮
-    if grid.button_cell("▶##gen_preview", SPAN_INPUT):
+    if _button_cell("▶##gen_preview"):
         imgui.open_popup("generation_preview_popup")
     tooltip("查看生成预测")
     _draw_generation_preview_popup(hybrid)
@@ -561,7 +614,7 @@ def _draw_fragments_popup(hybrid: HybridItemV2) -> None:
             ("gold", "金"),
         ]
 
-        imgui.dummy(0, gap_s())
+        ly.gap_y(2)
 
         if imgui.begin_table("frag_popup_table", 4, imgui.TABLE_SIZING_STRETCH_SAME):
             imgui.table_setup_column("L1", imgui.TABLE_COLUMN_WIDTH_FIXED, 30)
@@ -611,7 +664,7 @@ def _draw_generation_preview_popup(hybrid: HybridItemV2) -> None:
             else:
                 _draw_container_preview(hybrid, is_equipment=False)
 
-            imgui.dummy(0, gap_m())
+            ly.gap_y(3.5)
 
             # 商店进货
             imgui.text("商店进货:")
@@ -620,7 +673,7 @@ def _draw_generation_preview_popup(hybrid: HybridItemV2) -> None:
             else:
                 _draw_shop_preview(hybrid)
 
-            imgui.dummy(0, gap_m())
+            ly.gap_y(3.5)
 
         imgui.end_popup()
 

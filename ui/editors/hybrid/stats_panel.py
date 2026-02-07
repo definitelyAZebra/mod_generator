@@ -22,7 +22,7 @@
     │          ...                                                            │
     └─────────────────────────────────────────────────────────────────────────┘
 
-注意: 本面板暂用旧版 GridLayout 的 span 计量系统，后续将迁移到 ly.*。
+注意: 本面板使用 ly.sz() 计算列宽，后续可进一步迁移到 ly.columns()。
 ================================================================================
 """
 
@@ -30,12 +30,8 @@ from __future__ import annotations
 
 from ui import imgui_shim as imgui
 from ui import tw
+from ui import layout as ly
 from ui.layout import tooltip
-from ui.styles import (
-    gap_m, grid_gap,
-    SPAN_INPUT, SPAN_BADGE,
-)
-import ui.styles as styles
 from ui.state import state as ui_state
 
 from hybrid_item_v2 import HybridItemV2
@@ -82,7 +78,7 @@ def draw_stats_panel(hybrid: HybridItemV2) -> None:
     # 消耗品属性 - 仅当触发模式为效果时显示
     if isinstance(hybrid.trigger, EffectTrigger):
         if _should_show_equipment_attributes(hybrid):
-            imgui.dummy(0, gap_m())
+            ly.gap_y(3.5)
         _draw_consumable_attributes_editor(hybrid)
 
 
@@ -122,8 +118,11 @@ def _render_attribute_grid(
     """
     to_remove: list[str] = []
 
-    SPAN_ADD_BTN = SPAN_BADGE
-    SPAN_LABEL = 4
+    # 列宽常量 (Tailwind 单位: 1 = 4px)
+    COL_BADGE = ly.sz(12)   # 48px - 按钮/徽章宽度
+    COL_LABEL = ly.sz(54)   # 216px - 标签宽度
+    COL_INPUT = ly.sz(26)   # 104px - 输入框宽度
+    COL_GAP = ly.sz(2)      # 8px - 列间距
 
     for idx, item in enumerate(display_list):
         key = item["key"]
@@ -134,28 +133,26 @@ def _render_attribute_grid(
 
         # === Column 1: Add Button (only first row) or spacer ===
         if idx == 0 and show_add_button:
-            if imgui.button(f"{add_button_label}##{add_popup_id}_btn", styles.span(SPAN_ADD_BTN), 0):
+            if imgui.button(f"{add_button_label}##{add_popup_id}_btn", COL_BADGE, 0):
                 imgui.open_popup(add_popup_id)
             tooltip("添加属性")
         else:
-            imgui.dummy(styles.span(SPAN_ADD_BTN), 0)
+            imgui.dummy(COL_BADGE, 0)
 
-        imgui.same_line(spacing=grid_gap())
+        imgui.same_line(spacing=COL_GAP)
 
         # === Column 2: Label ===
-        label_w = styles.span(SPAN_LABEL)
         imgui.align_text_to_frame_padding()
         tw.text_muted(imgui.text)(name)
         text_w = imgui.calc_text_size(name).x
-        if text_w < label_w:
+        if text_w < COL_LABEL:
             imgui.same_line(spacing=0)
-            imgui.dummy(label_w - text_w, 0)
+            imgui.dummy(COL_LABEL - text_w, 0)
 
-        imgui.same_line(spacing=grid_gap())
+        imgui.same_line(spacing=COL_GAP)
 
         # === Column 3: Input ===
-        input_w = styles.span(SPAN_INPUT)
-        imgui.set_next_item_width(input_w)
+        imgui.set_next_item_width(COL_INPUT)
 
         if custom_bind == "poison_duration" and hybrid and isinstance(hybrid.trigger, EffectTrigger):
             val = hybrid.trigger.poison_duration
@@ -178,20 +175,19 @@ def _render_attribute_grid(
         if desc:
             tooltip(desc)
 
-        imgui.same_line(spacing=grid_gap())
+        imgui.same_line(spacing=COL_GAP)
 
         # === Column 4: Delete Button ===
-        delete_w = styles.span(SPAN_BADGE)
         if not is_basic:
             imgui.push_style_color(imgui.COLOR_BUTTON, 0, 0, 0, 0)
             imgui.push_style_color(imgui.COLOR_BUTTON_HOVERED, *_BADGE_HOVER_REMOVE)
             imgui.push_style_color(imgui.COLOR_BUTTON_ACTIVE, *_BADGE_HOVER_REMOVE)
-            if imgui.button(f"×##del_{key}", delete_w, 0):
+            if imgui.button(f"×##del_{key}", COL_BADGE, 0):
                 to_remove.append(key)
             imgui.pop_style_color(3)
             tooltip("移除此属性")
         else:
-            imgui.dummy(delete_w, 0)
+            imgui.dummy(COL_BADGE, 0)
             tooltip("基础属性不可移除")
 
     return to_remove
@@ -329,7 +325,7 @@ def _draw_equipment_attributes_editor(hybrid: HybridItemV2) -> None:
 
     # 空列表时仍需添加按钮
     if not display_list:
-        if imgui.button("+装备##equip_attr_btn", styles.span(SPAN_BADGE), 0):
+        if imgui.button("+装备##equip_attr_btn", ly.sz(12), 0):
             imgui.open_popup("equip_attr")
         tooltip("添加装备属性")
 

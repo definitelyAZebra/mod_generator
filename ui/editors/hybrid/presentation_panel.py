@@ -34,7 +34,6 @@ from ui import imgui_shim as imgui
 from ui import tw
 from ui import layout as ly
 from ui.layout import tooltip
-from ui.styles import gap_m, gap_s
 
 from hybrid_item_v2 import HybridItemV2
 from constants import (
@@ -96,16 +95,16 @@ def draw_presentation_panel(hybrid: HybridItemV2) -> None:
     from ui.editors.texture_editor import draw_textures_editor
     draw_textures_editor(hybrid, "hybrid")
 
-    imgui.dummy(0, gap_m())
+    ly.gap_y(3.5)
     imgui.separator()
-    imgui.dummy(0, gap_s())
+    ly.gap_y(2)
 
     # 2. 音效
     _draw_sounds_section(hybrid)
 
-    imgui.dummy(0, gap_m())
+    ly.gap_y(3.5)
     imgui.separator()
-    imgui.dummy(0, gap_s())
+    ly.gap_y(2)
 
     # 3. 本地化
     _draw_localization_editor(hybrid, "hybrid")
@@ -178,7 +177,7 @@ def _draw_localization_editor(item: HybridItemV2, id_suffix: str) -> None:
                     }
         imgui.end_popup()
 
-    imgui.dummy(0, gap_s())
+    ly.gap_y(2)
 
     # 主语言
     primary_label = LANGUAGE_LABELS.get(PRIMARY_LANGUAGE, PRIMARY_LANGUAGE)
@@ -215,7 +214,7 @@ def _draw_localization_editor(item: HybridItemV2, id_suffix: str) -> None:
     if changed:
         primary_data["description"] = val
     imgui.pop_item_width()
-    imgui.dummy(0, gap_m())
+    ly.gap_y(3.5)
 
     # 其他语言
     langs_to_remove = []
@@ -228,7 +227,7 @@ def _draw_localization_editor(item: HybridItemV2, id_suffix: str) -> None:
         data = item.localization.languages[lang]
 
         imgui.separator()
-        imgui.dummy(0, gap_s())
+        ly.gap_y(2)
         label = LANGUAGE_LABELS.get(lang, lang)
         tw.text_muted(imgui.text)(f"{label}")
         imgui.same_line()
@@ -251,7 +250,7 @@ def _draw_localization_editor(item: HybridItemV2, id_suffix: str) -> None:
         if changed:
             data["description"] = val
         imgui.pop_item_width()
-        imgui.dummy(0, gap_s())
+        ly.gap_y(2)
 
     for lang in langs_to_remove:
         del item.localization.languages[lang]
