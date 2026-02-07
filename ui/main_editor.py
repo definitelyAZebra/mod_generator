@@ -70,7 +70,7 @@ def _draw_weapon_main(width: float, height: float) -> None:
         _draw_empty_hint("请从左侧列表选择一个武器进行编辑")
     else:
         d = dpi_scale()
-        padding = gap_s()
+        padding = ly.sz(1.75)
         ly.gap_y_px(padding / d)
         imgui.indent(padding)
         draw_weapon_editor()
@@ -94,7 +94,7 @@ def _draw_armor_main(width: float, height: float) -> None:
         _draw_empty_hint("请从左侧列表选择一个装备进行编辑")
     else:
         d = dpi_scale()
-        padding = gap_s()
+        padding = ly.sz(1.75)
         ly.gap_y_px(padding / d)
         imgui.indent(padding)
         draw_armor_editor()
