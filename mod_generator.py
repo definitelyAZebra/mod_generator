@@ -36,7 +36,7 @@ from ui.styles import apply_preflight
 from ui.texture_manager import unload_all_textures
 from ui import popups
 from ui.menu import draw_main_menu, get_toolbar_height
-from ui.fonts import load_fonts
+from ui.fonts import load_fonts, update_font_scale
 from models import ModProject
 
 
@@ -97,11 +97,11 @@ def run(window, renderer) -> None:
         glfw.poll_events()
         renderer.process_inputs()
 
-        # 检查配置变更 — 字体重载必须在 new_frame() 之前
+        # 检查配置变更 — 字体缩放更新在 new_frame() 之前
         try:
             if config.needs_font_reload():
                 config.clear_font_reload_flag()
-                load_fonts(renderer)
+                update_font_scale()
         except Exception as e:
             print(f"[main] 配置更新失败: {e}")
             config.clear_font_reload_flag()

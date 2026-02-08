@@ -40,7 +40,7 @@ from ui import imgui_shim as imgui
 from ui.state import dpi_scale
 
 if TYPE_CHECKING:
-    from ui.fonts import FontSet
+    pass
 
 # 类型别名
 RGBA = tuple[float, float, float, float]
@@ -848,38 +848,30 @@ def selectable_text_align(x: float = 0.0, y: float = 0.5) -> StyleContext:
 # 字体
 # =============================================================================
 
-_font_set: FontSet | None = None
-
-
-def set_font_set(fonts: FontSet) -> None:
-    """设置字体集 (由 fonts.py 调用)"""
-    global _font_set
-    _font_set = fonts
-
-
-# 用于跟踪 font() push 是否成功
-_font_push_stack: list[bool] = []
-
 
 def font(size: str) -> StyleContext:
-    """字体大小: "xs", "sm", "md", "lg", "xl"
+    """字体大小: "xs", "sm", "md", "lg", "xl", "2xl" 等
 
-    注意: 动态获取字体，支持运行时字体重载
+    使用 ImGui 1.92 的 push_font(None, size) 动态切换字号。
+    不再需要预加载的 FontSet。
+
+    用法:
+        with font("xl"):
+            imgui.text("大标题")
     """
-    def push():
-        if _font_set is not None:
-            font_obj = _font_set.get(size)
-            if font_obj is not None:
-                imgui.push_font(font_obj)
-                _font_push_stack.append(True)
-                return
-        _font_push_stack.append(False)
+    from ui.fonts import compute_font_px
+    px = compute_font_px(size)
 
-    def pop():
-        if _font_push_stack and _font_push_stack.pop():
-            imgui.pop_font()
+    return StyleContext(
+        lambda: imgui.push_font(None, px),
+        lambda: imgui.pop_font(),
+    )
 
-    return StyleContext(push, pop)
+
+# 废弃兼容 — 旧代码可能调用 set_font_set()，静默忽略
+def set_font_set(fonts: object) -> None:
+    """[废弃] 1.92 不再需要 FontSet"""
+    pass
 
 
 # =============================================================================

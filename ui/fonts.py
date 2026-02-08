@@ -1,36 +1,35 @@
 # -*- coding: utf-8 -*-
-"""字体管理服务
+"""字体管理服务 — ImGui 1.92 动态光栅化架构
 
-集中管理字体路径、加载逻辑和可用字体列表。
-从 ui.config 和 ui.state 获取配置，支持多字号预加载和图标字体合并。
+利用 ImGui 1.92 的 RendererHasTextures 后端:
+- 字形按需加载和光栅化，不需要指定 glyph ranges
+- 字号可随时通过 push_font(None, size) 动态切换
+- 只需注册一次字体源 (EN + CN + Icon 合并)
+- 不需要手动 Build() 或刷新纹理
 
-架构:
-    - 预加载 typography tokens 中定义的所有字号
-    - 每个字号同时包含: 英文 + 中文 + 图标
-    - 字号应用 DPI 缩放和 CJK/Latin scale
-    - 返回字体映射表供 UI 层按需切换
+缩放模型:
+    渲染字号 = FontSizeBase × FontScaleMain × FontScaleDpi
+    - FontSizeBase: 逻辑字号 (如 16.0)
+    - FontScaleMain: 用户缩放因子 (默认 1.0)
+    - FontScaleDpi: DPI 缩放因子 (如 1.5 for 150%)
 
-字号命名 (与 style.text 一致):
-    xs  = 12px  说明文字、caption
-    sm  = 14px  正文 (默认)
-    md  = 16px  大正文
-    lg  = 20px  标题
-    xl  = 32px  大标题
-    2xl = 40px  超大标题 (未预加载)
+字号命名 (Tailwind CSS v3.4):
+    xs=12  sm=14  base/md=16  lg=18  xl=20
+    2xl=24  3xl=30  4xl=36  5xl=48
 
 使用方式:
-    from ui import fonts, style
+    from ui.fonts import compute_font_px
+    from ui import imgui_shim as imgui
 
-    # 初始化时加载
-    font_map = fonts.load_fonts(renderer)
+    # 初始化 (一次)
+    load_fonts(renderer)
 
-    # 渲染时切换字号
-    imgui.push_font(font_map["sm"])  # 或 fonts.get_font("sm")
-    imgui.text("Hello 你好")
+    # 渲染时动态切换字号 (无需预加载)
+    imgui.push_font(None, compute_font_px("xl"))
+    imgui.text("大标题")
     imgui.pop_font()
 
-    # 获取对应字号的像素值 (已应用 DPI)
-    size = style.text.sm()  # 14.0 * dpi_scale
+    # 默认字号由 style.font_size_base 控制，无需 push
 """
 
 from __future__ import annotations
@@ -40,12 +39,11 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from ui import imgui_shim as imgui
-
 from ui import config
 from ui.state import dpi_scale
 
 if TYPE_CHECKING:
-    pass  # 预留类型导入
+    pass
 
 
 # ==================== 字号常量 ====================
@@ -71,10 +69,13 @@ FONT_SIZES: dict[str, float] = {
 # 别名: md = base (向后兼容)
 FONT_SIZES["md"] = FONT_SIZES["base"]
 
+# 默认字号 token
+DEFAULT_SIZE_TOKEN = "base"
+
 
 # ==================== 从生成配置导入 ====================
 # 字体路径和 baseline 偏移由 codegen/generate_font_config.py 自动测定
-# 修改字体请编辑 codegen 中的 FONT_PATHS，然后运行 python codegen/generate_font_config.py
+# 修改字体请编辑 codegen 中配置，然后运行 python codegen/generate_font_config.py
 
 from ui.font_config import (
     ENGLISH_FONT,
@@ -84,352 +85,56 @@ from ui.font_config import (
     CHINESE_GLYPH_OFFSET_Y,
     ICON_GLYPH_OFFSET_Y,
     ICON_SCALE,
-    ICON_RANGE_START,
-    ICON_RANGE_END,
 )
 
 
-# ==================== 额外符号范围 ====================
-# 这些符号会合并到中文字体中，解决 GB2312 不包含的常用符号
-
-EXTRA_SYMBOL_RANGES: list[int] = [
-    # 拉丁扩展 (欧洲语言常用)
-    0x0100, 0x017F,  # Latin Extended-A (Ā ā Ē ē Ī ī Ō ō Ū ū)
-    # 通用标点
-    0x2000, 0x206F,  # General Punctuation (— – … ′ ″ ‰ ※)
-    # 上标下标
-    0x2070, 0x209F,  # Superscripts/Subscripts (⁰ ¹ ² ³ ⁴ ₀ ₁ ₂)
-    # 货币符号
-    0x20A0, 0x20CF,  # Currency Symbols (€ ₤ ₩ ₪ ₹)
-    # 箭头
-    0x2190, 0x21FF,  # Arrows (← ↑ → ↓ ↔ ↕ ⇒ ⇔)
-    # 数学运算符
-    0x2200, 0x22FF,  # Mathematical Operators (∀ ∃ ∅ ∈ ∉ ≤ ≥ ≠ ≈)
-    # 制表符
-    0x2500, 0x257F,  # Box Drawing (─ │ ┌ ┐ └ ┘ ├ ┤)
-    # 方块元素
-    0x2580, 0x259F,  # Block Elements (▀ ▄ █ ░ ▒ ▓)
-    # 几何形状
-    0x25A0, 0x25FF,  # Geometric Shapes (■ □ ▲ △ ● ○ ◆ ◇)
-    # 杂项符号
-    0x2600, 0x26FF,  # Miscellaneous Symbols (☀ ☁ ☂ ★ ☆ ☎ ♠ ♥ ♦ ♣)
-    # Dingbats
-    0x2700, 0x27BF,  # Dingbats (✓ ✔ ✕ ✖ ✗ ✘ ✙ ✚)
-    # CJK 符号和标点
-    0x3000, 0x303F,  # CJK Symbols and Punctuation (、。〈 〉《 》「 」『 』)
-    # 带圈数字
-    0x2460, 0x24FF,  # Enclosed Alphanumerics (① ② ③ ④ ⑤ Ⓐ Ⓑ Ⓒ)
-    # 终止符
-    0,
-]
-
-# Stoneshard/游戏相关的额外汉字 (GB2312 可能不包含的)
-# 可以根据需要添加
-EXTRA_CJK_CHARS: str = (
-    # 生僻字 (如果游戏里有用到)
-    "鑫焱淼"
-    # 可继续添加...
-)
+# ==================== 公共 API ====================
 
 
-# ==================== CJK 字符集配置 ====================
-# 控制加载多少中文字符，影响启动速度和字体纹理大小
-#
-# 字符集大小对照:
-#   - "minimal":  ~3000 字 (通用规范汉字表一级字 + 常用标点) - 最快
-#   - "standard": ~6000 字 (通用规范汉字表一二级) - 推荐
-#   - "full":     ~8000 字 (CJK 基本区常用部分) - 覆盖最广
-#
-# 性能参考 (2 字号, DPI=1.5):
-#   - minimal:  ~0.8-1.0 秒
-#   - standard: ~1.2-1.5 秒
-#   - full:     ~1.8-2.2 秒
+def compute_font_px(token: str) -> float:
+    """计算字号 token 对应的逻辑像素值 (未缩放)
 
-CJK_CHARSET: str = "standard"  # "minimal" | "standard" | "full"
-
-# CJK 字符范围定义
-CJK_RANGES: dict[str, list[int]] = {
-    # 最小集: 通用规范汉字表一级字 (~3500字)
-    # 覆盖 99.48% 日常用字
-    "minimal": [
-        0x4E00, 0x9FA5,  # 只加载常用部分，依靠字体本身过滤
-        0,  # 终止符
-    ],
-    # 标准集: 通用规范汉字表一二级 (~6500字)
-    # 覆盖 99.99% 日常用字
-    "standard": [
-        0x4E00, 0x9FA5,  # CJK 统一汉字基本区常用部分
-        0,  # 终止符
-    ],
-    # 完整集: CJK 基本区全部 (~20000字)
-    # 包括生僻字、古汉语用字
-    "full": [
-        0x4E00, 0x9FFF,  # CJK 统一汉字基本区
-        0,  # 终止符
-    ],
-}
-
-
-# ==================== 字号预设 ====================
-
-# 预加载的字号 - 只加载最常用的 2 个以加快启动速度
-# 注意: ImGui 需要将所有字形烘焙到纹理，字号越多纹理越大
-# 2 个字号 + CJK 常用字符集 是启动速度和功能的平衡点
-# ⚠️ 顺序重要：ImGui 以第一个加载的字体为默认字体
-#
-# 性能参考 (4K DPI=1.5, ~6000 CJK 字符):
-#   - 4 字号: ~3-4 秒
-#   - 2 字号: ~1.5-2 秒
-PRELOAD_SIZES: list[str] = [
-    "base",  # 16px - body (DEFAULT) ← 必须第一个！
-    "sm",    # 14px - small text, captions
-    # 以下字号被移除以加快启动，会回退到 base:
-    # "lg",  # 18px - large body, emphasis
-    # "xl",  # 20px - headings
-]
-
-# 默认字号 (Tailwind 默认 = base = 16px)
-DEFAULT_SIZE_TOKEN = "base"
-
-
-# ==================== 字体映射 ====================
-
-@dataclass
-class FontSet:
-    """一组字号的字体引用
-
-    只预加载 2 个常用字号以加快启动速度，其他字号回退到最接近的字号。
-    如需更多字号，可在 PRELOAD_SIZES 中添加，但会增加启动时间。
-    """
-    sm: Any = None     # 14px
-    base: Any = None   # 16px (DEFAULT)
-    lg: Any = None     # 18px (回退到 base)
-    xl: Any = None     # 20px (回退到 base)
-
-    # 别名
-    @property
-    def md(self) -> Any:
-        """md = base (向后兼容)"""
-        return self.base
-
-    @property
-    def xs(self) -> Any:
-        """回退到 sm"""
-        return self.sm
-
-    def get(self, size: str) -> Any:
-        """按 token 获取字体，不存在则回退"""
-        # 直接尝试获取
-        font = getattr(self, size, None)
-        if font is not None:
-            return font
-
-        # 回退逻辑: 大字号回退到 xl，小字号回退到 sm
-        if size in ("2xl", "3xl", "4xl", "5xl", "6xl", "7xl", "8xl", "9xl"):
-            return self.xl
-        if size == "xs":
-            return self.sm
-
-        return self.base
-
-    def __getitem__(self, size: str) -> Any:
-        """支持字典访问: font_map["sm"]"""
-        return self.get(size)
-
-    def default(self) -> Any:
-        """获取默认字体 (base = 16px)"""
-        return self.base
-
-
-# 全局字体集 (load_fonts 后可用)
-_fonts: FontSet | None = None
-
-
-def get_fonts() -> FontSet:
-    """获取已加载的字体集"""
-    if _fonts is None:
-        raise RuntimeError("Fonts not loaded. Call load_fonts() first.")
-    return _fonts
-
-
-def get_font(size: str = "sm") -> Any:
-    """获取指定字号的字体
+    返回值传给 push_font(None, size) 作为 font_size_base_unscaled。
+    ImGui 会自动乘以 style.FontScaleMain × style.FontScaleDpi。
 
     Args:
-        size: 字号，可以是:
-            - 简写: "xs", "sm", "md", "lg", "xl"
-            - 完整 token: "base.text.size.sm"
+        token: "xs", "sm", "base", "md", "lg", "xl", "2xl" 等
 
     Returns:
-        ImGui 字体对象
+        逻辑像素值 (如 16.0 for "base", 20.0 for "xl")
+
+    Example:
+        imgui.push_font(None, compute_font_px("xl"))
+        imgui.text("大标题")
+        imgui.pop_font()
     """
-    return get_fonts().get(size)
-
-
-# ==================== 字体工具函数 ====================
-
-
-def _compute_glyph_offset(base_offset: float, font_size: float) -> float:
-    """计算实际的 glyph offset (按字号比例缩放)
-
-    Args:
-        base_offset: 基准字号 (16px) 下的 offset
-        font_size: 实际字号
-
-    Returns:
-        缩放后的 offset
-    """
-    return base_offset * (font_size / BASE_FONT_SIZE)
+    return FONT_SIZES.get(token, FONT_SIZES[DEFAULT_SIZE_TOKEN])
 
 
 # ==================== 字体加载 ====================
 
 
-def _compute_font_size(token: str) -> float:
-    """计算实际字号 (应用 DPI 和全局 scale)
+def load_fonts(renderer: Any) -> None:
+    """注册字体源到 ImGui atlas (EN + CN + Icon 合并)
 
-    Args:
-        token: 字号 token
+    ImGui 1.92 动态光栅化架构:
+    - 只注册字体源，字形按需光栅化到纹理
+    - 不需要指定 glyph ranges (CJK 等自动按需加载)
+    - 不需要预烘焙多个字号
+    - 不需要手动 Build()
 
-    Returns:
-        像素值
-    """
-    base_size = FONT_SIZES.get(token, 14.0)
-    dpi = dpi_scale()
-    return base_size * dpi * config.get_font_scale()
-
-
-def _load_font_for_size(
-    io: Any,
-    size_token: str,
-    en_path: str,
-    cn_path: str,
-    icon_path: str,
-) -> Any:
-    """加载单个字号的完整字体 (英文 + 中文 + 图标)
-
-    使用 font_config.py 中的 glyph_offset 补偿 baseline 差异。
-
-    返回字体对象 (第一个加载的字体)
-    """
-    font = None
-    font_size = _compute_font_size(size_token)
-
-    # 计算各字体的 glyph offset (按字号比例缩放)
-    cn_offset_y = _compute_glyph_offset(CHINESE_GLYPH_OFFSET_Y, font_size)
-    icon_offset_y = _compute_glyph_offset(ICON_GLYPH_OFFSET_Y, font_size)
-
-    # 1. 英文字体 (主字体，决定 baseline)
-    if en_path:
-        try:
-            font = io.fonts.add_font_from_file_ttf(en_path, font_size)
-
-            # 1b. 额外符号范围 (从英文字体合并)
-            # 包括: 箭头、数学符号、几何形状、制表符等
-            # 使用英文字体确保符号宽度一致性
-            extra_cfg = imgui.core.FontConfig(
-                merge_mode=True,
-                glyph_offset_y=0,  # 英文字体不需要 baseline 补偿
-            )
-            extra_ranges = imgui.core.GlyphRanges(EXTRA_SYMBOL_RANGES)
-            io.fonts.add_font_from_file_ttf(
-                en_path,
-                font_size,
-                font_cfg=extra_cfg.handle,
-                glyph_ranges=extra_ranges.ranges_ptr,
-            )
-        except Exception as e:
-            print(f"[fonts] 英文字体加载失败 ({size_token}): {e}")
-
-    if font is None:
-        font = io.fonts.add_font_default()
-
-    # 2. 中文字体 (合并模式，带 baseline 补偿)
-    if cn_path:
-        try:
-            # 使用 glyph_offset_y 补偿 baseline 差异
-            font_cfg = imgui.core.FontConfig(
-                merge_mode=True,
-                glyph_offset_y=cn_offset_y,
-            )
-            # 使用配置的 CJK 字符集
-            cjk_range = CJK_RANGES.get(CJK_CHARSET, CJK_RANGES["standard"])
-            ranges = imgui.core.GlyphRanges(cjk_range)
-            io.fonts.add_font_from_file_ttf(
-                cn_path,
-                font_size,
-                font_cfg=font_cfg.handle,
-                glyph_ranges=ranges.ranges_ptr,
-            )
-
-            # 2c. 额外 CJK 字符 (GB2312 不包含的)
-            if EXTRA_CJK_CHARS:
-                cjk_cfg = imgui.core.FontConfig(
-                    merge_mode=True,
-                    glyph_offset_y=cn_offset_y,
-                )
-                # 构建字符码点列表
-                cjk_codepoints = []
-                for char in EXTRA_CJK_CHARS:
-                    cp = ord(char)
-                    cjk_codepoints.extend([cp, cp])  # 单字符范围
-                cjk_codepoints.append(0)  # 终止符
-                cjk_ranges = imgui.core.GlyphRanges(cjk_codepoints)
-                io.fonts.add_font_from_file_ttf(
-                    cn_path,
-                    font_size,
-                    font_cfg=cjk_cfg.handle,
-                    glyph_ranges=cjk_ranges.ranges_ptr,
-                )
-        except Exception as e:
-            print(f"[fonts] 中文字体加载失败 ({size_token}): {e}")
-
-    # 3. 图标字体 (合并模式，带 baseline 补偿和缩放)
-    # 参考: https://github.com/ocornut/imgui/issues/1869
-    if icon_path:
-        try:
-            icon_size = font_size * ICON_SCALE
-            icon_cfg = imgui.core.FontConfig(
-                merge_mode=True,
-                pixel_snap_h=True,
-                glyph_offset_y=icon_offset_y,
-                glyph_min_advance_x=icon_size,  # 等宽，保证图标对齐
-            )
-            icon_ranges = imgui.core.GlyphRanges([ICON_RANGE_START, ICON_RANGE_END, 0])
-            io.fonts.add_font_from_file_ttf(
-                icon_path,
-                icon_size,
-                font_cfg=icon_cfg.handle,
-                glyph_ranges=icon_ranges.ranges_ptr,
-            )
-        except Exception as e:
-            print(f"[fonts] 图标字体加载失败 ({size_token}): {e}")
-
-    return font
-
-
-def load_fonts(renderer: Any) -> FontSet:
-    """加载所有预设字号的字体
-
-    使用 font_config.py 中的配置（由 codegen 生成）。
-    预加载所有 typography token 定义的字号。
+    通过 style 属性控制缩放:
+    - font_size_base: 基准逻辑字号
+    - font_scale_main: 用户缩放因子
+    - font_scale_dpi: DPI 缩放因子
 
     Args:
         renderer: GlfwRenderer 实例
-
-    Returns:
-        FontSet 包含所有字号的字体引用
     """
-    global _fonts
-
     io = imgui.get_io()
     io.fonts.clear_fonts()
 
-    # 字体纹理尺寸
-    # 4 个字号 + GB2312 字符集 = 4096 足够
-    io.fonts.tex_max_width = 4096
-
-    # 使用 font_config.py 中的固定路径
+    # 字体路径
     en_path = ENGLISH_FONT if os.path.exists(ENGLISH_FONT) else ""
     cn_path = CHINESE_FONT if os.path.exists(CHINESE_FONT) else ""
     icon_path = ICON_FONT if os.path.exists(ICON_FONT) else ""
@@ -441,31 +146,122 @@ def load_fonts(renderer: Any) -> FontSet:
     if not icon_path:
         print(f"[fonts] 警告: 未找到图标字体 {ICON_FONT}")
 
-    # 加载每个字号
-    fonts = FontSet()
-    for size_name in PRELOAD_SIZES:
-        font = _load_font_for_size(io, size_name, en_path, cn_path, icon_path)
-        setattr(fonts, size_name, font)
+    # --- 1. 英文主字体 (决定 baseline) ---
+    font = None
+    if en_path:
+        try:
+            font = io.fonts.add_font_from_file_ttf(en_path)
+        except Exception as e:
+            print(f"[fonts] 英文字体加载失败: {e}")
 
-    # 刷新纹理
+    if font is None:
+        font = io.fonts.add_font_default()
+
+    # --- 2. 中文字体 (合并，带 baseline 补偿) ---
+    # GlyphOffset 在 1.92 中会随渲染字号自动等比缩放
+    if cn_path:
+        try:
+            cn_cfg = imgui.core.FontConfig(
+                merge_mode=True,
+                pixel_snap_h=True,
+                glyph_offset_y=CHINESE_GLYPH_OFFSET_Y,
+            )
+            io.fonts.add_font_from_file_ttf(
+                cn_path, BASE_FONT_SIZE, font_cfg=cn_cfg.handle,
+            )
+        except Exception as e:
+            print(f"[fonts] 中文字体加载失败: {e}")
+
+    # --- 3. 图标字体 (合并，等宽对齐) ---
+    # 使用 subset 字体 (fa-subset.ttf)，由 codegen/generate_icon_font.py 生成
+    if icon_path:
+        try:
+            icon_cfg = imgui.core.FontConfig(
+                merge_mode=True,
+                pixel_snap_h=True,
+                glyph_offset_y=ICON_GLYPH_OFFSET_Y,
+                glyph_min_advance_x=BASE_FONT_SIZE * ICON_SCALE,
+            )
+            io.fonts.add_font_from_file_ttf(
+                icon_path, BASE_FONT_SIZE * ICON_SCALE,
+                font_cfg=icon_cfg.handle,
+            )
+        except Exception as e:
+            print(f"[fonts] 图标字体加载失败: {e}")
+
+    # --- 4. 设置默认字号和缩放因子 ---
+    style = imgui.get_style()
+    style.font_size_base = FONT_SIZES[DEFAULT_SIZE_TOKEN]
+    style.font_scale_dpi = dpi_scale()
+    style.font_scale_main = config.get_font_scale()
+
+    # 1.92 后端自动管理纹理 (refresh 是 no-op 兼容)
     try:
         renderer.refresh_font_texture()
     except Exception as e:
         print(f"[fonts] 刷新字体纹理失败: {e}")
 
-    _fonts = fonts
-    print(f"[fonts] 已加载 {len(PRELOAD_SIZES)} 个字号, 默认={DEFAULT_SIZE_TOKEN}")
-
-    # 同步到 styles 模块
-    try:
-        from ui import styles
-        styles.set_font_set(fonts)
-    except ImportError:
-        pass  # styles 模块可能未加载
-
-    return fonts
+    print(
+        f"[fonts] 字体已注册 (1.92 动态光栅化), "
+        f"base={FONT_SIZES[DEFAULT_SIZE_TOKEN]}px, "
+        f"dpi={dpi_scale():.2f}, scale={config.get_font_scale():.2f}"
+    )
 
 
-def reload_fonts(renderer: Any) -> FontSet:
-    """重新加载字体 (DPI 或配置变更后调用)"""
-    return load_fonts(renderer)
+def update_font_scale() -> None:
+    """更新缩放因子 (无需重新注册字体)
+
+    当用户改变字体缩放或 DPI 变化时调用。
+    比 load_fonts() 更轻量，不会清空字形缓存。
+    """
+    style = imgui.get_style()
+    style.font_scale_dpi = dpi_scale()
+    style.font_scale_main = config.get_font_scale()
+
+
+def reload_fonts(renderer: Any) -> None:
+    """重新加载字体 (完全重建，DPI 或字体文件变更后调用)"""
+    load_fonts(renderer)
+
+
+# ==================== 废弃兼容层 ====================
+# 以下保留仅为 styles.py 类型注解兼容，将在后续版本移除
+
+
+@dataclass
+class FontSet:
+    """[废弃] 旧版字体集，1.92 不再需要预加载多个字号。"""
+    sm: Any = None
+    base: Any = None
+    lg: Any = None
+    xl: Any = None
+
+    @property
+    def md(self) -> Any:
+        return self.base
+
+    @property
+    def xs(self) -> Any:
+        return self.sm
+
+    def get(self, size: str) -> Any:
+        return self.base
+
+    def __getitem__(self, size: str) -> Any:
+        return self.base
+
+    def default(self) -> Any:
+        return self.base
+
+
+_fonts: FontSet | None = None
+
+
+def get_fonts() -> FontSet:
+    """[废弃] 返回空 FontSet"""
+    return _fonts or FontSet()
+
+
+def get_font(size: str = "base") -> Any:
+    """[废弃] 请使用 push_font(None, compute_font_px(token))"""
+    return None

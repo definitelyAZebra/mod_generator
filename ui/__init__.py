@@ -46,6 +46,8 @@ _LAZY_MODULES = {
 _LAZY_ATTRS = {
     # fonts
     'load_fonts': ('ui.fonts', 'load_fonts'),
+    'compute_font_px': ('ui.fonts', 'compute_font_px'),
+    'update_font_scale': ('ui.fonts', 'update_font_scale'),
     # texture_manager
     'load_texture': ('ui.texture_manager', 'load_texture'),
     'unload_all_textures': ('ui.texture_manager', 'unload_all_textures'),
@@ -91,6 +93,8 @@ if TYPE_CHECKING:
     from ui import config as config
     from ui import styles as styles
     from ui.fonts import load_fonts as load_fonts
+    from ui.fonts import compute_font_px as compute_font_px
+    from ui.fonts import update_font_scale as update_font_scale
     from ui.texture_manager import (
         load_texture as load_texture,
         unload_all_textures as unload_all_textures,
@@ -103,7 +107,7 @@ __all__ = [
     'config', 'styles', 'tw', 'fonts',
     'texture_manager', 'menu', 'popups', 'dialogs',
     # fonts
-    'load_fonts',
+    'load_fonts', 'compute_font_px', 'update_font_scale',
     # texture_manager
     'load_texture', 'unload_all_textures', 'draw_checkerboard',
 ]
