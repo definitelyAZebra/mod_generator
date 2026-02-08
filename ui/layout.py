@@ -584,7 +584,9 @@ def card(
 
     # Child flags (auto-resize) vs window flags (no scrollbar)
     wf = imgui.WINDOW_NO_SCROLLBAR | flags
-    cf = 0
+    # AlwaysUseWindowPadding: 必须显式设置，否则当 ChildBorderSize=0 时
+    # ImGui 会将 WindowPadding 强制归零 (imgui.cpp:7982)
+    cf = int(imgui.ChildFlags.AlwaysUseWindowPadding)
     if height == 0:
         cf |= int(imgui.ChildFlags.AutoResizeY)
 

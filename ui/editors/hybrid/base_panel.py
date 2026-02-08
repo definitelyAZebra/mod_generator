@@ -246,9 +246,10 @@ def _draw_category_section(hybrid: HybridItemV2) -> None:
 
     tooltip("主分类 (Cat)\n用于掉落表匹配")
 
-    # 同行：添加子分类按钮 (高度匹配 combo)
+    # 同行：添加子分类按钮 (方形，匹配 combo 高度)
     imgui.same_line()
-    if (tw.btn_secondary)(imgui.button)("+##add_subcat"):
+    _fh = imgui.get_frame_height()
+    if (tw.btn_secondary)(imgui.button)("+##add_subcat", _fh, _fh):
         imgui.open_popup("subcats_popup")
     tooltip("添加子分类 (Subcats)\n可多选")
 
@@ -319,8 +320,9 @@ def _draw_tags_section(hybrid: HybridItemV2) -> None:
         _locked_badge("special_only", EXTRA_TAGS.get("special", "特殊"), "已排除随机生成")
         return
 
-    # 正常模式 - 添加标签按钮
-    if (tw.btn_secondary | tw.btn_xs)(imgui.button)("+##add_tag"):
+    # 正常模式 - 添加标签按钮 (方形，匹配徽章高度)
+    _fh = imgui.get_frame_height()
+    if (tw.btn_secondary)(imgui.button)("+##add_tag", _fh, _fh):
         imgui.open_popup("tags_popup")
     tooltip("添加标签")
 

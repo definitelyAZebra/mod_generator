@@ -410,44 +410,54 @@ _FRAG_DATA = [
 
 
 def _draw_fragments_inline(hybrid: HybridItemV2) -> None:
-    """碎片内联网格 — 4列 label+input 布局
+    """碎片内联网格 — 4列 label+input 布局 (ImGui Table)
 
     Tailwind: grid grid-cols-4 gap-2, 每格 label + input
     """
     tw.text_muted(imgui.text)("拆解碎片")
     ly.gap_y(1)
 
-    col_label_w = ly.sz(8)   # 32px
-    col_input_w = ly.sz(14)  # 56px
-    col_gap = ly.sz(1.5)     # 6px
-    pair_gap = ly.sz(4)      # 16px between pairs
+    input_w = ly.sz(14)     # 56px 固定输入宽度
+    cell_px = ly.sz(2)      # 8px 列间距
+    cell_py = ly.sz(0.75)   # 3px 行间距
     cols_per_row = 4
+    table_cols = cols_per_row * 2  # label + input per logical column
 
-    with tw.input_default:
-        for i, (frag_key, frag_label) in enumerate(_FRAG_DATA):
-            col_in_row = i % cols_per_row
-            if col_in_row == 0 and i > 0:
-                pass  # new row (automatic)
-            elif col_in_row > 0:
-                imgui.same_line(spacing=pair_gap)
+    imgui.push_style_var(imgui.STYLE_CELL_PADDING, (cell_px, cell_py))
 
-            # Label
-            imgui.align_text_to_frame_padding()
-            val = hybrid.fragments.get(frag_key, 0)
-            if val > 0:
-                tw.text_default(imgui.text)(frag_label)
-            else:
-                tw.text_faint(imgui.text)(frag_label)
-
-            imgui.same_line(spacing=col_gap)
-
-            # Input
-            imgui.set_next_item_width(col_input_w)
-            changed, new_val = imgui.input_int(
-                f"##{frag_key}_inline", val, step=0, step_fast=0,
+    flags = imgui.TABLE_SIZING_FIXED_FIT | imgui.TABLE_NO_BORDERS_IN_BODY
+    if imgui.begin_table("##frags", table_cols, flags):
+        for _c in range(cols_per_row):
+            imgui.table_setup_column(f"##fl{_c}")  # label: auto-fit
+            imgui.table_setup_column(
+                f"##fi{_c}", imgui.TABLE_COLUMN_WIDTH_FIXED, input_w,
             )
-            if changed:
-                hybrid.fragments[frag_key] = max(0, new_val)
+
+        with tw.input_default:
+            for i, (frag_key, frag_label) in enumerate(_FRAG_DATA):
+                if i % cols_per_row == 0:
+                    imgui.table_next_row()
+
+                val = hybrid.fragments.get(frag_key, 0)
+
+                # Label
+                imgui.table_next_column()
+                imgui.align_text_to_frame_padding()
+                label_style = tw.text_default if val > 0 else tw.text_faint
+                label_style(imgui.text)(frag_label)
+
+                # Input
+                imgui.table_next_column()
+                imgui.set_next_item_width(-1)
+                changed, new_val = imgui.input_int(
+                    f"##{frag_key}_inline", val, step=0, step_fast=0,
+                )
+                if changed:
+                    hybrid.fragments[frag_key] = max(0, new_val)
+
+        imgui.end_table()
+
+    imgui.pop_style_var()
 
 
 # =============================================================================

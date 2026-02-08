@@ -51,7 +51,7 @@ from specs import (
 # =============================================================================
 
 # 输入框固定宽度 (Tailwind 单位)
-_INPUT_TW = 22  # 88px
+_INPUT_TW = 18  # 72px
 
 # 响应式网格列数阈值 (像素 avail content width)
 _COL_THRESHOLDS = [
@@ -142,28 +142,26 @@ def _draw_attribute_full_grid(
 
 
 def _draw_attr_table(attrs: list[str], target_dict: dict) -> None:
-    """渲染属性紧凑表格: [label][input] × N (响应式列数)
+    """渲染属性紧凑表格: [label input] × N (响应式列数)
 
-    使用 ImGui Table 实现 2N 列 (label, input) × N 布局。
-    label 列自动拉伸, input 列固定宽度。列数根据可用宽度自适应。
+    每逻辑列 = 单 table 列，内部 same_line 紧排 label + input。
+    列等宽拉伸，label→input 紧邻，多余空间留在输入框右侧。
     """
     num_cols = _grid_cols()
-    input_w = sz(_INPUT_TW)
+
+    # 输入框宽度 = min(固定值, 单元格剩余空间) — 在渲染时动态计算
+    input_base = sz(_INPUT_TW)
     cell_pad_x = sz(1.5)  # 6px 水平间距
     cell_pad_y = sz(0.5)  # 2px 垂直间距
+    label_input_gap = sz(1)  # 4px label 与 input 之间
 
     imgui.push_style_var(imgui.STYLE_CELL_PADDING, (cell_pad_x, cell_pad_y))
 
-    table_cols = num_cols * 2  # label + input per logical column
     flags = imgui.TABLE_SIZING_STRETCH_SAME | imgui.TABLE_NO_BORDERS_IN_BODY
 
-    if imgui.begin_table("##ag", table_cols, flags):
-        # 列配置: 交替 stretch(label) + fixed(input)
+    if imgui.begin_table("##ag", num_cols, flags):
         for i in range(num_cols):
-            imgui.table_setup_column(f"##l{i}")  # stretch label
-            imgui.table_setup_column(
-                f"##i{i}", imgui.TABLE_COLUMN_WIDTH_FIXED, input_w
-            )
+            imgui.table_setup_column(f"##c{i}")
 
         # input 样式: frame_bg + border + rounded
         with tw.input_default:
@@ -175,17 +173,19 @@ def _draw_attr_table(attrs: list[str], target_dict: dict) -> None:
                 name, desc = get_attr_display(attr)
                 display_name = name or attr
 
-                # --- Label column ---
                 imgui.table_next_column()
+
+                # Label
                 label_style = tw.text_faint if val == 0 else tw.text_muted
                 imgui.align_text_to_frame_padding()
                 label_style(imgui.text)(display_name)
                 if desc:
                     tooltip(desc)
 
-                # --- Input column ---
-                imgui.table_next_column()
-                imgui.set_next_item_width(-1)
+                # Input (same line, 紧随 label)
+                imgui.same_line(spacing=label_input_gap)
+                avail = imgui.get_content_region_available_width()
+                imgui.set_next_item_width(min(input_base, max(avail, sz(8))))
 
                 if attr in STRICT_INT_ATTRIBUTES:
                     ch, nv = imgui.input_int(f"##v_{attr}", int(val), 0, 0)

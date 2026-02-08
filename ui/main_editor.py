@@ -130,6 +130,7 @@ def _draw_hybrid_main(width: float, height: float) -> None:
         height,
         border=False,
         flags=imgui.WINDOW_NO_SCROLLBAR,
+        child_flags=int(imgui.ChildFlags.AlwaysUseWindowPadding),
     )
 
     if not has_hybrid:
