@@ -4,7 +4,7 @@
 "物品做什么" - 装备形态、触发、充能、耐久、生成规则
 
 使用 ui.fields 声明式字段组件消除布局样板代码。
-弹窗/预览函数保持不变。
+碎片和生成预测已内联到主表单区域 (不再使用弹窗)。
 """
 
 from __future__ import annotations
@@ -12,10 +12,10 @@ from __future__ import annotations
 from ui import imgui_shim as imgui
 from ui import tw
 from ui import layout as ly
-from ui.layout import tooltip, item_width
+from ui.layout import tooltip
 from ui.fields import (
     field_row, enum_field, int_field, toggle_field,
-    readonly_field, button_field, field_slot,
+    readonly_field, field_slot,
 )
 
 from hybrid_item_v2 import HybridItemV2
@@ -179,10 +179,12 @@ def _draw_equipment_section(hybrid: HybridItemV2) -> None:
             readonly_field("护甲分类", hybrid.armor_class)
 
             if hybrid.slot not in ["hand", "Ring", "Amulet"]:
-                frag_count = sum(hybrid.fragments.values())
-                if button_field("碎片数", f"({frag_count})##frags"):
-                    imgui.open_popup("fragments_popup")
-                _draw_fragments_popup(hybrid)
+                pass  # fragments now drawn below
+
+    # 碎片内联网格 (仅护甲非饰品)
+    if is_armor_mode(hybrid.equipment) and hybrid.slot not in ["hand", "Ring", "Amulet"]:
+        ly.gap_y(2)
+        _draw_fragments_inline(hybrid)
 
 
 # =============================================================================
@@ -431,91 +433,87 @@ def _draw_spawn_section(hybrid: HybridItemV2) -> None:
             if ch_s:
                 object.__setattr__(spawn, "shop_spawn", new_s)
 
-        # 生成预测
-        if button_field("生成预测", "▶##gen_preview", tooltip_text="查看生成预测"):
-            imgui.open_popup("generation_preview_popup")
-        _draw_generation_preview_popup(hybrid)
+    # 生成预测 — 内联显示在生成规则下方
+    ly.gap_y(2)
+    _draw_spawn_prediction_inline(hybrid)
 
 
 # =============================================================================
-# 碎片弹窗 (保持不变)
+# 碎片内联网格
 # =============================================================================
 
-def _draw_fragments_popup(hybrid: HybridItemV2) -> None:
-    if imgui.begin_popup("fragments_popup"):
-        imgui.text("拆解碎片")
-        imgui.separator()
-        tw.text_muted(imgui.text)("拆解物品时可获得的材料碎片")
-
-        frag_data = [
-            ("cloth01", "布1"), ("cloth02", "布2"), ("cloth03", "布3"), ("cloth04", "布4"),
-            ("leather01", "皮1"), ("leather02", "皮2"), ("leather03", "皮3"), ("leather04", "皮4"),
-            ("metal01", "铁1"), ("metal02", "铁2"), ("metal03", "铁3"), ("metal04", "铁4"),
-            ("gold", "金"),
-        ]
-
-        ly.gap_y(2)
-
-        if imgui.begin_table("frag_popup_table", 4, imgui.TABLE_SIZING_STRETCH_SAME):
-            imgui.table_setup_column("L1", imgui.TABLE_COLUMN_WIDTH_FIXED, 30)
-            imgui.table_setup_column("I1", imgui.TABLE_COLUMN_WIDTH_FIXED, 50)
-            imgui.table_setup_column("L2", imgui.TABLE_COLUMN_WIDTH_FIXED, 30)
-            imgui.table_setup_column("I2", imgui.TABLE_COLUMN_WIDTH_FIXED, 50)
-
-            for i, (frag_key, frag_label) in enumerate(frag_data):
-                if i % 2 == 0:
-                    imgui.table_next_row()
-
-                imgui.table_next_column()
-                imgui.text(frag_label)
-
-                imgui.table_next_column()
-                val = hybrid.fragments.get(frag_key, 0)
-                with item_width(-1):
-                    changed, new_val = imgui.input_int(
-                        f"##{frag_key}_popup", val, step=0, step_fast=0,
-                    )
-                if changed:
-                    hybrid.fragments[frag_key] = max(0, new_val)
-
-            imgui.end_table()
-
-        imgui.end_popup()
+_FRAG_DATA = [
+    ("cloth01", "布1"), ("cloth02", "布2"), ("cloth03", "布3"), ("cloth04", "布4"),
+    ("leather01", "皮1"), ("leather02", "皮2"), ("leather03", "皮3"), ("leather04", "皮4"),
+    ("metal01", "铁1"), ("metal02", "铁2"), ("metal03", "铁3"), ("metal04", "铁4"),
+    ("gold", "金"),
+]
 
 
-# =============================================================================
-# 生成预测弹窗 (保持不变)
-# =============================================================================
+def _draw_fragments_inline(hybrid: HybridItemV2) -> None:
+    """碎片内联网格 — 4列 label+input 布局
 
-def _draw_generation_preview_popup(hybrid: HybridItemV2) -> None:
-    imgui.set_next_window_size(500, 350, imgui.ALWAYS)
-    if imgui.begin_popup("generation_preview_popup"):
-        imgui.text("生成预测")
-        imgui.separator()
+    Tailwind: grid grid-cols-4 gap-2, 每格 label + input
+    """
+    tw.text_muted(imgui.text)("拆解碎片")
+    ly.gap_y(1)
 
-        if spawn_is_excluded(hybrid.spawn):
-            tw.text_muted(imgui.text)("物品已排除随机生成")
-            imgui.text("不会出现在宝箱掉落、商店库存中")
+    col_label_w = ly.sz(8)   # 32px
+    col_input_w = ly.sz(14)  # 56px
+    col_gap = ly.sz(1.5)     # 6px
+    pair_gap = ly.sz(4)      # 16px between pairs
+    cols_per_row = 4
+
+    for i, (frag_key, frag_label) in enumerate(_FRAG_DATA):
+        col_in_row = i % cols_per_row
+        if col_in_row == 0 and i > 0:
+            pass  # new row (automatic)
+        elif col_in_row > 0:
+            imgui.same_line(spacing=pair_gap)
+
+        # Label
+        imgui.align_text_to_frame_padding()
+        val = hybrid.fragments.get(frag_key, 0)
+        if val > 0:
+            tw.text_default(imgui.text)(frag_label)
         else:
-            imgui.text("容器掉落:")
-            if hybrid.container_spawn == SpawnRuleType.NONE:
-                tw.text_muted(imgui.text)("  关闭")
-            elif hybrid.container_spawn == SpawnRuleType.EQUIPMENT:
-                _draw_container_preview(hybrid, is_equipment=True)
-            else:
-                _draw_container_preview(hybrid, is_equipment=False)
+            tw.text_faint(imgui.text)(frag_label)
 
-            ly.gap_y(3.5)
+        imgui.same_line(spacing=col_gap)
 
-            imgui.text("商店进货:")
-            if hybrid.shop_spawn == SpawnRuleType.NONE:
-                tw.text_muted(imgui.text)("  关闭")
-            else:
-                _draw_shop_preview(hybrid)
+        # Input
+        imgui.set_next_item_width(col_input_w)
+        changed, new_val = imgui.input_int(
+            f"##{frag_key}_inline", val, step=0, step_fast=0,
+        )
+        if changed:
+            hybrid.fragments[frag_key] = max(0, new_val)
 
-            ly.gap_y(3.5)
 
-        imgui.end_popup()
+# =============================================================================
+# 生成预测内联
+# =============================================================================
+
+def _draw_spawn_prediction_inline(hybrid: HybridItemV2) -> None:
+    """生成预测 — 内联显示在生成规则字段下方
+
+    实时显示匹配的容器掉落点和商店 NPC，无需点击弹窗。
+    """
+    if spawn_is_excluded(hybrid.spawn):
+        tw.text_faint(imgui.text)("已排除随机生成")
+        return
+
+    # 容器掉落
+    if hybrid.container_spawn != SpawnRuleType.NONE:
+        tw.text_muted(imgui.text)("容器掉落:")
+        imgui.same_line()
+        _draw_container_preview(hybrid, is_equipment=(hybrid.container_spawn == SpawnRuleType.EQUIPMENT))
+
+    # 商店进货
+    if hybrid.shop_spawn != SpawnRuleType.NONE:
+        tw.text_muted(imgui.text)("商店进货:")
+        imgui.same_line()
+        _draw_shop_preview(hybrid)
 
 
 def _draw_container_preview(hybrid: HybridItemV2, is_equipment: bool) -> None:
