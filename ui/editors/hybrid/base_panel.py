@@ -228,14 +228,16 @@ def _draw_category_section(hybrid: HybridItemV2) -> None:
     imgui.push_item_width(ly.sz(25))  # 100px
 
     # Inline combo (not field_row — badge layout requires same_line)
-    current_label = str(cat_labels.get(hybrid.cat, hybrid.cat))
-    if imgui.begin_combo("##cat_hybrid", current_label):
-        for opt in cat_options:
-            display = str(cat_labels.get(opt, opt))
-            if imgui.selectable(display, opt == hybrid.cat)[0]:
-                if not is_treasure:
-                    hybrid.cat = opt
-        imgui.end_combo()
+    # input_default: frame_bg + border + rounded
+    with tw.input_default:
+        current_label = str(cat_labels.get(hybrid.cat, hybrid.cat))
+        if imgui.begin_combo("##cat_hybrid", current_label):
+            for opt in cat_options:
+                display = str(cat_labels.get(opt, opt))
+                if imgui.selectable(display, opt == hybrid.cat)[0]:
+                    if not is_treasure:
+                        hybrid.cat = opt
+            imgui.end_combo()
 
     imgui.pop_item_width()
 
@@ -244,9 +246,9 @@ def _draw_category_section(hybrid: HybridItemV2) -> None:
 
     tooltip("主分类 (Cat)\n用于掉落表匹配")
 
-    # 同行：添加子分类按钮
+    # 同行：添加子分类按钮 (高度匹配 combo)
     imgui.same_line()
-    if (tw.btn_secondary | tw.btn_xs)(imgui.button)("+##add_subcat"):
+    if (tw.btn_secondary)(imgui.button)("+##add_subcat"):
         imgui.open_popup("subcats_popup")
     tooltip("添加子分类 (Subcats)\n可多选")
 

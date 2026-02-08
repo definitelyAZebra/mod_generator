@@ -109,15 +109,15 @@ def draw_behavior_panel(hybrid: HybridItemV2) -> None:
     """绘制装备与触发面板"""
     _draw_equipment_section(hybrid)
 
-    ly.gap_y(3.5)
+    ly.gap_y(4)
     _draw_trigger_section(hybrid)
 
     if hybrid.has_durability:
-        ly.gap_y(3.5)
+        ly.gap_y(4)
         _draw_durability_section(hybrid)
 
     if charge_has_charges(hybrid.charges):
-        ly.gap_y(3.5)
+        ly.gap_y(4)
         _draw_charges_section(hybrid)
 
 
@@ -350,6 +350,7 @@ def _draw_charges_section(hybrid: HybridItemV2) -> None:
 
     # --- 第二行: 恢复/终止 (仅有限次数) ---
     if isinstance(hybrid.charges, LimitedCharges):
+        ly.gap_y(2)
         _draw_recovery_row(hybrid)
 
 
@@ -422,30 +423,31 @@ def _draw_fragments_inline(hybrid: HybridItemV2) -> None:
     pair_gap = ly.sz(4)      # 16px between pairs
     cols_per_row = 4
 
-    for i, (frag_key, frag_label) in enumerate(_FRAG_DATA):
-        col_in_row = i % cols_per_row
-        if col_in_row == 0 and i > 0:
-            pass  # new row (automatic)
-        elif col_in_row > 0:
-            imgui.same_line(spacing=pair_gap)
+    with tw.input_default:
+        for i, (frag_key, frag_label) in enumerate(_FRAG_DATA):
+            col_in_row = i % cols_per_row
+            if col_in_row == 0 and i > 0:
+                pass  # new row (automatic)
+            elif col_in_row > 0:
+                imgui.same_line(spacing=pair_gap)
 
-        # Label
-        imgui.align_text_to_frame_padding()
-        val = hybrid.fragments.get(frag_key, 0)
-        if val > 0:
-            tw.text_default(imgui.text)(frag_label)
-        else:
-            tw.text_faint(imgui.text)(frag_label)
+            # Label
+            imgui.align_text_to_frame_padding()
+            val = hybrid.fragments.get(frag_key, 0)
+            if val > 0:
+                tw.text_default(imgui.text)(frag_label)
+            else:
+                tw.text_faint(imgui.text)(frag_label)
 
-        imgui.same_line(spacing=col_gap)
+            imgui.same_line(spacing=col_gap)
 
-        # Input
-        imgui.set_next_item_width(col_input_w)
-        changed, new_val = imgui.input_int(
-            f"##{frag_key}_inline", val, step=0, step_fast=0,
-        )
-        if changed:
-            hybrid.fragments[frag_key] = max(0, new_val)
+            # Input
+            imgui.set_next_item_width(col_input_w)
+            changed, new_val = imgui.input_int(
+                f"##{frag_key}_inline", val, step=0, step_fast=0,
+            )
+            if changed:
+                hybrid.fragments[frag_key] = max(0, new_val)
 
 
 # =============================================================================

@@ -57,16 +57,14 @@ from shop_configs import NPC_METADATA, SHOP_CONFIGS
 # 常量
 # =============================================================================
 
-_PAGE_PX = 5       # 页面水平 padding (20px)
-_PAGE_PY = 4       # 页面顶部 padding (16px)
 _CARD_GAP = 3      # 卡片之间的间距 (12px)
 _HEADING_GAP = 2   # 标题与内容间距 (8px)
 
 # 响应式断点: 内容区 > 此值时启用双列
 _BREAKPOINT = 275  # tw 单位 (1100px)
 
-# 卡片样式
-_card_style = tw.bg_surface | tw.child_rounded_md | tw.p_3
+# 卡片样式 — p_4 = 16px 内边距
+_card_style = tw.bg_surface | tw.child_rounded_md | tw.p_4
 
 
 # =============================================================================
@@ -87,22 +85,14 @@ def draw_hybrid_editor(hybrid: HybridItemV2) -> None:
     show_attrs = _should_show_attributes(hybrid) or isinstance(hybrid.trigger, EffectTrigger)
     has_prediction = _has_spawn_prediction(hybrid)
 
+    # 页面 padding 由外层 HybridEditor child 的 WindowPadding 提供 (p_5=20px)
     avail_w = imgui.get_content_region_available_width()
     is_wide = avail_w > sz(_BREAKPOINT)
-
-    # 页面 padding
-    ly.gap_y(_PAGE_PY)
-    imgui.indent(sz(_PAGE_PX))
-
-    # =================================================================
-    # 第一行: 身份 + 装备与触发 (宽屏并排 / 窄屏堆叠)
-    # =================================================================
-    content_w = avail_w - sz(_PAGE_PX) * 2
     col_gap = sz(_CARD_GAP)
 
     if is_wide:
         _draw_dual_column_row(
-            content_w, col_gap,
+            avail_w, col_gap,
             left_fn=lambda: _draw_card_section("身份", draw_base_panel, hybrid),
             right_fn=lambda: _draw_card_section("装备与触发", draw_behavior_panel, hybrid),
         )
@@ -140,9 +130,7 @@ def draw_hybrid_editor(hybrid: HybridItemV2) -> None:
         _draw_validation_errors(errors)
 
     # 底部呼吸空间
-    ly.gap_y(_PAGE_PY * 2)
-
-    imgui.unindent(sz(_PAGE_PX))
+    ly.gap_y(4)
 
 
 # =============================================================================

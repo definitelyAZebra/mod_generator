@@ -117,11 +117,12 @@ def _draw_hybrid_main(width: float, height: float) -> None:
     has_hybrid = 0 <= current_index < len(hybrids)
 
     # 单层容器: bg_app 背景, 隐藏滚动条但滚轮可用
+    # p_5 = 20px 四周 padding → 卡片自动尊重左右边距
     _style = (
         tw.bg_app |
         tw.child_rounded_none |
         tw.child_border_size(0) |
-        tw.p_0
+        tw.p_5
     )
     _style(imgui.begin_child)(
         "HybridEditor",

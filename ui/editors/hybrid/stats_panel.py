@@ -55,8 +55,10 @@ _INPUT_TW = 22  # 88px
 
 # 响应式网格列数阈值 (像素 avail content width)
 _COL_THRESHOLDS = [
-    (900, 4),   # > 900px → 4 列
-    (500, 3),   # > 500px → 3 列
+    (1300, 6),  # > 1300px → 6 列
+    (1000, 5),  # > 1000px → 5 列
+    (700, 4),   # > 700px → 4 列
+    (450, 3),   # > 450px → 3 列
     (0,   2),   # 其余 → 2 列
 ]
 
@@ -163,35 +165,37 @@ def _draw_attr_table(attrs: list[str], target_dict: dict) -> None:
                 f"##i{i}", imgui.TABLE_COLUMN_WIDTH_FIXED, input_w
             )
 
-        for i, attr in enumerate(attrs):
-            if i % num_cols == 0:
-                imgui.table_next_row()
+        # input 样式: frame_bg + border + rounded
+        with tw.input_default:
+            for i, attr in enumerate(attrs):
+                if i % num_cols == 0:
+                    imgui.table_next_row()
 
-            val = target_dict.get(attr, 0)
-            name, desc = get_attr_display(attr)
-            display_name = name or attr
+                val = target_dict.get(attr, 0)
+                name, desc = get_attr_display(attr)
+                display_name = name or attr
 
-            # --- Label column ---
-            imgui.table_next_column()
-            label_style = tw.text_faint if val == 0 else tw.text_muted
-            imgui.align_text_to_frame_padding()
-            label_style(imgui.text)(display_name)
-            if desc:
-                tooltip(desc)
+                # --- Label column ---
+                imgui.table_next_column()
+                label_style = tw.text_faint if val == 0 else tw.text_muted
+                imgui.align_text_to_frame_padding()
+                label_style(imgui.text)(display_name)
+                if desc:
+                    tooltip(desc)
 
-            # --- Input column ---
-            imgui.table_next_column()
-            imgui.set_next_item_width(-1)
+                # --- Input column ---
+                imgui.table_next_column()
+                imgui.set_next_item_width(-1)
 
-            if attr in STRICT_INT_ATTRIBUTES:
-                ch, nv = imgui.input_int(f"##v_{attr}", int(val), 0, 0)
-            else:
-                ch, nv = imgui.input_float(
-                    f"##v_{attr}", float(val), 0, 0, "%.2f"
-                )
+                if attr in STRICT_INT_ATTRIBUTES:
+                    ch, nv = imgui.input_int(f"##v_{attr}", int(val), 0, 0)
+                else:
+                    ch, nv = imgui.input_float(
+                        f"##v_{attr}", float(val), 0, 0, "%.2f"
+                    )
 
-            if ch:
-                target_dict[attr] = nv
+                if ch:
+                    target_dict[attr] = nv
 
         imgui.end_table()
 
