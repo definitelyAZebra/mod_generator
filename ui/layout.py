@@ -582,12 +582,13 @@ def card(
 
     state = CardState()
 
-    # Child window flags
-    child_flags = imgui.WINDOW_NO_SCROLLBAR | flags
+    # Child flags (auto-resize) vs window flags (no scrollbar)
+    wf = imgui.WINDOW_NO_SCROLLBAR | flags
+    cf = 0
     if height == 0:
-        child_flags |= imgui.WINDOW_ALWAYS_AUTO_RESIZE
+        cf |= int(imgui.ChildFlags.AutoResizeY)
 
-    imgui.begin_child(label, width=avail_width, height=h, border=False, flags=child_flags)
+    imgui.begin_child(label, width=avail_width, height=h, border=False, child_flags=cf, window_flags=wf)
     try:
         yield state
     finally:
