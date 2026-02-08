@@ -23,7 +23,6 @@
 
 from __future__ import annotations
 
-import ctypes
 from typing import Any
 
 import cimgui_py as _cimgui
@@ -764,28 +763,8 @@ BackendFlags = _cimgui.BackendFlags
 
 
 # =============================================================================
-# pyimgui compat: imgui.core.FontConfig / GlyphRanges
+# pyimgui compat: imgui.core.FontConfig
 # =============================================================================
-# fonts.py uses imgui.core.FontConfig(...) and imgui.core.GlyphRanges([...])
-# to set up font merging and glyph ranges. cimgui_py uses _FontConfig wrapper
-# and raw pointer ints for glyph ranges.
-
-# Keep all GlyphRanges ctypes arrays alive so the pointers stay valid.
-_glyph_ranges_storage: list[ctypes.Array] = []
-
-
-class GlyphRanges:
-    """pyimgui-compatible GlyphRanges wrapper.
-
-    Holds a ctypes unsigned-short array and exposes .ranges_ptr (size_t)
-    for passing to add_font_from_file_ttf(glyph_ranges=...).
-    """
-
-    def __init__(self, ranges: list[int]):
-        # ImWchar = unsigned short (16-bit) in our build
-        arr = (ctypes.c_ushort * len(ranges))(*ranges)
-        _glyph_ranges_storage.append(arr)          # prevent GC
-        self.ranges_ptr: int = ctypes.addressof(arr)
 
 
 class FontConfig:
@@ -819,7 +798,6 @@ class FontConfig:
 class _CoreCompat:
     """Namespace emulating ``imgui.core`` for font-related APIs."""
     FontConfig = FontConfig
-    GlyphRanges = GlyphRanges
 
 
 core = _CoreCompat()

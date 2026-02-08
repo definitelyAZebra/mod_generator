@@ -411,14 +411,6 @@ def generate_python_file(
             "ICON_SCALE = 1.0",
         ])
 
-    lines.extend([
-        "",
-        "# ==================== 图标码点范围 ====================",
-        "",
-        "ICON_RANGE_START = 0xE000",
-        "ICON_RANGE_END = 0xF8FF",
-    ])
-
     return "\n".join(lines) + "\n"
 
 
