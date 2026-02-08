@@ -241,7 +241,7 @@ def _draw_attr_table(attrs: list[str], target_dict: dict) -> None:
                     cx, cy = imgui.get_cursor_screen_pos()
                     frame_h = imgui.get_frame_height()
                     draw_list.add_circle_filled(
-                        cx + dot_r, cy + frame_h * 0.5,
+                        (cx + dot_r, cy + frame_h * 0.5),
                         dot_r, dot_color,
                     )
 
