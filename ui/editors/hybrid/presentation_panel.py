@@ -58,8 +58,8 @@ _COL_GAP = 4         # 列间距 (16px)
 # =============================================================================
 
 def _label(text: str) -> None:
-    """字段标签 — text-parchment-400"""
-    tw.text_parchment_400(imgui.text)(text)
+    """字段标签 — text-muted"""
+    tw.text_muted(imgui.text)(text)
 
 
 def _enum_combo(label: str, current_value, options: list, labels: dict):

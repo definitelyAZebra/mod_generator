@@ -107,7 +107,7 @@ _DIVIDER_COLOR = tw.STONE_700
 # 标准面板样式 - 供子面板参考使用
 # 子面板可以直接使用这个预设，也可以自定义
 panel_style = (
-    tw.bg_abyss_700 |
+    tw.bg_elevated |
     tw.child_rounded_none |  # 直角 - 紧贴边缘
     tw.child_border_size(0) |  # 无边框 - 用分隔线代替
     tw.p_2  # 内部 padding
@@ -249,7 +249,7 @@ def panel_section(title: str, default_open: bool = True):
     flags = imgui.TREE_NODE_DEFAULT_OPEN if default_open else 0
 
     # 使用主题色标题
-    with tw.text_crystal_300:
+    with tw.text_accent_muted:
         opened = imgui.tree_node(title, flags=flags)
 
     if opened:
@@ -276,11 +276,11 @@ def panel_label(label: str, value: str = "") -> None:
         panel_label("ID", "sword_001")
         panel_label("状态", "✓ 已验证")
     """
-    tw.text_parchment_300(imgui.text)(label)
+    tw.text_muted(imgui.text)(label)
 
     if value:
         imgui.same_line()
-        tw.text_parchment_100(imgui.text)(value)
+        tw.text_default(imgui.text)(value)
 
 
 def panel_divider() -> None:
@@ -299,7 +299,7 @@ def panel_heading(text: str) -> None:
 
     Tailwind: text-violet-400
     """
-    tw.text_crystal_400(imgui.text)(text)
+    tw.text_accent(imgui.text)(text)
 
 
 def panel_text(text: str) -> None:
@@ -307,7 +307,7 @@ def panel_text(text: str) -> None:
 
     Tailwind: text-stone-200
     """
-    tw.text_parchment_200(imgui.text)(text)
+    tw.text_default(imgui.text)(text)
 
 
 def panel_text_muted(text: str) -> None:
@@ -315,7 +315,7 @@ def panel_text_muted(text: str) -> None:
 
     Tailwind: text-stone-400
     """
-    tw.text_parchment_400(imgui.text)(text)
+    tw.text_muted(imgui.text)(text)
 
 
 # =============================================================================

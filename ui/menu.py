@@ -70,9 +70,9 @@ def draw_main_menu() -> None:
     imgui.set_next_window_position(0, 0)
     imgui.set_next_window_size(viewport_width, toolbar_h)
 
-    # 工具栏样式 (Tailwind: bg-abyss-900 px-2 py-1 border-0)
+    # 工具栏样式 (Tailwind: bg-app px-2 py-1 border-0)
     toolbar_style = (
-        tw.bg_abyss_900 |
+        tw.bg_app |
         tw.px_2 | tw.py_1 |  # WindowPadding - 工具栏容器内边距
         tw.border_size(0)
     )
@@ -228,14 +228,14 @@ def _draw_font_scale_selector() -> None:
     Tailwind: flex items-center gap-1 (标签和下拉框水平排列)
     """
     # 标签
-    with tw.text_parchment_300:
+    with tw.text_muted:
         imgui.text("字体:")
 
     # 下拉框
     imgui.same_line()
     combo_style = (
         tw.frame_bg_abyss_700 |
-        tw.text_parchment_200 |
+        tw.text_default |
         tw.rounded_sm
     )
 
@@ -251,7 +251,7 @@ def _draw_font_scale_selector() -> None:
                 is_selected = abs(current_scale - scale) < 0.01
 
                 # 选中项用紫色高亮 (Tailwind: selected ? text-crystal-400 : text-parchment-200)
-                text_style = tw.text_crystal_400 if is_selected else tw.text_parchment_200
+                text_style = tw.text_accent if is_selected else tw.text_default
                 with text_style:
                     if imgui.selectable(label, is_selected)[0]:
                         config.set_font_scale(scale)

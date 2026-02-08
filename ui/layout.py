@@ -25,13 +25,13 @@ ImGui 与 CSS 的核心区别:
   - 样式必须在容器 **创建之前** 设置！
 
 正确模式:
-    with tw.bg_abyss_800 | tw.p_4:       # 先设置样式
+    with tw.bg_surface | tw.p_4:       # 先设置样式
         with ly.card("my_card"):          # 再创建容器
             imgui.text("内容")            # 内容有 16px padding
 
 错误模式:
     with ly.card("my_card"):              # 容器已创建
-        with tw.bg_abyss_800 | tw.p_4:    # 太晚了！样式无法影响容器
+        with tw.bg_surface | tw.p_4:    # 太晚了！样式无法影响容器
             imgui.text("内容")
 
 ==============================================================================
@@ -425,7 +425,7 @@ def icon_label(
         text_style: 文字样式
 
     用法:
-        ly.icon_label(FA_GEM, "项目名称", icon_style=tw.text_crystal_400)
+        ly.icon_label(FA_GEM, "项目名称", icon_style=tw.text_accent)
     """
     if icon_style:
         with icon_style:
@@ -556,15 +556,15 @@ def card(
 
     用法:
         # ✅ 正确：样式在 card 外部
-        with tw.bg_abyss_800 | tw.child_rounded_md | tw.p_2:
+        with tw.bg_surface | tw.child_rounded_md | tw.p_2:
             with ly.card("my_card", height=12) as state:
                 imgui.text("Card content")  # 有 8px 内边距
 
         # ❌ 错误：样式在 card 内部 (不起作用)
         with ly.card("my_card"):
-            with tw.bg_abyss_800:  # 太晚了！
+            with tw.bg_surface:  # 太晚了！
                 imgui.text("Content")
-        with tw.bg_abyss_800 | tw.child_rounded_md | tw.p_2:
+        with tw.bg_surface | tw.child_rounded_md | tw.p_2:
             with ly.card("my_card", height=12) as state:
                 imgui.text("Card content")
 
@@ -573,7 +573,7 @@ def card(
 
         # 动态边框 (选中状态)
         border_style = tw.child_border_crystal_500 if is_active else tw.noop
-        with tw.bg_abyss_800 | tw.child_rounded_md | border_style:
+        with tw.bg_surface | tw.child_rounded_md | border_style:
             with ly.card("project_header", height=12) as state:
                 ...
     """
@@ -1673,8 +1673,8 @@ def context_menu(menu_id: str):
 
     # 菜单样式
     menu_style = (
-        _tw.bg_abyss_800 |
-        _tw.border_abyss_600 |
+        _tw.bg_surface |
+        _tw.border_subtle |
         window_padding(2, 2) |
         frame_padding(8, 4) |
         popup_rounding(4) |
@@ -1726,11 +1726,11 @@ def menu_item(
 
     # 应用颜色样式
     if disabled:
-        text_style = _tw.text_parchment_600
+        text_style = _tw.text_faint
     elif danger:
-        text_style = _tw.text_blood_400
+        text_style = _tw.text_danger
     else:
-        text_style = _tw.text_parchment_200
+        text_style = _tw.text_default
 
     with text_style:
         clicked, _ = imgui.menu_item(display_text, shortcut or "", False, not disabled)
@@ -1878,16 +1878,16 @@ def form_row(
     imgui.begin_group()
 
     # 标签区域
-    style = label_style or _tw.text_parchment_400
+    style = label_style or _tw.text_muted
     with style:
         imgui.text(label)
         if required:
             imgui.same_line(spacing=2)
-            with _tw.text_blood_400:
+            with _tw.text_danger:
                 imgui.text("*")
         if help_text:
             imgui.same_line(spacing=4)
-            with _tw.text_parchment_600:
+            with _tw.text_faint:
                 imgui.text("(?)")
             if imgui.is_item_hovered():
                 imgui.set_tooltip(help_text)
@@ -1920,7 +1920,7 @@ def form_section(title: str, *, gap: float = 3):
     """
     from ui import tw as _tw
 
-    with _tw.text_parchment_200:
+    with _tw.text_default:
         imgui.text(title)
     gap_y(gap)
 

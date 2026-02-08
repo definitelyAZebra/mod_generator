@@ -38,7 +38,7 @@
 Tailwind 映射:
     grid grid-cols-3 gap-4  → ly.columns(3, gap=4)
     flex flex-wrap gap-2    → same_line() + 手动换行
-    text-stone-400 text-sm  → tw.text_parchment_400
+    text-stone-400 text-sm  → tw.text_muted
     bg-slate-900            → tw.frame_bg_abyss_900
 ================================================================================
 """
@@ -92,7 +92,7 @@ def _label(text: str) -> None:
 
     Tailwind: text-stone-400 text-sm
     """
-    tw.text_parchment_400(imgui.text)(text)
+    tw.text_muted(imgui.text)(text)
 
 
 def _enum_combo(label: str, current_value, options: list, labels: dict):
@@ -252,7 +252,7 @@ def _draw_identity_section(hybrid: HybridItemV2) -> None:
             quality_int = quality_to_int(hybrid.quality)
             if quality_int == 7:
                 # 文物固定 T0
-                tw.text_parchment_400(imgui.text)("T0 (文物固定)")
+                tw.text_muted(imgui.text)("T0 (文物固定)")
                 _tooltip("文物品质固定为等级 0")
             else:
                 tier_options = [0, 1, 2, 3, 4, 5]

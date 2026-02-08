@@ -122,7 +122,7 @@ def draw_hybrid_editor_tabs(hybrid: HybridItemV2) -> None:
         ) |
         styles.tab_rounding(ly.sz(1.5)) |            # 6px 顶部圆角
         styles.frame_padding(ly.sz(4), ly.sz(2)) |   # Tab 内边距 16px×8px
-        tw.text_parchment_200                         # Tab 文字颜色
+        tw.text_default                         # Tab 文字颜色
     )
 
     # =========================================================================
@@ -197,7 +197,7 @@ def _draw_tab_content(draw_fn) -> None:
 
 def _draw_validation_errors(errors: list[str]) -> None:
     """绘制验证错误区域 (standalone, 不依赖 gui)"""
-    with tw.bg_abyss_900 | tw.border_blood_700 | tw.child_border_size(1) | tw.rounded_md | tw.p_3:
+    with tw.bg_app | tw.border_blood_700 | tw.child_border_size(1) | tw.rounded_md | tw.p_3:
         draw_indented_separator()
         imgui.text("消息:")
         for error in errors:

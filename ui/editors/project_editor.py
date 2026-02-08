@@ -45,11 +45,11 @@ from ui.icons import (
 # =============================================================================
 
 # 页面容器样式 - 自定义 padding，覆盖 panel_style 的 p_2
-# Tailwind: bg-abyss-700 p-5
+# Tailwind: bg-elevated p-5
 # 注意: ImGui 中 WindowPadding 只在 border=True 且 child_border_size>0 时生效
 #       所以我们用 child_border_size(1) + border_transparent 实现视觉无边框
 _page_style = (
-    tw.bg_abyss_700 |
+    tw.bg_elevated |
     tw.child_rounded_none |
     tw.child_border_size(1) |     # 必须 > 0 才能应用 WindowPadding
     tw.border_transparent |        # 透明边框，视觉上不可见
@@ -125,8 +125,8 @@ def draw_project_editor(width: float, height: float) -> None:
         ly.icon_label(
             FA_GEM, "项目设置",
             gap=3,
-            icon_style=tw.text_crystal_400,
-            text_style=tw.text_parchment_50 | tw.text_lg,
+            icon_style=tw.text_accent,
+            text_style=tw.text_bright | tw.text_lg,
         )
 
     ly.gap_y(_PAGE_GAP)
@@ -214,8 +214,8 @@ def draw_project_editor(width: float, height: float) -> None:
 
     with ly.panel("path_card", tw.ABYSS_900, padding=_CARD_PADDING, rounding=_CARD_ROUNDING):
         # 路径文本 - 只显示路径信息，不显示保存状态（无 dirty tracking）
-        icon_style = tw.text_crystal_400 if project_dir else tw.text_parchment_600
-        text_style = tw.text_parchment_300 if project_dir else tw.text_parchment_500
+        icon_style = tw.text_accent if project_dir else tw.text_faint
+        text_style = tw.text_muted if project_dir else tw.text_subtle
         path_text = project_dir if project_dir else "项目尚未保存到磁盘"
 
         with ly.hstack(gap=2, align='center'):
@@ -264,7 +264,7 @@ def _draw_validation_status(errors: list[str]) -> None:
             # 标题行
             with ly.hstack(gap=2):
                 with ly.slot():
-                    with tw.text_blood_400:
+                    with tw.text_danger:
                         imgui.text(FA_TRIANGLE_EXCLAMATION)
                 with ly.slot():
                     with tw.text_blood_300:
@@ -293,11 +293,11 @@ def _card_title(text: str, icon: str | None = None) -> None:
         ly.icon_label(
             icon, text,
             gap=2,
-            icon_style=tw.text_crystal_400,
-            text_style=tw.text_parchment_100,
+            icon_style=tw.text_accent,
+            text_style=tw.text_default,
         )
     else:
-        with tw.text_parchment_100:
+        with tw.text_default:
             imgui.text(text)
 
 
@@ -306,17 +306,17 @@ def _label(text: str, required: bool = False, help_text: str | None = None) -> N
 
     Tailwind: text-parchment-400 text-sm flex items-center gap-0.5
     """
-    with tw.text_parchment_400:
+    with tw.text_muted:
         imgui.text(text)
 
     if required:
         ly.same_line(0.5)
-        with tw.text_blood_400:
+        with tw.text_danger:
             imgui.text("*")
 
     if help_text:
         ly.same_line(0.5)
-        with tw.text_parchment_600:
+        with tw.text_faint:
             imgui.text("(?)")
         if imgui.is_item_hovered():
             imgui.set_tooltip(help_text)

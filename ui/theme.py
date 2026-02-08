@@ -79,11 +79,11 @@
             ...
 
     # 金色强调文字
-    with tw.text_goldrim_400:
+    with tw.text_gold:
         imgui.text("重要提示")
 
     # 深渊背景面板
-    with tw.bg_abyss_700 | tw.rounded_lg:
+    with tw.bg_elevated | tw.rounded_lg:
         ...
 
 直接使用颜色常量:

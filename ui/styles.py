@@ -10,16 +10,16 @@
     from ui import tw
 
     # 组合样式 (像 Tailwind 一样)
-    with tw.bg_abyss_800 | tw.text_parchment_100 | tw.p_4 | tw.rounded_lg:
+    with tw.bg_surface | tw.text_default | tw.p_4 | tw.rounded_lg:
         imgui.text("Hello, Tailwind!")
 
     # 多个样式组合
-    card_style = tw.bg_abyss_700 | tw.rounded_xl | tw.p_6
+    card_style = tw.bg_elevated | tw.rounded_xl | tw.p_6
     with card_style:
         imgui.text("Card content")
 
     # 条件样式
-    with tw.text_crystal_400 if is_valid else tw.text_blood_500:
+    with tw.text_accent if is_valid else tw.text_danger:
         imgui.text(status)
 
 设计原则:
@@ -62,7 +62,7 @@ AGENT_GUIDE = """
 ║    from ui import layout as ly                                               ║
 ║                                                                              ║
 ║  USAGE (like Tailwind CSS):                                                  ║
-║    with tw.bg_abyss_800 | tw.text_parchment_100 | tw.p_4 | tw.rounded_lg:   ║
+║    with tw.bg_surface | tw.text_default | tw.p_4 | tw.rounded_lg:            ║
 ║        imgui.text("Hello!")                                                  ║
 ║                                                                              ║
 ║  THEME COLORS (暗黑2 + 紫水晶风格):                                         ║
@@ -73,10 +73,12 @@ AGENT_GUIDE = """
 ║    Goldrim  金边:   tw.text_goldrim_*                   (次强调/警告)         ║
 ║    Stone    岩石:   tw.border_stone_*                   (边框/分隔)           ║
 ║                                                                              ║
-║  SEMANTIC:                                                                   ║
-║    tw.btn_primary (= btn_crystal), tw.btn_secondary (= btn_abyss)           ║
-║    tw.btn_danger, tw.btn_success, tw.btn_warning                             ║
-║    tw.text_muted (= text_parchment_300)                                      ║
+║  SEMANTIC (推荐优先使用):                                                    ║
+║    文字: tw.text_bright/default/muted/subtle/faint                           ║
+║    强调: tw.text_accent, tw.text_gold, tw.text_danger                        ║
+║    背景: tw.bg_app/surface/elevated/input                                    ║
+║    边框: tw.border_subtle/default/strong/interactive                         ║
+║    按钮: tw.btn_primary/secondary/danger/success/warning                     ║
 ║                                                                              ║
 ║  SPACING / RADIUS / SIZE:                                                    ║
 ║    tw.p_0..p_16 (padding), tw.rounded_sm..rounded_full                       ║
@@ -218,7 +220,7 @@ class StyleContext:
             (tw.p_4 @ ly.card)("my_card", height=10)
 
         可组合多个样式:
-            (tw.p_4 | tw.bg_abyss_800)(ly.card)("my_card")
+            (tw.p_4 | tw.bg_surface)(ly.card)("my_card")
 
         元数据注入:
             (tw.w_40 | tw.h_9)(imgui.button)("确定")
@@ -945,7 +947,7 @@ def disabled() -> StyleContext:
             imgui.button("不可点击")
 
         # 可组合
-        with tw.text_parchment_300 | styles.disabled():
+        with tw.text_muted | styles.disabled():
             imgui.button("不可点击")
     """
     return alpha(_DISABLED_ALPHA)
@@ -960,7 +962,7 @@ def disabled_if(condition: bool) -> StyleContext:
                 ...
 
         # 可组合
-        with tw.text_parchment_300 | styles.disabled_if(is_locked):
+        with tw.text_muted | styles.disabled_if(is_locked):
             imgui.button("编辑")
     """
     return alpha(_DISABLED_ALPHA) if condition else StyleContext.empty()

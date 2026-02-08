@@ -122,10 +122,10 @@ def _draw_hybrid_main(width: float, height: float) -> None:
     """
     from ui.editors.hybrid_editor_v2 import draw_hybrid_editor_tabs
 
-    # 容器样式：bg-abyss-700 rounded-none border-0 p-0
+    # 容器样式：bg-elevated rounded-none border-0 p-0
     # 内部边距由 hybrid_editor_v2 控制
     _style = (
-        tw.bg_abyss_700 |
+        tw.bg_elevated |
         tw.child_rounded_none |
         tw.child_border_size(0) |
         tw.p_0

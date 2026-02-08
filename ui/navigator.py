@@ -259,7 +259,7 @@ def _draw_project_header() -> None:
         with ly.hstack(gap=2.5):
             # 项目图标
             with ly.slot():
-                with tw.text_crystal_400:
+                with tw.text_accent:
                     imgui.text(FA_GEM)
 
             # 项目信息
@@ -267,13 +267,13 @@ def _draw_project_header() -> None:
                 with ly.vstack(gap=0.5):
                     # 项目名称
                     ly.item()
-                    text_style = tw.text_parchment_50 if is_active else tw.text_parchment_100
+                    text_style = tw.text_bright if is_active else tw.text_default
                     with text_style:
                         imgui.text(project.name or "未命名项目")
 
                     # 版本和作者
                     ly.item()
-                    with tw.text_parchment_500:
+                    with tw.text_subtle:
                         author_text = f"v{project.version}"
                         if project.author:
                             author_text += f" · {project.author}"
@@ -326,7 +326,7 @@ def _draw_section(
             with ly.hstack(gap=2):
                 # chevron
                 with ly.slot():
-                    with tw.text_parchment_500:
+                    with tw.text_subtle:
                         imgui.text(chevron)
 
                 # icon
@@ -338,17 +338,17 @@ def _draw_section(
 
                 # label
                 with ly.slot():
-                    with tw.text_parchment_100:
+                    with tw.text_default:
                         imgui.text(label)
 
                 # count badge
                 with ly.slot():
-                    with tw.text_parchment_500:
+                    with tw.text_subtle:
                         imgui.text(f"({len(items)})")
 
         # 右侧添加按钮 - 使用 row.right 自动右对齐
         with row.right:
-            btn_style = tw.button_colors(tw.TRANSPARENT, tw.ABYSS_600, tw.ABYSS_500) | tw.text_crystal_400
+            btn_style = tw.button_colors(tw.TRANSPARENT, tw.ABYSS_600, tw.ABYSS_500) | tw.text_accent
             if ly.icon_btn(
                 FA_PLUS, f"{section_id}_add",
                 size=TOOLBAR_BTN_SIZE,
@@ -380,12 +380,12 @@ def _draw_section(
 def _get_section_icon_style(item_type: str):
     """获取 section 图标的样式 - 每种类型有不同颜色"""
     if item_type == "weapon":
-        return tw.text_crystal_400
+        return tw.text_accent
     elif item_type == "armor":
-        return tw.text_goldrim_400
+        return tw.text_gold
     elif item_type == "hybrid":
         return tw.text_green_400
-    return tw.text_parchment_400
+    return tw.text_muted
 
 
 def _draw_item_list(
@@ -405,7 +405,7 @@ def _draw_item_list(
         # 空状态提示
         imgui.set_cursor_pos_x(imgui.get_cursor_pos_x() + ly.sz(ITEM_PADDING_X))
         ly.gap_y(0.5)
-        with tw.text_parchment_600:
+        with tw.text_faint:
             imgui.text("暂无物品，点击 + 添加")
         ly.gap_y(0.5)
         return
@@ -431,14 +431,14 @@ def _draw_item_list(
             with ly.hstack(gap=1):
                 # 名称
                 with ly.slot():
-                    text_style = tw.text_parchment_50 if is_selected else tw.text_parchment_300
+                    text_style = tw.text_bright if is_selected else tw.text_muted
                     with text_style:
                         imgui.text(display_name)
 
                 # 类型标签 (如果有)
                 if suffix:
                     with ly.slot():
-                        with tw.text_parchment_600:
+                        with tw.text_faint:
                             imgui.text(suffix)
 
         # 选中状态绘制左侧指示器
