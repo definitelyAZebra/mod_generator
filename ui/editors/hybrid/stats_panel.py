@@ -53,23 +53,21 @@ from specs import (
 # 输入框固定宽度 (Tailwind 单位)
 _INPUT_TW = 18  # 72px
 
-# 响应式网格列数阈值 (像素 avail content width)
-_COL_THRESHOLDS = [
-    (1300, 6),  # > 1300px → 6 列
-    (1000, 5),  # > 1000px → 5 列
-    (700, 4),   # > 700px → 4 列
-    (450, 3),   # > 450px → 3 列
-    (0,   2),   # 其余 → 2 列
-]
+# 最大列数上限
+_MAX_COLS = 6
 
 
-def _grid_cols() -> int:
-    """根据可用宽度计算属性网格列数"""
-    w = imgui.get_content_region_available_width()
-    for threshold, cols in _COL_THRESHOLDS:
-        if w > threshold:
-            return cols
-    return 2
+# =============================================================================
+# 子区域标题
+# =============================================================================
+
+def _sub_section(text: str) -> None:
+    """属性子区域标题 — 金色文字
+
+    Tailwind: text-goldrim-400 font-medium
+    """
+    tw.text_goldrim_400(imgui.text)(text)
+    ly.gap_y(1.5)
 
 
 # =============================================================================
@@ -79,17 +77,30 @@ def _grid_cols() -> int:
 def draw_stats_panel(hybrid: HybridItemV2) -> None:
     """绘制属性面板
 
+    当两个区域同时存在时，用分隔线 + 子标题区分。
+
     Args:
         hybrid: 混合物品数据对象
     """
+    show_eq = _should_show_equipment_attributes(hybrid)
+    show_ce = (
+        isinstance(hybrid.trigger, EffectTrigger)
+        and charge_has_charges(hybrid.charges)
+    )
+
     # 装备属性
-    if _should_show_equipment_attributes(hybrid):
+    if show_eq:
+        if show_ce:
+            _sub_section("装备属性")
         _draw_equipment_attributes_editor(hybrid)
 
-    # 消耗品属性 - 仅当触发模式为效果时显示
-    if isinstance(hybrid.trigger, EffectTrigger):
-        if _should_show_equipment_attributes(hybrid):
-            ly.gap_y(3.5)
+    # 消耗品属性 — 分隔线 + 子标题
+    if show_ce:
+        if show_eq:
+            ly.gap_y(4)
+            imgui.separator()
+            ly.gap_y(3)
+        _sub_section("使用效果")
         _draw_consumable_attributes_editor(hybrid)
 
 
@@ -142,26 +153,48 @@ def _draw_attribute_full_grid(
 
 
 def _draw_attr_table(attrs: list[str], target_dict: dict) -> None:
-    """渲染属性紧凑表格: [label input] × N (响应式列数)
+    """渲染属性紧凑表格: [label][input] × N (响应式列数)
 
-    每逻辑列 = 单 table 列，内部 same_line 紧排 label + input。
-    列等宽拉伸，label→input 紧邻，多余空间留在输入框右侧。
+    使用 ImGui Table 2N 列 (固定 label + 固定 input) 实现对齐网格。
+    标签列宽度 = 该组最长标签文本宽度 (所有逻辑列等宽)。
+    输入列固定宽度。列数根据可用空间自动计算。
     """
-    num_cols = _grid_cols()
+    if not attrs:
+        return
 
-    # 输入框宽度 = min(固定值, 单元格剩余空间) — 在渲染时动态计算
-    input_base = sz(_INPUT_TW)
+    input_w = sz(_INPUT_TW)
     cell_pad_x = sz(1.5)  # 6px 水平间距
     cell_pad_y = sz(0.5)  # 2px 垂直间距
-    label_input_gap = sz(1)  # 4px label 与 input 之间
+
+    # 预计算最大标签宽度 → 所有逻辑列等宽
+    max_label_w = 0.0
+    for attr in attrs:
+        name, _ = get_attr_display(attr)
+        display_name = name or attr
+        text_w = imgui.calc_text_size(display_name).x
+        if text_w > max_label_w:
+            max_label_w = text_w
+    label_w = max_label_w + sz(0.5)  # 2px 余量
+
+    # 动态列数: 逻辑列宽 = label_cell + input_cell (各含 2×cell_pad)
+    avail_w = imgui.get_content_region_available_width()
+    logical_col_w = label_w + input_w + cell_pad_x * 4
+    num_cols = max(1, min(_MAX_COLS, int(avail_w / logical_col_w)))
+
+    table_cols = num_cols * 2
 
     imgui.push_style_var(imgui.STYLE_CELL_PADDING, (cell_pad_x, cell_pad_y))
 
-    flags = imgui.TABLE_SIZING_STRETCH_SAME | imgui.TABLE_NO_BORDERS_IN_BODY
+    flags = imgui.TABLE_SIZING_FIXED_FIT | imgui.TABLE_NO_BORDERS_IN_BODY
 
-    if imgui.begin_table("##ag", num_cols, flags):
+    if imgui.begin_table("##ag", table_cols, flags):
         for i in range(num_cols):
-            imgui.table_setup_column(f"##c{i}")
+            imgui.table_setup_column(
+                f"##l{i}", imgui.TABLE_COLUMN_WIDTH_FIXED, label_w,
+            )
+            imgui.table_setup_column(
+                f"##i{i}", imgui.TABLE_COLUMN_WIDTH_FIXED, input_w,
+            )
 
         # input 样式: frame_bg + border + rounded
         with tw.input_default:
@@ -173,19 +206,17 @@ def _draw_attr_table(attrs: list[str], target_dict: dict) -> None:
                 name, desc = get_attr_display(attr)
                 display_name = name or attr
 
+                # --- Label column ---
                 imgui.table_next_column()
-
-                # Label
                 label_style = tw.text_faint if val == 0 else tw.text_muted
                 imgui.align_text_to_frame_padding()
                 label_style(imgui.text)(display_name)
                 if desc:
                     tooltip(desc)
 
-                # Input (same line, 紧随 label)
-                imgui.same_line(spacing=label_input_gap)
-                avail = imgui.get_content_region_available_width()
-                imgui.set_next_item_width(min(input_base, max(avail, sz(8))))
+                # --- Input column ---
+                imgui.table_next_column()
+                imgui.set_next_item_width(-1)
 
                 if attr in STRICT_INT_ATTRIBUTES:
                     ch, nv = imgui.input_int(f"##v_{attr}", int(val), 0, 0)
