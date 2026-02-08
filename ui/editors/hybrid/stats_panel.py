@@ -157,15 +157,15 @@ def _draw_attribute_full_grid(
         first = False
 
         imgui.push_id(f"{id_prefix}_{group_name}")
+        try:
+            # 分组标题
+            tw.text_accent(imgui.text)(group_name)
+            ly.gap_y(0.5)
 
-        # 分组标题
-        tw.text_accent(imgui.text)(group_name)
-        ly.gap_y(0.5)
-
-        # 紧凑属性表格
-        _draw_attr_table(attrs, target_dict)
-
-        imgui.pop_id()
+            # 紧凑属性表格
+            _draw_attr_table(attrs, target_dict)
+        finally:
+            imgui.pop_id()
 
 
 # 左端点缀圆点透明度
@@ -204,70 +204,77 @@ def _draw_attr_table(attrs: list[str], target_dict: dict) -> None:
 
     flags = imgui.TABLE_SIZING_FIXED_FIT | imgui.TABLE_NO_BORDERS_IN_BODY
 
-    if imgui.begin_table("##ag", table_cols, flags):
-        for i in range(num_cols):
-            imgui.table_setup_column(
-                f"##l{i}", imgui.TABLE_COLUMN_WIDTH_FIXED, label_w,
-            )
-            imgui.table_setup_column(
-                f"##i{i}", imgui.TABLE_COLUMN_WIDTH_FIXED, input_w,
-            )
+    try:
+        if not imgui.begin_table("##ag", table_cols, flags):
+            return
 
-        draw_list = imgui.get_window_draw_list()
-        dot_r = 1.5 * dpi_scale()  # 圆点半径
-        dot_color = imgui.get_color_u32_rgba(0.5, 0.5, 0.6, _DOT_ALPHA)
-
-        # input 样式: frame_bg + border + rounded
-        with tw.input_default:
-            for i, attr in enumerate(attrs):
-                if i % num_cols == 0:
-                    imgui.table_next_row()
-
-                val = target_dict.get(attr, 0)
-                name, desc = get_attr_display(attr)
-                display_name = name or attr
-
-                # --- Label column (右对齐 + 左端圆点) ---
-                imgui.table_next_column()
-                imgui.align_text_to_frame_padding()
-
-                # 左端圆点点缀
-                cx, cy = imgui.get_cursor_screen_pos()
-                frame_h = imgui.get_frame_height()
-                draw_list.add_circle_filled(
-                    cx + dot_r, cy + frame_h * 0.5,
-                    dot_r, dot_color,
+        try:
+            for i in range(num_cols):
+                imgui.table_setup_column(
+                    f"##l{i}", imgui.TABLE_COLUMN_WIDTH_FIXED, label_w,
+                )
+                imgui.table_setup_column(
+                    f"##i{i}", imgui.TABLE_COLUMN_WIDTH_FIXED, input_w,
                 )
 
-                # 右对齐: 计算偏移
-                text_w = imgui.calc_text_size(display_name).x
-                offset = label_w - text_w
-                if offset > 0:
-                    cursor = imgui.get_cursor_pos()
-                    imgui.set_cursor_pos((cursor[0] + offset, cursor[1]))
+            draw_list = imgui.get_window_draw_list()
+            dot_r = 1.5 * dpi_scale()  # 圆点半径
+            dot_color = imgui.get_color_u32_rgba(0.5, 0.5, 0.6, _DOT_ALPHA)
 
-                label_style = tw.text_faint if val == 0 else tw.text_muted
-                label_style(imgui.text)(display_name)
-                if desc:
-                    tooltip(desc)
+            # input 样式: frame_bg + border + rounded
+            with tw.input_default:
+                for i, attr in enumerate(attrs):
+                    if i % num_cols == 0:
+                        imgui.table_next_row()
 
-                # --- Input column ---
-                imgui.table_next_column()
-                imgui.set_next_item_width(-1)
+                    val = target_dict.get(attr, 0)
+                    if val is None:
+                        val = 0
+                    name, desc = get_attr_display(attr)
+                    display_name = name or attr
 
-                if attr in STRICT_INT_ATTRIBUTES:
-                    ch, nv = imgui.input_int(f"##v_{attr}", int(val), 0, 0)
-                else:
-                    ch, nv = imgui.input_float(
-                        f"##v_{attr}", float(val), 0, 0, "%.2f"
+                    # --- Label column (右对齐 + 左端圆点) ---
+                    imgui.table_next_column()
+                    imgui.align_text_to_frame_padding()
+
+                    # 左端圆点点缀
+                    cx, cy = imgui.get_cursor_screen_pos()
+                    frame_h = imgui.get_frame_height()
+                    draw_list.add_circle_filled(
+                        cx + dot_r, cy + frame_h * 0.5,
+                        dot_r, dot_color,
                     )
 
-                if ch:
-                    target_dict[attr] = nv
+                    # 右对齐: 计算偏移
+                    text_w = imgui.calc_text_size(display_name).x
+                    offset = label_w - text_w
+                    if offset > 0:
+                        cursor = imgui.get_cursor_pos()
+                        imgui.set_cursor_pos((cursor[0] + offset, cursor[1]))
 
-        imgui.end_table()
+                    label_style = tw.text_faint if val == 0 else tw.text_muted
+                    label_style(imgui.text)(display_name)
+                    if desc:
+                        tooltip(desc)
 
-    imgui.pop_style_var()
+                    # --- Input column ---
+                    imgui.table_next_column()
+                    imgui.set_next_item_width(-1)
+
+                    if attr in STRICT_INT_ATTRIBUTES:
+                        ch, nv = imgui.input_int(f"##v_{attr}", int(val), 0, 0)
+                    else:
+                        ch, nv = imgui.input_float(
+                            f"##v_{attr}", float(val), 0, 0, "%.2f",
+                        )
+
+                    if ch:
+                        target_dict[attr] = nv
+
+        finally:
+            imgui.end_table()
+    finally:
+        imgui.pop_style_var()
 
 
 # =============================================================================
