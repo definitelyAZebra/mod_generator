@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""混合物品编辑器 - 呈现面板: 贴图、音效、本地化"""
+"""混合物品编辑器 - 外观面板: 贴图、音效、本地化"""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from ui import imgui_shim as imgui
 
 from ui import tw
 from ui import layout as ly
-from ui.fields import field_row, field_slot
+from ui.fields import field_flow, field_slot
 
 from hybrid_item_v2 import HybridItemV2
 from constants import (
@@ -54,11 +54,11 @@ def draw_presentation_panel(hybrid: HybridItemV2) -> None:
 def _draw_sounds_section(hybrid: HybridItemV2) -> None:
     """音效设置: 放下/拾取
 
-    Tailwind: grid grid-cols-2 gap-4
+    Tailwind: flex flex-wrap gap-2
     """
-    with field_row(2):
+    with field_flow(gap=2, row_gap=2, default_width=30):
         # === 放下音效 ===
-        with field_slot("放下音效", tooltip_text="物品放入物品栏或地面时的音效"):
+        with field_slot("放下音效", width=30, tooltip_text="物品放入物品栏或地面时的音效"):
             current_drop_label = HYBRID_DROP_SOUNDS.get(hybrid.drop_sound, f"{hybrid.drop_sound}")
             if imgui.begin_combo("##drop_sound", current_drop_label):
                 for sound_id, sound_label in HYBRID_DROP_SOUNDS.items():
@@ -67,7 +67,7 @@ def _draw_sounds_section(hybrid: HybridItemV2) -> None:
                 imgui.end_combo()
 
         # === 拾取音效 ===
-        with field_slot("拾取音效", tooltip_text="物品被拾取时的音效"):
+        with field_slot("拾取音效", width=30, tooltip_text="物品被拾取时的音效"):
             current_pickup_label = HYBRID_PICKUP_SOUNDS.get(hybrid.pickup_sound, f"{hybrid.pickup_sound}")
             if imgui.begin_combo("##pickup_sound", current_pickup_label):
                 for sound_id, sound_label in HYBRID_PICKUP_SOUNDS.items():

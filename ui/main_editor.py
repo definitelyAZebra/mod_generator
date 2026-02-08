@@ -104,24 +104,41 @@ def _draw_armor_main(width: float, height: float) -> None:
 
 
 def _draw_hybrid_main(width: float, height: float) -> None:
-    """绘制混合物品编辑器主区域 - 单页滚动
+    """绘制混合物品编辑器主区域 - 单页滚动 + 浮动预测条
 
     ⚠️ 容器类型: Child Window (自己创建, 可纵向滚动)
 
     布局结构:
         ┌─────────────────────────────────────────────────────┐
         │ HybridEditor Child (bg-elevated, 可纵向滚动)         │
-        │  [基础] 身份 / 品质 / 等级 / ...                    │
+        │  │身份  ID / 品质 / 等级 / 价格 / 重量 / 材质      │
+        │  分类 / 标签 / 生成规则                              │
         │  ─────────────── 分隔符 ───────────────             │
-        │  [行为] 装备形态 / 触发 / 充能 / ...               │
+        │  │装备与触发  装备形态 / 触发 / 充能 / ...          │
         │  ─────────────── 分隔符 ───────────────             │
-        │  [属性] 装备属性 / 消耗品属性                       │
+        │  │属性  装备属性 / 消耗品属性                       │
         │  ─────────────── 分隔符 ───────────────             │
-        │  [呈现] 贴图 / 音效 / 本地化                       │
+        │  │外观  贴图 / 音效 / 本地化                       │
         │  ⚠️ 验证错误                                        │
+        ├─────────────────────────────────────────────────────┤
+        │ 预测条: 容器: slot1, ...  │ 商店: npc1, ...        │
         └─────────────────────────────────────────────────────┘
     """
-    from ui.editors.hybrid_editor_v2 import draw_hybrid_editor
+    from ui.editors.hybrid_editor_v2 import draw_hybrid_editor, draw_prediction_bar
+
+    current_index = ui_state.current_hybrid_index
+    hybrids = ui_state.project.hybrid_items
+    has_hybrid = 0 <= current_index < len(hybrids)
+    hybrid = hybrids[current_index] if has_hybrid else None
+
+    # 预测条高度 (仅当有生成规则时显示)
+    from specs import spawn_is_excluded, SpawnRuleType
+    prediction_h = 0.0
+    if hybrid and not spawn_is_excluded(hybrid.spawn):
+        if hybrid.container_spawn != SpawnRuleType.NONE or hybrid.shop_spawn != SpawnRuleType.NONE:
+            prediction_h = ly.sz(10)  # 40px
+
+    scroll_height = height - prediction_h
 
     # 容器样式：bg-elevated, 无边框, 内部边距由 hybrid_editor_v2 控制
     _style = (
@@ -131,25 +148,25 @@ def _draw_hybrid_main(width: float, height: float) -> None:
         tw.p_0
     )
 
-    # 容器 — 允许纵向滚动（单页表单内容可能超出屏幕）
+    # 滚动区域
     _style(imgui.begin_child)(
         "HybridEditor",
         width,
-        height,
+        scroll_height,
         border=False,
-        flags=0,  # 允许默认滚动行为
+        flags=0,
     )
 
-    current_index = ui_state.current_hybrid_index
-    hybrids = ui_state.project.hybrid_items
-
-    if current_index < 0 or current_index >= len(hybrids):
+    if not has_hybrid:
         _draw_empty_hint("请从左侧列表选择一个混合物品进行编辑")
     else:
-        hybrid = hybrids[current_index]
         draw_hybrid_editor(hybrid)
 
     imgui.end_child()
+
+    # 浮动预测条 — 在滚动区域下方
+    if hybrid and prediction_h > 0:
+        draw_prediction_bar(hybrid, width)
 
 
 def _draw_empty_state(width: float, height: float, hint: str) -> None:

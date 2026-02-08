@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
-"""混合物品编辑器 - 行为面板
+"""混合物品编辑器 - 装备与触发面板
 
-"物品做什么" - 装备形态、触发、充能、耐久、生成规则
+"物品做什么" - 装备形态、触发、充能、耐久
 
 使用 ui.fields 声明式字段组件消除布局样板代码。
-碎片和生成预测已内联到主表单区域 (不再使用弹窗)。
+碎片已内联到装备形态下方。
+生成规则已迁移到 base_panel (身份面板)。
+生成预测已迁移到 hybrid_editor_v2 (浮动预测条)。
 """
 
 from __future__ import annotations
@@ -29,12 +31,8 @@ from specs import (
     charge_has_charges,
     NoRecovery, IntervalRecovery,
     recovery_has_recovery,
-    ExcludedFromRandom, RandomSpawn, SpawnRuleType,
-    spawn_is_excluded,
     ArtifactQuality,
 )
-from drop_slot_data import find_matching_slots, find_matching_eq_slots
-from shop_configs import NPC_METADATA, SHOP_CONFIGS
 from skill_constants import (
     SKILL_OBJECTS,
     SKILL_BRANCH_TRANSLATIONS,
@@ -66,12 +64,6 @@ _CHARGE_MODE_LABELS = {
 }
 
 _BALANCE_LABELS = {"0": "0", "1": "1", "2": "2", "3": "3", "4": "4"}
-
-_SPAWN_RULE_LABELS = {
-    SpawnRuleType.EQUIPMENT: "按装备池",
-    SpawnRuleType.ITEM: "按道具池",
-    SpawnRuleType.NONE: "不生成",
-}
 
 
 # =============================================================================
@@ -114,7 +106,7 @@ _skill_search_buf: str = ""
 # =============================================================================
 
 def draw_behavior_panel(hybrid: HybridItemV2) -> None:
-    """绘制行为面板"""
+    """绘制装备与触发面板"""
     _draw_equipment_section(hybrid)
 
     ly.gap_y(3.5)
@@ -127,9 +119,6 @@ def draw_behavior_panel(hybrid: HybridItemV2) -> None:
     if charge_has_charges(hybrid.charges):
         ly.gap_y(3.5)
         _draw_charges_section(hybrid)
-
-    ly.gap_y(3.5)
-    _draw_spawn_section(hybrid)
 
 
 # =============================================================================
@@ -408,76 +397,6 @@ def _draw_recovery_row(hybrid: HybridItemV2) -> None:
 
 
 # =============================================================================
-# 生成规则
-# =============================================================================
-
-def _draw_spawn_section(hybrid: HybridItemV2) -> None:
-    can_use_eq = not isinstance(hybrid.equipment, NotEquipable)
-    is_excluded = spawn_is_excluded(hybrid.spawn)
-
-    with field_row(4):
-        ch, new_excluded = toggle_field(
-            "排除随机生成", "##exc_random", is_excluded,
-            tooltip_text="排除随机生成：物品不会在宝箱/商店随机出现\n启用后其他标签设置不生效",
-        )
-        if ch:
-            hybrid.spawn = ExcludedFromRandom() if new_excluded else RandomSpawn()
-
-        if not spawn_is_excluded(hybrid.spawn) and isinstance(hybrid.spawn, RandomSpawn):
-            spawn = hybrid.spawn
-
-            # 容器生成
-            container_opts = (
-                [SpawnRuleType.EQUIPMENT, SpawnRuleType.ITEM, SpawnRuleType.NONE]
-                if can_use_eq
-                else [SpawnRuleType.ITEM, SpawnRuleType.NONE]
-            )
-            current_container = hybrid.container_spawn
-            if current_container not in container_opts:
-                current_container = SpawnRuleType.NONE
-
-            ch_c, new_c = enum_field(
-                "容器生成", "##container_spawn",
-                current_container, container_opts, _SPAWN_RULE_LABELS,
-                tooltip_text=(
-                    "容器生成规则（宝箱/桶/尸体等）\n\n"
-                    "• 按装备池：根据武器类型/护甲类型 + 标签 + 层级匹配\n"
-                    "• 按道具池：根据分类/子分类 + 标签 + 层级匹配\n"
-                    "• 不生成：不在容器中随机出现"
-                ),
-            )
-            if ch_c:
-                object.__setattr__(spawn, "container_spawn", new_c)
-
-            # 商店生成
-            shop_opts = (
-                [SpawnRuleType.EQUIPMENT, SpawnRuleType.ITEM, SpawnRuleType.NONE]
-                if can_use_eq
-                else [SpawnRuleType.ITEM, SpawnRuleType.NONE]
-            )
-            current_shop = hybrid.shop_spawn
-            if current_shop not in shop_opts:
-                current_shop = SpawnRuleType.NONE
-
-            ch_s, new_s = enum_field(
-                "商店生成", "##shop_spawn",
-                current_shop, shop_opts, _SPAWN_RULE_LABELS,
-                tooltip_text=(
-                    "商店生成规则（商人进货时）\n\n"
-                    "• 按装备池：根据武器/护甲/珠宝类别 + 层级 + 材质 + 标签匹配\n"
-                    "• 按道具池：根据分类/子分类 + 层级 + 标签匹配\n"
-                    "• 不生成：不在商店随机出现"
-                ),
-            )
-            if ch_s:
-                object.__setattr__(spawn, "shop_spawn", new_s)
-
-    # 生成预测 — 内联显示在生成规则下方
-    ly.gap_y(2)
-    _draw_spawn_prediction_inline(hybrid)
-
-
-# =============================================================================
 # 碎片内联网格
 # =============================================================================
 
@@ -527,165 +446,6 @@ def _draw_fragments_inline(hybrid: HybridItemV2) -> None:
         )
         if changed:
             hybrid.fragments[frag_key] = max(0, new_val)
-
-
-# =============================================================================
-# 生成预测内联
-# =============================================================================
-
-def _draw_spawn_prediction_inline(hybrid: HybridItemV2) -> None:
-    """生成预测 — 内联显示在生成规则字段下方
-
-    实时显示匹配的容器掉落点和商店 NPC，无需点击弹窗。
-    """
-    if spawn_is_excluded(hybrid.spawn):
-        tw.text_faint(imgui.text)("已排除随机生成")
-        return
-
-    # 容器掉落
-    if hybrid.container_spawn != SpawnRuleType.NONE:
-        tw.text_muted(imgui.text)("容器掉落:")
-        imgui.same_line()
-        _draw_container_preview(hybrid, is_equipment=(hybrid.container_spawn == SpawnRuleType.EQUIPMENT))
-
-    # 商店进货
-    if hybrid.shop_spawn != SpawnRuleType.NONE:
-        tw.text_muted(imgui.text)("商店进货:")
-        imgui.same_line()
-        _draw_shop_preview(hybrid)
-
-
-def _draw_container_preview(hybrid: HybridItemV2, is_equipment: bool) -> None:
-    tags_tuple = tuple(hybrid.effective_tags.split()) if hybrid.effective_tags else ()
-
-    if is_equipment:
-        eq_categories: list[str] = []
-        match hybrid.equipment:
-            case WeaponEquip(weapon_type=wt):
-                eq_categories.append(wt)
-                eq_categories.append("weapon")
-            case ArmorEquip(armor_type=at):
-                eq_categories.append(at)
-                if at in ("Ring", "Amulet"):
-                    eq_categories.append("jewelry")
-                else:
-                    eq_categories.append("armor")
-
-        if not eq_categories:
-            tw.text_muted(imgui.text)("  (无匹配)")
-            return
-
-        all_matches = []
-        for eq_cat in eq_categories:
-            matches = find_matching_eq_slots(eq_cat, tags_tuple, hybrid.tier)
-            all_matches.extend(matches)
-
-        if not all_matches:
-            tw.text_muted(imgui.text)("  (无匹配)")
-            return
-
-        names = list(dict.fromkeys(m["entry_name_cn"] for m in all_matches))
-        display = ", ".join(names)
-        imgui.text_wrapped(f"  {display}")
-    else:
-        if not (hybrid.cat or hybrid.subcats):
-            tw.text_muted(imgui.text)("  (请设置分类)")
-            return
-
-        matches = find_matching_slots(
-            hybrid.cat, tuple(hybrid.subcats), tags_tuple, hybrid.tier,
-        )
-        if not matches:
-            tw.text_muted(imgui.text)("  (无匹配)")
-            return
-
-        names = list(dict.fromkeys(m["entry_name_cn"] for m in matches))
-        display = ", ".join(names)
-        imgui.text_wrapped(f"  {display}")
-
-
-def _draw_shop_preview(hybrid: HybridItemV2) -> None:
-    matching: list[str] = []
-
-    if hybrid.shop_spawn == SpawnRuleType.ITEM:
-        if not (hybrid.cat or hybrid.subcats):
-            tw.text_muted(imgui.text)("  (请设置分类)")
-            return
-        item_cats = set([hybrid.cat] + list(hybrid.subcats))
-        item_tags = set(hybrid.effective_tags.split()) if hybrid.effective_tags else set()
-
-        for objects_tuple, config in SHOP_CONFIGS.items():
-            selling_cats = config.get("selling_loot_category", {})
-            tier_range = config.get("tier_range", [1, 1])
-            trade_tags = set(config.get("trade_tags", []))
-            matched_cats = item_cats & set(selling_cats.keys())
-            if not matched_cats:
-                continue
-            if hybrid.tier > 0 and not (tier_range[0] <= hybrid.tier <= tier_range[1]):
-                continue
-            if trade_tags and item_tags and not item_tags.issubset(trade_tags):
-                continue
-            for obj in objects_tuple:
-                meta = NPC_METADATA.get(obj, {})
-                name = meta.get("name_zh") or meta.get("name_en")
-                if name:
-                    town = meta.get("town_zh") or meta.get("town") or ""
-                    matching.append(f"{town}·{name}" if town else name)
-    else:
-        item_tier = hybrid.tier
-        item_material = hybrid.material
-        item_tags = set(hybrid.effective_tags.split()) if hybrid.effective_tags else set()
-
-        item_weapon_type = None
-        item_armor_slot = None
-        match hybrid.equipment:
-            case WeaponEquip(weapon_type=wt):
-                item_weapon_type = wt
-            case ArmorEquip(armor_type=at):
-                item_armor_slot = at
-
-        is_jewelry = (
-            item_armor_slot in ("ring", "amulet", "Ring", "Amulet")
-            if item_armor_slot
-            else False
-        )
-
-        for objects_tuple, config in SHOP_CONFIGS.items():
-            selling_cats = set(config.get("selling_loot_category", {}).keys())
-            tier_range = config.get("tier_range", [1, 1])
-            material_spec = config.get("material_spec", ["all"])
-            trade_tags = set(config.get("trade_tags", []))
-
-            category_matched = False
-            if "weapon" in selling_cats and item_weapon_type:
-                category_matched = True
-            elif "armor" in selling_cats and item_armor_slot and not is_jewelry:
-                category_matched = True
-            elif "jewelry" in selling_cats and is_jewelry:
-                category_matched = True
-
-            if not category_matched:
-                continue
-            if item_tier > 0 and not (tier_range[0] <= item_tier <= tier_range[1]):
-                continue
-            if "all" not in material_spec and item_material not in material_spec:
-                continue
-            if trade_tags and (not item_tags or not item_tags.issubset(trade_tags)):
-                continue
-
-            for obj in objects_tuple:
-                meta = NPC_METADATA.get(obj, {})
-                name = meta.get("name_zh") or meta.get("name_en")
-                if name:
-                    town = meta.get("town_zh") or meta.get("town") or ""
-                    matching.append(f"{town}·{name}" if town else name)
-
-    if not matching:
-        tw.text_muted(imgui.text)("  (无匹配)")
-        return
-
-    display = ", ".join(matching)
-    imgui.text_wrapped(f"  {display}")
 
 
 # =============================================================================

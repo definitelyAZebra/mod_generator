@@ -1,15 +1,16 @@
 # -*- coding: utf-8 -*-
-"""混合物品编辑器 - 基础面板
+"""混合物品编辑器 - 身份面板
 
-"这是什么物品" - 物品的身份信息和分类
+"这是什么物品" - 物品的身份信息、分类、标签和生成规则
 
-使用 ui.fields 声明式字段组件消除布局样板代码。
-分类和标签组使用徽章+弹窗的特殊 UI，保留手动布局。
+使用 ui.fields 声明式字段组件：
+  - field_flow: 身份属性 (ID/品质/等级/价格/重量/材质) + 生成规则
+  - 分类和标签组使用徽章+弹窗的特殊 UI，保留手动布局
 
 Tailwind 映射:
-    grid grid-cols-3 gap-4  → field_row(3)
-    text-stone-400 text-sm  → tw.text_muted (field 自动)
-    flex flex-wrap gap-2    → same_line() + 手动换行
+    flex flex-wrap gap-2  → field_flow(gap=2)
+    text-stone-400 text-sm → tw.text_muted (field 自动)
+    flex flex-wrap gap-2  → same_line() + 手动换行
 """
 
 from __future__ import annotations
@@ -20,8 +21,8 @@ from ui import tw
 from ui import layout as ly
 from ui.layout import tooltip
 from ui.fields import (
-    field_row, enum_field, int_field, text_field,
-    readonly_field, field_slot,
+    field_flow, enum_field, int_field, text_field,
+    toggle_field, readonly_field, field_slot,
 )
 
 from hybrid_item_v2 import HybridItemV2
@@ -39,14 +40,31 @@ from drop_slot_data import (
     COUNTRY_TAGS,
     EXTRA_TAGS,
 )
-from specs import quality_to_int, quality_from_int
+from specs import (
+    quality_to_int, quality_from_int,
+    ExcludedFromRandom, RandomSpawn, SpawnRuleType,
+    spawn_is_excluded,
+    NotEquipable,
+    WeaponEquip, ArmorEquip,
+)
 
 
 # =============================================================================
 # 间距常量 (Tailwind 单位: 1 = 4px)
 # =============================================================================
 
-_SECTION_GAP = 5     # 分组之间的间距 (20px)
+_SUB_GAP = 3.5   # 子区之间的间距 (14px)
+
+
+# =============================================================================
+# Label 映射 (从 behavior_panel 迁移)
+# =============================================================================
+
+_SPAWN_RULE_LABELS = {
+    SpawnRuleType.EQUIPMENT: "按装备池",
+    SpawnRuleType.ITEM: "按道具池",
+    SpawnRuleType.NONE: "不生成",
+}
 
 
 # =============================================================================
@@ -76,7 +94,7 @@ def _locked_badge(id_suffix: str, text: str, reason: str) -> None:
 # =============================================================================
 
 def draw_base_panel(hybrid: HybridItemV2) -> None:
-    """绘制基础面板
+    """绘制身份面板
 
     Args:
         hybrid: 混合物品数据对象
@@ -84,86 +102,89 @@ def draw_base_panel(hybrid: HybridItemV2) -> None:
     # 固定 parent_object
     hybrid.parent_object = "o_inv_consum"
 
-    # 1. 身份组: ID / 品质 / 等级
-    _draw_identity_section(hybrid)
+    # 1. 身份属性: ID / 品质 / 等级 / 价格 / 重量 / 材质 (field_flow)
+    _draw_identity_flow(hybrid)
 
-    ly.gap_y(_SECTION_GAP)
+    ly.gap_y(_SUB_GAP)
 
-    # 2. 物理组: 价格 / 重量 / 材质
-    _draw_physical_section(hybrid)
-
-    ly.gap_y(_SECTION_GAP)
-
-    # 3. 分类组: 主分类 / 子分类
+    # 2. 分类组: 主分类 / 子分类
     _draw_category_section(hybrid)
 
-    ly.gap_y(_SECTION_GAP)
+    ly.gap_y(_SUB_GAP)
 
-    # 4. 标签组
+    # 3. 标签组
     _draw_tags_section(hybrid)
 
+    ly.gap_y(_SUB_GAP)
+
+    # 4. 生成规则 (从 behavior_panel 迁移)
+    _draw_spawn_section(hybrid)
+
 
 # =============================================================================
-# 身份组: ID / 品质 / 等级
+# 身份属性 field_flow: ID / 品质 / 等级 / 价格 / 重量 / 材质
 # =============================================================================
 
-def _draw_identity_section(hybrid: HybridItemV2) -> None:
-    """身份信息: ID、品质、等级
+def _draw_identity_flow(hybrid: HybridItemV2) -> None:
+    """身份 + 物理属性合并为一个 field_flow
 
-    Tailwind: grid grid-cols-3 gap-4
+    Tailwind: flex flex-wrap gap-2
+    ID 较宽 (40tw=160px), 其他字段自然宽度 (25~35tw)
     """
     quality_int = quality_to_int(hybrid.quality)
 
-    with field_row(3):
+    with field_flow(gap=2, row_gap=2, default_width=26):
+        # ID (较宽)
         ch, new_id = text_field("ID", "##hybrid_id", hybrid.id,
+                                width=40,
                                 tooltip_text="物品唯一标识符")
         if ch:
             hybrid.id = new_id.lower()
 
+        # 品质
         ch, new_q = enum_field(
             "品质", "##quality_hybrid",
             quality_int,
             HYBRID_QUALITY_LABELS,
+            width=28,
         )
         if ch:
             hybrid.quality = quality_from_int(new_q)
             _on_quality_changed(hybrid)
 
+        # 等级
         if quality_to_int(hybrid.quality) == 7:
             readonly_field("等级", "T0 (文物固定)",
+                           width=26,
                            tooltip_text="文物品质固定为等级 0")
         else:
             tier_labels = {0: "全", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5"}
             ch, new_t = enum_field(
                 "等级", "##tier_hybrid", hybrid.tier, tier_labels,
+                width=20,
                 tooltip_text="用于掉落/商店筛选",
             )
             if ch:
                 hybrid.tier = new_t
 
-
-# =============================================================================
-# 物理组: 价格 / 重量 / 材质
-# =============================================================================
-
-def _draw_physical_section(hybrid: HybridItemV2) -> None:
-    """物理/经济属性: 价格、重量、材质
-
-    Tailwind: grid grid-cols-3 gap-4
-    """
-    with field_row(3):
-        ch, new_price = int_field("价格", "##price_hybrid", hybrid.base_price, vmin=0)
+        # 价格
+        ch, new_price = int_field("价格", "##price_hybrid", hybrid.base_price,
+                                  width=25, vmin=0)
         if ch:
             hybrid.base_price = new_price
 
+        # 重量
         ch, new_w = enum_field(
             "重量", "##weight_hybrid", hybrid.weight, HYBRID_WEIGHT_LABELS,
+            width=25,
             tooltip_text="影响游泳；护甲时决定类别",
         )
         if ch:
             hybrid.weight = new_w
 
-        ch, new_m = enum_field("材质", "##material_hybrid", hybrid.material, HYBRID_MATERIALS)
+        # 材质
+        ch, new_m = enum_field("材质", "##material_hybrid", hybrid.material,
+                               HYBRID_MATERIALS, width=30)
         if ch:
             hybrid.material = new_m
 
@@ -363,6 +384,79 @@ def _draw_tags_popup(hybrid: HybridItemV2) -> None:
                     hybrid.extra_tags.remove(tag_val)
 
         imgui.end_popup()
+
+
+# =============================================================================
+# 生成规则 (从 behavior_panel 迁移)
+# =============================================================================
+
+def _draw_spawn_section(hybrid: HybridItemV2) -> None:
+    """生成规则: 排除随机生成 / 容器生成 / 商店生成
+
+    Tailwind: flex flex-wrap gap-2
+    """
+    can_use_eq = not isinstance(hybrid.equipment, NotEquipable)
+    is_excluded = spawn_is_excluded(hybrid.spawn)
+
+    with field_flow(gap=2, row_gap=2, default_width=26):
+        ch, new_excluded = toggle_field(
+            "排除随机生成", "##exc_random", is_excluded,
+            width=26,
+            tooltip_text="排除随机生成：物品不会在宝箱/商店随机出现\n启用后其他标签设置不生效",
+        )
+        if ch:
+            hybrid.spawn = ExcludedFromRandom() if new_excluded else RandomSpawn()
+
+        if not spawn_is_excluded(hybrid.spawn) and isinstance(hybrid.spawn, RandomSpawn):
+            spawn = hybrid.spawn
+
+            # 容器生成
+            container_opts = (
+                [SpawnRuleType.EQUIPMENT, SpawnRuleType.ITEM, SpawnRuleType.NONE]
+                if can_use_eq
+                else [SpawnRuleType.ITEM, SpawnRuleType.NONE]
+            )
+            current_container = hybrid.container_spawn
+            if current_container not in container_opts:
+                current_container = SpawnRuleType.NONE
+
+            ch_c, new_c = enum_field(
+                "容器生成", "##container_spawn",
+                current_container, container_opts, _SPAWN_RULE_LABELS,
+                width=28,
+                tooltip_text=(
+                    "容器生成规则（宝箱/桶/尸体等）\n\n"
+                    "• 按装备池：根据武器类型/护甲类型 + 标签 + 层级匹配\n"
+                    "• 按道具池：根据分类/子分类 + 标签 + 层级匹配\n"
+                    "• 不生成：不在容器中随机出现"
+                ),
+            )
+            if ch_c:
+                object.__setattr__(spawn, "container_spawn", new_c)
+
+            # 商店生成
+            shop_opts = (
+                [SpawnRuleType.EQUIPMENT, SpawnRuleType.ITEM, SpawnRuleType.NONE]
+                if can_use_eq
+                else [SpawnRuleType.ITEM, SpawnRuleType.NONE]
+            )
+            current_shop = hybrid.shop_spawn
+            if current_shop not in shop_opts:
+                current_shop = SpawnRuleType.NONE
+
+            ch_s, new_s = enum_field(
+                "商店生成", "##shop_spawn",
+                current_shop, shop_opts, _SPAWN_RULE_LABELS,
+                width=28,
+                tooltip_text=(
+                    "商店生成规则（商人进货时）\n\n"
+                    "• 按装备池：根据武器/护甲/珠宝类别 + 层级 + 材质 + 标签匹配\n"
+                    "• 按道具池：根据分类/子分类 + 层级 + 标签匹配\n"
+                    "• 不生成：不在商店随机出现"
+                ),
+            )
+            if ch_s:
+                object.__setattr__(spawn, "shop_spawn", new_s)
 
 
 # =============================================================================
