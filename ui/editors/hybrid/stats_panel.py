@@ -26,6 +26,7 @@ from ui import imgui_shim as imgui
 from ui import tw
 from ui import layout as ly
 from ui.layout import sz, tooltip
+from ui.state import dpi_scale
 from ui.fields import field_row, int_field
 
 from hybrid_item_v2 import HybridItemV2
@@ -55,6 +56,21 @@ _INPUT_TW = 18  # 72px
 
 # 最大列数上限
 _MAX_COLS = 6
+
+# 标签列: 固定 6 个中文字宽 (全局统一)
+_LABEL_CHARS = 6
+_label_w_cache: float = 0.0
+
+
+def _get_label_width() -> float:
+    """获取标签列固定宽度 (6 个中文字 + 余量)
+
+    首次调用时用 calc_text_size 测量 6 个全角字，之后缓存。
+    """
+    global _label_w_cache
+    if _label_w_cache <= 0:
+        _label_w_cache = imgui.calc_text_size("测" * _LABEL_CHARS).x + sz(1)
+    return _label_w_cache
 
 
 # =============================================================================
@@ -152,34 +168,35 @@ def _draw_attribute_full_grid(
         imgui.pop_id()
 
 
-def _draw_attr_table(attrs: list[str], target_dict: dict) -> None:
-    """渲染属性紧凑表格: [label][input] × N (响应式列数)
+# 左端点缀圆点透明度
+_DOT_ALPHA = 0.25
 
-    使用 ImGui Table 2N 列 (固定 label + 固定 input) 实现对齐网格。
-    标签列宽度 = 该组最长标签文本宽度 (所有逻辑列等宽)。
-    输入列固定宽度。列数根据可用空间自动计算。
+
+def _draw_attr_table(attrs: list[str], target_dict: dict) -> None:
+    """渲染属性紧凑表格: [·label][input] × N (响应式, 右端齐平)
+
+    布局策略:
+    - label 列: 全局固定 6 中文字宽，文字右对齐 + 左端圆点点缀
+    - input 列: 固定 72px
+    - 列数: floor(avail / logical_col_w)，最大 6
+    - cell_pad_x: 动态计算使最右列右边缘齐平卡片 padding
     """
     if not attrs:
         return
 
+    label_w = _get_label_width()
     input_w = sz(_INPUT_TW)
-    cell_pad_x = sz(1.5)  # 6px 水平间距
     cell_pad_y = sz(0.5)  # 2px 垂直间距
+    min_pad_x = sz(0.5)  # 2px 最小水平间距
 
-    # 预计算最大标签宽度 → 所有逻辑列等宽
-    max_label_w = 0.0
-    for attr in attrs:
-        name, _ = get_attr_display(attr)
-        display_name = name or attr
-        text_w = imgui.calc_text_size(display_name).x
-        if text_w > max_label_w:
-            max_label_w = text_w
-    label_w = max_label_w + sz(0.5)  # 2px 余量
-
-    # 动态列数: 逻辑列宽 = label_cell + input_cell (各含 2×cell_pad)
+    # 动态列数 + cell_pad_x 计算
     avail_w = imgui.get_content_region_available_width()
-    logical_col_w = label_w + input_w + cell_pad_x * 4
-    num_cols = max(1, min(_MAX_COLS, int(avail_w / logical_col_w)))
+    # 逻辑列最小宽 = label + input + 4*min_pad (左右各一个 pad per cell)
+    min_col_w = label_w + input_w + min_pad_x * 4
+    num_cols = max(1, min(_MAX_COLS, int(avail_w / min_col_w)))
+    # 反算 cell_pad_x 使总宽 = avail_w
+    # total = num_cols * (label_w + input_w + 4*pad_x) = avail_w
+    cell_pad_x = max(min_pad_x, (avail_w - num_cols * (label_w + input_w)) / (num_cols * 4))
 
     table_cols = num_cols * 2
 
@@ -196,6 +213,10 @@ def _draw_attr_table(attrs: list[str], target_dict: dict) -> None:
                 f"##i{i}", imgui.TABLE_COLUMN_WIDTH_FIXED, input_w,
             )
 
+        draw_list = imgui.get_window_draw_list()
+        dot_r = 1.5 * dpi_scale()  # 圆点半径
+        dot_color = imgui.get_color_u32_rgba(0.5, 0.5, 0.6, _DOT_ALPHA)
+
         # input 样式: frame_bg + border + rounded
         with tw.input_default:
             for i, attr in enumerate(attrs):
@@ -206,10 +227,26 @@ def _draw_attr_table(attrs: list[str], target_dict: dict) -> None:
                 name, desc = get_attr_display(attr)
                 display_name = name or attr
 
-                # --- Label column ---
+                # --- Label column (右对齐 + 左端圆点) ---
                 imgui.table_next_column()
-                label_style = tw.text_faint if val == 0 else tw.text_muted
                 imgui.align_text_to_frame_padding()
+
+                # 左端圆点点缀
+                cx, cy = imgui.get_cursor_screen_pos()
+                frame_h = imgui.get_frame_height()
+                draw_list.add_circle_filled(
+                    cx + dot_r, cy + frame_h * 0.5,
+                    dot_r, dot_color,
+                )
+
+                # 右对齐: 计算偏移
+                text_w = imgui.calc_text_size(display_name).x
+                offset = label_w - text_w
+                if offset > 0:
+                    cursor = imgui.get_cursor_pos()
+                    imgui.set_cursor_pos((cursor[0] + offset, cursor[1]))
+
+                label_style = tw.text_faint if val == 0 else tw.text_muted
                 label_style(imgui.text)(display_name)
                 if desc:
                     tooltip(desc)

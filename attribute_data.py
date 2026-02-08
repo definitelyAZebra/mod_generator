@@ -1650,7 +1650,7 @@ ATTRIBUTE_TRANSLATIONS = {
         "Korean": "상황 이성 변화율",
     },
     "Savvy": {
-        "Chinese": "开锁与拆除陷阱",
+        "Chinese": "开锁拆陷阱",
         "English": "Lock-picking & Disarming",
         "Russian": "Взлом и обезвреживание",
         "German": "Schlossknacken & Entschärfen",
