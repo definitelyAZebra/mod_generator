@@ -307,6 +307,37 @@ def readonly_field(
     _end_field()
 
 
+def text_field(
+    label: str,
+    id: str,
+    value: str,
+    *,
+    buffer_size: int = 256,
+    tooltip_text: str | None = None,
+) -> tuple[bool, str]:
+    """文本输入字段
+
+    Args:
+        label: 上方标签文字
+        id: ImGui ID
+        value: 当前文本
+        buffer_size: 缓冲区大小
+        tooltip_text: 悬停提示
+
+    Returns:
+        (changed, new_value)
+    """
+    _begin_field(label)
+
+    changed, new_value = imgui.input_text(id, value, buffer_size)
+
+    if tooltip_text:
+        tooltip(tooltip_text)
+
+    _end_field()
+    return changed, new_value
+
+
 def button_field(
     label: str,
     btn_label: str,
@@ -363,6 +394,7 @@ __all__ = [
     'field_row',
     'enum_field',
     'int_field',
+    'text_field',
     'toggle_field',
     'readonly_field',
     'button_field',
