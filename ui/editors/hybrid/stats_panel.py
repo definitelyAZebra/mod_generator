@@ -50,11 +50,24 @@ from specs import (
 # 常量
 # =============================================================================
 
-# 网格每行显示的属性对数 (label + input 为一对)
-_GRID_COLS = 3
-
 # 输入框固定宽度 (Tailwind 单位)
 _INPUT_TW = 22  # 88px
+
+# 响应式网格列数阈值 (像素 avail content width)
+_COL_THRESHOLDS = [
+    (900, 4),   # > 900px → 4 列
+    (500, 3),   # > 500px → 3 列
+    (0,   2),   # 其余 → 2 列
+]
+
+
+def _grid_cols() -> int:
+    """根据可用宽度计算属性网格列数"""
+    w = imgui.get_content_region_available_width()
+    for threshold, cols in _COL_THRESHOLDS:
+        if w > threshold:
+            return cols
+    return 2
 
 
 # =============================================================================
@@ -127,30 +140,31 @@ def _draw_attribute_full_grid(
 
 
 def _draw_attr_table(attrs: list[str], target_dict: dict) -> None:
-    """渲染属性紧凑表格: [label][input] × _GRID_COLS
+    """渲染属性紧凑表格: [label][input] × N (响应式列数)
 
-    使用 ImGui Table 实现 6 列 (label, input) × 3 布局。
-    label 列自动拉伸, input 列固定宽度。
+    使用 ImGui Table 实现 2N 列 (label, input) × N 布局。
+    label 列自动拉伸, input 列固定宽度。列数根据可用宽度自适应。
     """
+    num_cols = _grid_cols()
     input_w = sz(_INPUT_TW)
     cell_pad_x = sz(1.5)  # 6px 水平间距
     cell_pad_y = sz(0.5)  # 2px 垂直间距
 
     imgui.push_style_var(imgui.STYLE_CELL_PADDING, (cell_pad_x, cell_pad_y))
 
-    table_cols = _GRID_COLS * 2  # label + input per logical column
+    table_cols = num_cols * 2  # label + input per logical column
     flags = imgui.TABLE_SIZING_STRETCH_SAME | imgui.TABLE_NO_BORDERS_IN_BODY
 
     if imgui.begin_table("##ag", table_cols, flags):
         # 列配置: 交替 stretch(label) + fixed(input)
-        for i in range(_GRID_COLS):
+        for i in range(num_cols):
             imgui.table_setup_column(f"##l{i}")  # stretch label
             imgui.table_setup_column(
                 f"##i{i}", imgui.TABLE_COLUMN_WIDTH_FIXED, input_w
             )
 
         for i, attr in enumerate(attrs):
-            if i % _GRID_COLS == 0:
+            if i % num_cols == 0:
                 imgui.table_next_row()
 
             val = target_dict.get(attr, 0)

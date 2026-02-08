@@ -1,62 +1,38 @@
 # -*- coding: utf-8 -*-
-"""混合物品编辑器 V2 - 单页滚动布局 + 浮动预测条
+"""混合物品编辑器 V2 - 响应式卡片布局
 
-废除 Tab Bar，所有表单区域在同一页面内纵向排列，通过视觉分隔符分区。
-浮动预测条固定在编辑器底部，实时显示匹配的容器掉落点和商店 NPC。
-
-设计原则:
-    - 所有内容始终可见，滚动即达，无需点击发现
-    - 不使用 gui god object
-    - 每个 panel 函数接收 hybrid 数据对象
-    - 遵循 tw/ly UI 规范
-    - 验证错误固定在底部
+Card-based responsive layout。宽屏双列(身份+装备并排)，窄屏单列瀑布。
+生成预测作为独立卡片。属性和外观全宽展开。
 
 ================================================================================
-样式设计规范 (Tailwind 思路)
+设计原则
 ================================================================================
 
-布局结构:
-    ```jsx
-    <div className="flex flex-col h-full bg-abyss-900">
-      {/* 可滚动的单页表单 */}
-      <div className="flex-1 overflow-y-auto px-4 py-2.5">
-        {/* Section: 身份 — "这是什么物品" */}
-        <SectionHeading accent>身份</SectionHeading>
-        <BasePanel />   {/* ID/品质/等级/价格/重量/材质 + 分类标签 + 生成规则 */}
+1. 卡片分区: 每个逻辑区域 = 一张 bg_surface 卡片 + rounded + padding
+2. 响应式断点: avail_w > BREAKPOINT → 身份+装备并排 (ImGui Table 2col)
+3. 滚动条隐藏: NO_SCROLLBAR，鼠标滚轮仍可滚动
+4. 字段样式: input_default 由 fields.py 自动注入 (frame_bg + border + rounded)
 
-        <SectionDivider />
+================================================================================
+卡片结构 (宽屏, >1100px 内容区)
+================================================================================
 
-        {/* Section: 装备与触发 — "物品做什么" */}
-        <SectionHeading accent>装备与触发</SectionHeading>
-        <BehaviorPanel />  {/* 装备形态/触发/耐久/充能 */}
+    ┌──────── 身份 ──────────┐  ┌──── 装备与触发 ─────┐
+    │ ID/品质/等级/...        │  │ 装备形态/类型/平衡   │
+    │ 分类/标签               │  │ 触发/次数/恢复      │
+    │ 生成规则                │  │                     │
+    └────────────────────────┘  └─────────────────────┘
+    ┌──── 生成预测 ─────────────────────────────────────┐
+    │ 容器: slot1, slot2...  商店: npc1, npc2...        │
+    └───────────────────────────────────────────────────┘
+    ┌──── 属性 ─────────────────────────────────────────┐
+    │ 伤害类型 [...grid...]                              │
+    │ 状态效果 [...grid...]                              │
+    └───────────────────────────────────────────────────┘
+    ┌──── 外观 ─────────────────────────────────────────┐
+    │ 贴图 | 音效 | 本地化                               │
+    └───────────────────────────────────────────────────┘
 
-        <SectionDivider />
-
-        {/* Section: 属性 (条件) — "数值配置" */}
-        <SectionHeading accent>属性</SectionHeading>
-        <StatsPanel />
-
-        <SectionDivider />
-
-        {/* Section: 外观 — "怎么呈现给玩家" */}
-        <SectionHeading accent>外观</SectionHeading>
-        <PresentationPanel />
-      </div>
-
-      {/* 浮动预测条 — 固定在底部 */}
-      <PredictionBar />
-
-      {/* 验证错误区 - 在预测条上方 */}
-      <ErrorBox />
-    </div>
-    ```
-
-间距常量:
-    - CONTENT_PX = 4 (16px) - 内容区水平内边距
-    - CONTENT_PY = 2.5 (10px) - 内容区顶部内边距
-    - SECTION_GAP = 5 (20px) - 区域之间的间距
-    - HEADING_GAP = 2.5 (10px) - 标题与内容之间的间距
-    - ERROR_GAP = 2 (8px) - 错误区与内容间距
 ================================================================================
 """
 
@@ -78,36 +54,27 @@ from shop_configs import NPC_METADATA, SHOP_CONFIGS
 
 
 # =============================================================================
-# 间距常量 (Tailwind 单位: 1 = 4px)
+# 常量
 # =============================================================================
 
-_CONTENT_PX = 4      # 内容区水平内边距 (16px)
-_CONTENT_PY = 2.5    # 内容区顶部内边距 (10px)
-_SECTION_GAP = 5     # 区域之间间距 (20px)
-_HEADING_GAP = 2.5   # 标题与内容间距 (10px)
-_ERROR_GAP = 2       # 错误区与内容间距 (8px)
-_PREDICTION_H = 10   # 预测条高度 (40px)
+_PAGE_PX = 5       # 页面水平 padding (20px)
+_PAGE_PY = 4       # 页面顶部 padding (16px)
+_CARD_GAP = 3      # 卡片之间的间距 (12px)
+_HEADING_GAP = 2   # 标题与内容间距 (8px)
 
+# 响应式断点: 内容区 > 此值时启用双列
+_BREAKPOINT = 275  # tw 单位 (1100px)
+
+# 卡片样式
+_card_style = tw.bg_surface | tw.child_rounded_md | tw.p_3
+
+
+# =============================================================================
+# 主入口
+# =============================================================================
 
 def draw_hybrid_editor(hybrid: HybridItemV2) -> None:
-    """混合物品编辑器 - 单页滚动表单
-
-    布局结构:
-        ┌─────────────────────────────────────────────────────┐
-        │ ← px=16 →  │身份                      section 标题 │
-        │  ID  品质  等级  价格  重量  材质    field_flow 行  │
-        │  分类 [badge...] / 标签 [badge...]                  │
-        │  生成规则: 排除 / 容器 / 商店                       │
-        │─────────────────────────────────────── 视觉分隔符 ──│
-        │  │装备与触发                                        │
-        │  装备形态 / 武器类型 / 触发 / 耐久 / 充能           │
-        │─────────────────────────────────────── 视觉分隔符 ──│
-        │  │属性                                              │
-        │  全属性网格 (label+input) × 3                       │
-        │─────────────────────────────────────── 视觉分隔符 ──│
-        │  │外观                                              │
-        │  贴图 / 音效 / 本地化                               │
-        └─────────────────────────────────────────────────────┘
+    """混合物品编辑器 - 响应式卡片布局
 
     Args:
         hybrid: 混合物品数据对象
@@ -118,72 +85,95 @@ def draw_hybrid_editor(hybrid: HybridItemV2) -> None:
     from ui.editors.hybrid.presentation_panel import draw_presentation_panel
 
     show_attrs = _should_show_attributes(hybrid) or isinstance(hybrid.trigger, EffectTrigger)
+    has_prediction = _has_spawn_prediction(hybrid)
 
-    # =========================================================================
-    # 顶部间距 + 水平缩进
-    # =========================================================================
-    ly.gap_y(_CONTENT_PY)
-    imgui.indent(ly.sz(_CONTENT_PX))
+    avail_w = imgui.get_content_region_available_width()
+    is_wide = avail_w > sz(_BREAKPOINT)
 
-    # =========================================================================
-    # Section 1: 身份 — "这是什么物品"
-    # =========================================================================
-    _section_heading("身份")
-    draw_base_panel(hybrid)
+    # 页面 padding
+    ly.gap_y(_PAGE_PY)
+    imgui.indent(sz(_PAGE_PX))
 
-    # =========================================================================
-    # Section 2: 装备与触发 — "物品做什么"
-    # =========================================================================
-    _section_divider()
-    _section_heading("装备与触发")
-    draw_behavior_panel(hybrid)
+    # =================================================================
+    # 第一行: 身份 + 装备与触发 (宽屏并排 / 窄屏堆叠)
+    # =================================================================
+    content_w = avail_w - sz(_PAGE_PX) * 2
+    col_gap = sz(_CARD_GAP)
 
-    # =========================================================================
-    # Section 3: 属性 (条件显示) — "数值配置"
-    # =========================================================================
+    if is_wide:
+        _draw_dual_column_row(
+            content_w, col_gap,
+            left_fn=lambda: _draw_card_section("身份", draw_base_panel, hybrid),
+            right_fn=lambda: _draw_card_section("装备与触发", draw_behavior_panel, hybrid),
+        )
+    else:
+        _draw_card_section("身份", draw_base_panel, hybrid)
+        ly.gap_y(_CARD_GAP)
+        _draw_card_section("装备与触发", draw_behavior_panel, hybrid)
+
+    # =================================================================
+    # 生成预测卡片 (独立, 全宽)
+    # =================================================================
+    if has_prediction:
+        ly.gap_y(_CARD_GAP)
+        _draw_prediction_card(hybrid)
+
+    # =================================================================
+    # 属性卡片 (全宽)
+    # =================================================================
     if show_attrs:
-        _section_divider()
-        _section_heading("属性")
-        draw_stats_panel(hybrid)
+        ly.gap_y(_CARD_GAP)
+        _draw_card_section("属性", draw_stats_panel, hybrid)
 
-    # =========================================================================
-    # Section 4: 外观 — "怎么呈现给玩家"
-    # =========================================================================
-    _section_divider()
-    _section_heading("外观")
-    draw_presentation_panel(hybrid)
+    # =================================================================
+    # 外观卡片 (全宽)
+    # =================================================================
+    ly.gap_y(_CARD_GAP)
+    _draw_card_section("外观", draw_presentation_panel, hybrid)
 
-    # =========================================================================
-    # 底部留白 (滚动尾部呼吸空间)
-    # =========================================================================
-    ly.gap_y(_SECTION_GAP)
-
-    imgui.unindent(ly.sz(_CONTENT_PX))
-
-    # =========================================================================
-    # 验证错误区域
-    # =========================================================================
+    # =================================================================
+    # 验证错误
+    # =================================================================
     errors = validate_hybrid_item(hybrid, ui_state.project, include_warnings=True)
     if errors:
-        ly.gap_y(_ERROR_GAP)
+        ly.gap_y(_CARD_GAP)
         _draw_validation_errors(errors)
 
+    # 底部呼吸空间
+    ly.gap_y(_PAGE_PY * 2)
+
+    imgui.unindent(sz(_PAGE_PX))
+
 
 # =============================================================================
-# 内部组件
+# 卡片渲染
 # =============================================================================
 
-def _section_heading(title: str) -> None:
-    """区域标题 — 带左侧紫色强调条
+def _draw_card_section(
+    title: str,
+    panel_fn,
+    hybrid: HybridItemV2,
+) -> None:
+    """渲染一张带标题的 section 卡片
+
+    结构: Card (begin_child auto-height) → heading + panel content
+    """
+    with _card_style:
+        with ly.card(f"##card_{title}") as _state:
+            _card_heading(title)
+            panel_fn(hybrid)
+
+
+def _card_heading(title: str) -> None:
+    """卡片内标题 — 紫色强调条 + 文字
 
     Tailwind: border-l-2 border-crystal-500 pl-2 text-crystal-400 text-sm
     """
     screen_x, screen_y = imgui.get_cursor_screen_pos()
     text_h = imgui.get_font_size()
     bar_w = 2 * dpi_scale()
-    bar_gap = sz(1.5)  # 6px gap between bar and text
+    bar_gap = sz(1.5)
 
-    # 绘制紫色强调条
     draw_list = imgui.get_window_draw_list()
     draw_list.add_rect_filled(
         screen_x, screen_y,
@@ -191,76 +181,85 @@ def _section_heading(title: str) -> None:
         imgui.get_color_u32_rgba(*tw.CRYSTAL_500),
     )
 
-    # 文字偏移到强调条右侧
     cursor = imgui.get_cursor_pos()
     imgui.set_cursor_pos((cursor[0] + bar_w + bar_gap, cursor[1]))
     tw.text_accent(imgui.text)(title)
     ly.gap_y(_HEADING_GAP)
 
 
-def _section_divider() -> None:
-    """区域分隔符 — 间距 + 细线 + 间距
+# =============================================================================
+# 双列布局 (ImGui Table)
+# =============================================================================
 
-    Tailwind: my-5 border-t border-stone-700/50
-    """
-    ly.gap_y(_SECTION_GAP)
-    # 细线
-    cursor_x, cursor_y = imgui.get_cursor_screen_pos()
-    max_x = cursor_x + imgui.get_content_region_available_width()
-    draw_list = imgui.get_window_draw_list()
-    draw_list.add_line(
-        cursor_x, cursor_y, max_x, cursor_y,
-        imgui.get_color_u32_rgba(*tw.STONE_800), 1.0
-    )
-    imgui.dummy(0, 1)
-    ly.gap_y(_SECTION_GAP)
+def _draw_dual_column_row(
+    content_w: float,
+    col_gap: float,
+    left_fn,
+    right_fn,
+) -> None:
+    """用 ImGui Table 实现双列同行, 每列自适应高度"""
+    flags = imgui.TABLE_NO_BORDERS_IN_BODY | imgui.TABLE_SIZING_STRETCH_SAME
+    col_w = (content_w - col_gap) / 2
+
+    imgui.push_style_var(imgui.STYLE_CELL_PADDING, (col_gap / 2, 0))
+
+    if imgui.begin_table("##dual_col", 2, flags, (content_w, 0)):
+        imgui.table_setup_column("##left", 0, col_w)
+        imgui.table_setup_column("##right", 0, col_w)
+        imgui.table_next_row()
+
+        imgui.table_next_column()
+        left_fn()
+
+        imgui.table_next_column()
+        right_fn()
+
+        imgui.end_table()
+
+    imgui.pop_style_var()
 
 
 # =============================================================================
-# 浮动预测条 (由 main_editor 在滚动区域外调用)
+# 生成预测卡片
 # =============================================================================
 
-def draw_prediction_bar(hybrid: HybridItemV2, width: float) -> None:
-    """浮动预测条 — 实时显示匹配的容器掉落点和商店 NPC
+def _draw_prediction_card(hybrid: HybridItemV2) -> None:
+    """生成预测卡片 — 容器匹配 + 商店匹配"""
+    with _card_style:
+        with ly.card("##card_prediction") as _state:
+            _card_heading("生成预测")
 
-    绘制在滚动区域外部，始终可见。结构:
-        ┌─────────────────────────────────────┐
-        │ 容器: slot1, slot2...  │ 商店: npc1 │
-        └─────────────────────────────────────┘
-    """
+            has_container = hybrid.container_spawn != SpawnRuleType.NONE
+            has_shop = hybrid.shop_spawn != SpawnRuleType.NONE
+
+            if has_container:
+                is_eq = hybrid.container_spawn == SpawnRuleType.EQUIPMENT
+                tw.text_muted(imgui.text)("容器:")
+                imgui.same_line()
+                _render_container_matches(hybrid, is_eq)
+
+            if has_shop:
+                tw.text_muted(imgui.text)("商店:")
+                imgui.same_line()
+                _render_shop_matches(hybrid)
+
+
+def _has_spawn_prediction(hybrid: HybridItemV2) -> bool:
+    """判断是否应显示生成预测卡片"""
     if spawn_is_excluded(hybrid.spawn):
-        return
+        return False
+    return (
+        hybrid.container_spawn != SpawnRuleType.NONE
+        or hybrid.shop_spawn != SpawnRuleType.NONE
+    )
 
-    has_container = hybrid.container_spawn != SpawnRuleType.NONE
-    has_shop = hybrid.shop_spawn != SpawnRuleType.NONE
-    if not has_container and not has_shop:
-        return
 
-    bar_h = sz(_PREDICTION_H)
-    with tw.bg_abyss_800 | tw.border_abyss_600 | tw.child_border_size(1) | tw.p_1:
-        imgui.begin_child("##prediction_bar", width, bar_h, border=True)
-
-    # 容器掉落
-    if has_container:
-        is_eq = hybrid.container_spawn == SpawnRuleType.EQUIPMENT
-        tw.text_muted(imgui.text)("容器:")
-        imgui.same_line()
-        _render_container_matches(hybrid, is_eq)
-
-        if has_shop:
-            imgui.same_line(spacing=sz(4))
-
-    # 商店进货
-    if has_shop:
-        tw.text_muted(imgui.text)("商店:")
-        imgui.same_line()
-        _render_shop_matches(hybrid)
-
-    imgui.end_child()
-
+# =============================================================================
+# 匹配渲染
+# =============================================================================
 
 def _render_container_matches(hybrid: HybridItemV2, is_equipment: bool) -> None:
-    """渲染容器匹配结果 (内联文字)"""
+    """渲染容器匹配结果"""
     tags_tuple = tuple(hybrid.effective_tags.split()) if hybrid.effective_tags else ()
 
     if is_equipment:
@@ -290,7 +289,7 @@ def _render_container_matches(hybrid: HybridItemV2, is_equipment: bool) -> None:
             return
 
         names = list(dict.fromkeys(m["entry_name_cn"] for m in all_matches))
-        tw.text_default(imgui.text)(", ".join(names))
+        _render_truncated_names(names)
     else:
         if not (hybrid.cat or hybrid.subcats):
             tw.text_faint(imgui.text)("请设置分类")
@@ -304,11 +303,23 @@ def _render_container_matches(hybrid: HybridItemV2, is_equipment: bool) -> None:
             return
 
         names = list(dict.fromkeys(m["entry_name_cn"] for m in matches))
-        tw.text_default(imgui.text)(", ".join(names))
+        _render_truncated_names(names)
+
+
+def _render_truncated_names(names: list[str], max_display: int = 8) -> None:
+    """渲染名称列表, 超过 max_display 个则截断并显示计数"""
+    if not names:
+        tw.text_faint(imgui.text)("无匹配")
+        return
+    if len(names) <= max_display:
+        display = ", ".join(names)
+    else:
+        display = ", ".join(names[:max_display]) + f" …+{len(names) - max_display}"
+    tw.text_default(imgui.text)(display)
 
 
 def _render_shop_matches(hybrid: HybridItemV2) -> None:
-    """渲染商店匹配结果 (内联文字)"""
+    """渲染商店匹配结果"""
     matching: list[str] = []
 
     if hybrid.shop_spawn == SpawnRuleType.ITEM:
@@ -388,37 +399,46 @@ def _render_shop_matches(hybrid: HybridItemV2) -> None:
         tw.text_faint(imgui.text)("无匹配")
         return
 
-    tw.text_default(imgui.text)(", ".join(matching))
+    _render_truncated_names(matching)
 
+
+# =============================================================================
+# 验证错误
+# =============================================================================
 
 def _draw_validation_errors(errors: list[str]) -> None:
-    """绘制验证错误区域 (standalone, 不依赖 gui)"""
+    """绘制验证错误区域"""
     with tw.bg_app | tw.border_blood_700 | tw.child_border_size(1) | tw.rounded_md | tw.p_3:
-        draw_indented_separator()
-        imgui.text("消息:")
-        for error in errors:
-            if error.endswith("):"):
-                continue
-            content = error.lstrip()
-            if content.startswith("• WARNING:"):
-                imgui.text("  ")
-                imgui.same_line()
-                tw.text_warning(imgui.text)("!")
-                imgui.same_line()
-                tw.text_warning(imgui.text)(content[10:].strip())
-            elif content.startswith("\u2022"):
-                imgui.text("  ")
-                imgui.same_line()
-                tw.text_error(imgui.text)("X")
-                imgui.same_line()
-                tw.text_error(imgui.text)(content[1:].strip())
-            else:
-                imgui.text("  ")
-                imgui.same_line()
-                tw.text_error(imgui.text)("X")
-                imgui.same_line()
-                tw.text_error(imgui.text)(error)
+        with ly.card("##validation_errors") as _state:
+            draw_indented_separator()
+            imgui.text("消息:")
+            for error in errors:
+                if error.endswith("):"):
+                    continue
+                content = error.lstrip()
+                if content.startswith("• WARNING:"):
+                    imgui.text("  ")
+                    imgui.same_line()
+                    tw.text_warning(imgui.text)("!")
+                    imgui.same_line()
+                    tw.text_warning(imgui.text)(content[10:].strip())
+                elif content.startswith("\u2022"):
+                    imgui.text("  ")
+                    imgui.same_line()
+                    tw.text_error(imgui.text)("X")
+                    imgui.same_line()
+                    tw.text_error(imgui.text)(content[1:].strip())
+                else:
+                    imgui.text("  ")
+                    imgui.same_line()
+                    tw.text_error(imgui.text)("X")
+                    imgui.same_line()
+                    tw.text_error(imgui.text)(error)
 
+
+# =============================================================================
+# 辅助
+# =============================================================================
 
 def _should_show_attributes(hybrid: HybridItemV2) -> bool:
     """判断是否显示属性加成编辑器"""
@@ -430,4 +450,8 @@ def _should_show_attributes(hybrid: HybridItemV2) -> bool:
     )
 
 
-__all__ = ["draw_hybrid_editor", "draw_prediction_bar"]
+# =============================================================================
+# 导出
+# =============================================================================
+
+__all__ = ["draw_hybrid_editor"]

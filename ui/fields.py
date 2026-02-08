@@ -51,6 +51,7 @@ from typing import Any
 
 from ui import imgui_shim as imgui
 from ui.layout import sz, gap_y, tooltip
+from ui.state import dpi_scale as _dpi_scale
 
 
 # =============================================================================
@@ -233,7 +234,10 @@ def _begin_field_row(state: _FieldRowState, label: str) -> float:
 
     from ui import tw as _tw
     _tw.text_muted(imgui.text)(label)
-    gap_y(1)
+    gap_y(0.5)
+
+    # 控件默认样式: 背景 + 边框 + 圆角
+    _tw.input_default.__enter__()
 
     imgui.set_next_item_width(state.col_width)
     return state.col_width
@@ -264,7 +268,10 @@ def _begin_field_flow(state: _FieldFlowState, label: str, width_tw: float | None
 
     from ui import tw as _tw
     _tw.text_muted(imgui.text)(label)
-    gap_y(1)
+    gap_y(0.5)
+
+    # 控件默认样式: 背景 + 边框 + 圆角
+    _tw.input_default.__enter__()
 
     imgui.set_next_item_width(field_w)
     return field_w
@@ -272,6 +279,10 @@ def _begin_field_flow(state: _FieldFlowState, label: str, width_tw: float | None
 
 def _end_field():
     """结束字段单元格: 关闭 group, 记录高度, 推进位置"""
+    # 弹出控件默认样式
+    from ui import tw as _tw
+    _tw.input_default.__exit__(None, None, None)
+
     imgui.end_group()
     state = _row_stack[-1]
     col_height = imgui.get_item_rect_size().y
