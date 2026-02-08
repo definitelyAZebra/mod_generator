@@ -67,6 +67,7 @@ def create_window() -> tuple:
         sys.exit(1)
 
     glfw.make_context_current(window)
+    glfw.maximize_window(window)
     imgui.create_context()
     renderer = GlfwRenderer(window)
 

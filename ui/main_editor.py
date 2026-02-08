@@ -104,26 +104,26 @@ def _draw_armor_main(width: float, height: float) -> None:
 
 
 def _draw_hybrid_main(width: float, height: float) -> None:
-    """绘制混合物品编辑器主区域
+    """绘制混合物品编辑器主区域 - 单页滚动
 
-    ⚠️ 容器类型: Child Window (自己创建)
+    ⚠️ 容器类型: Child Window (自己创建, 可纵向滚动)
 
     布局结构:
         ┌─────────────────────────────────────────────────────┐
-        │ HybridEditor Child (bg-abyss-700, p-0)              │
-        │ ┌─────────────────────────────────────────────────┐ │
-        │ │ TabBar 区 (indent=12px)                         │ │
-        │ │ [基础] [行为] [属性] [呈现]                     │ │
-        │ ├─────────────────────────────────────────────────┤ │
-        │ │ 内容区 (indent=16px)                            │ │
-        │ │ ...表单...                                      │ │
-        │ └─────────────────────────────────────────────────┘ │
+        │ HybridEditor Child (bg-elevated, 可纵向滚动)         │
+        │  [基础] 身份 / 品质 / 等级 / ...                    │
+        │  ─────────────── 分隔符 ───────────────             │
+        │  [行为] 装备形态 / 触发 / 充能 / ...               │
+        │  ─────────────── 分隔符 ───────────────             │
+        │  [属性] 装备属性 / 消耗品属性                       │
+        │  ─────────────── 分隔符 ───────────────             │
+        │  [呈现] 贴图 / 音效 / 本地化                       │
+        │  ⚠️ 验证错误                                        │
         └─────────────────────────────────────────────────────┘
     """
-    from ui.editors.hybrid_editor_v2 import draw_hybrid_editor_tabs
+    from ui.editors.hybrid_editor_v2 import draw_hybrid_editor
 
-    # 容器样式：bg-elevated rounded-none border-0 p-0
-    # 内部边距由 hybrid_editor_v2 控制
+    # 容器样式：bg-elevated, 无边框, 内部边距由 hybrid_editor_v2 控制
     _style = (
         tw.bg_elevated |
         tw.child_rounded_none |
@@ -131,13 +131,13 @@ def _draw_hybrid_main(width: float, height: float) -> None:
         tw.p_0
     )
 
-    # 容器 + 样式
+    # 容器 — 允许纵向滚动（单页表单内容可能超出屏幕）
     _style(imgui.begin_child)(
         "HybridEditor",
         width,
         height,
         border=False,
-        flags=imgui.WINDOW_NO_SCROLLBAR,
+        flags=0,  # 允许默认滚动行为
     )
 
     current_index = ui_state.current_hybrid_index
@@ -146,9 +146,8 @@ def _draw_hybrid_main(width: float, height: float) -> None:
     if current_index < 0 or current_index >= len(hybrids):
         _draw_empty_hint("请从左侧列表选择一个混合物品进行编辑")
     else:
-        # 绘制混合物品编辑器 - 边距由 hybrid_editor_v2 控制
         hybrid = hybrids[current_index]
-        draw_hybrid_editor_tabs(hybrid)
+        draw_hybrid_editor(hybrid)
 
     imgui.end_child()
 

@@ -1,57 +1,61 @@
 # -*- coding: utf-8 -*-
-"""混合物品编辑器 V2 - Tab 路由
+"""混合物品编辑器 V2 - 单页滚动布局
 
-仅负责 Tab Bar 分发，不包含具体编辑逻辑。
-每个 Tab 的内容由对应的 panel 模块实现。
+废除 Tab Bar，所有表单区域在同一页面内纵向排列，通过视觉分隔符分区。
+每个 section 由对应的 panel 模块绘制。
 
 设计原则:
-    - 不使用 gui god object (尽可能)
+    - 所有内容始终可见，滚动即达，无需点击发现
+    - 不使用 gui god object
     - 每个 panel 函数接收 hybrid 数据对象
     - 遵循 tw/ly UI 规范
+    - 验证错误固定在底部
 
 ================================================================================
 样式设计规范 (Tailwind 思路)
 ================================================================================
 
-整体布局:
+布局结构:
     ```jsx
-    {/* 外层容器由 main_editor 提供，这里是 Tab 区域 */}
-    <div className="flex flex-col h-full">
-      {/* Tab Bar - 贴着顶部，有左右边距 */}
-      <div className="px-3 pt-2 bg-abyss-700">
-        <TabBar className="gap-1">
-          <Tab className="px-4 py-2 rounded-t-md
-                         bg-abyss-800 hover:bg-abyss-600
-                         data-[active]:bg-abyss-900 data-[active]:border-b-0
-                         text-parchment-200 data-[active]:text-parchment-50">
-            基础
-          </Tab>
-        </TabBar>
+    <div className="flex flex-col h-full bg-abyss-900">
+      {/* 可滚动的单页表单 */}
+      <div className="flex-1 overflow-y-auto px-4 py-3">
+        {/* Section: 基础 */}
+        <SectionHeading>基础</SectionHeading>
+        <BasePanel />
+
+        <SectionDivider />
+
+        {/* Section: 行为 */}
+        <SectionHeading>行为</SectionHeading>
+        <BehaviorPanel />
+
+        <SectionDivider />
+
+        {/* Section: 属性 (条件) */}
+        <SectionHeading>属性</SectionHeading>
+        <StatsPanel />
+
+        <SectionDivider />
+
+        {/* Section: 呈现 */}
+        <SectionHeading>呈现</SectionHeading>
+        <PresentationPanel />
       </div>
 
-      {/* 内容区 - 有 padding，可滚动 */}
-      <div className="flex-1 bg-abyss-900 p-4 overflow-auto">
-        {/* Panel 内容 */}
-      </div>
-
-      {/* 验证错误区 (如有) */}
-      <div className="px-4 pb-4">
+      {/* 验证错误区 - 固定在底部 */}
+      <div className="px-4 pb-3">
         <ErrorBox />
       </div>
     </div>
     ```
 
-Tab 设计决策:
-    - 贴边: 否，保留 12px 左边距与导航对齐
-    - 圆角: 顶部圆角 (rounded-t-md = 6px)
-    - 边框: 无，用背景色区分
-    - 实现: 使用 ImGui TabBar (成熟的交互逻辑)
-
 间距常量:
-    - TAB_BAR_PX = 3 (12px) - TabBar 水平内边距
-    - TAB_BAR_PT = 2 (8px) - TabBar 顶部内边距
-    - CONTENT_P = 4 (16px) - 内容区内边距
-    - SECTION_GAP = 5 (20px) - 表单分组间距
+    - CONTENT_PX = 4 (16px) - 内容区水平内边距
+    - CONTENT_PY = 3 (12px) - 内容区顶部内边距
+    - SECTION_GAP = 6 (24px) - 区域之间的间距
+    - HEADING_GAP = 3 (12px) - 标题与内容之间的间距
+    - ERROR_GAP = 3 (12px) - 错误区与上方的间距
 ================================================================================
 """
 
@@ -59,7 +63,7 @@ from __future__ import annotations
 
 from ui import imgui_shim as imgui
 
-from ui import tw, styles
+from ui import tw
 from ui import layout as ly
 from ui.editors.common import draw_indented_separator
 from hybrid_item_v2 import HybridItemV2
@@ -72,103 +76,85 @@ from ui.state import state as ui_state
 # 间距常量 (Tailwind 单位: 1 = 4px)
 # =============================================================================
 
-_TAB_BAR_PX = 3     # TabBar 水平内边距 (12px)
-_TAB_BAR_PT = 2     # TabBar 顶部内边距 (8px)
-_CONTENT_P = 4      # 内容区内边距 (16px)
-_TAB_GAP = 2        # Tab 与内容区间距 (8px)
-_ERROR_GAP = 3      # 错误区与内容区间距 (12px)
+_CONTENT_PX = 4      # 内容区水平内边距 (16px)
+_CONTENT_PY = 3      # 内容区顶部内边距 (12px)
+_SECTION_GAP = 6     # 区域之间间距 (24px)
+_HEADING_GAP = 3     # 标题与内容间距 (12px)
+_ERROR_GAP = 3       # 错误区与内容间距 (12px)
 
 
-def draw_hybrid_editor_tabs(hybrid: HybridItemV2) -> None:
-    """混合物品编辑器 Tab Bar
+def draw_hybrid_editor(hybrid: HybridItemV2) -> None:
+    """混合物品编辑器 - 单页滚动表单
 
     布局结构:
         ┌─────────────────────────────────────────────────────┐
-        │ ← px=12 → [基础] [行为] [属性] [呈现]              │ TabBar 区
+        │ ← px=16 →  [基础]                     section 标题 │
+        │  ID        品质        等级                         │
+        │  [input]   [combo]     [combo]            基础面板  │
+        │  ...                                                │
+        │─────────────────────────────────────── 视觉分隔符 ──│
+        │  [行为]                                             │
+        │  装备形态  触发  充能  ...                行为面板  │
+        │─────────────────────────────────────── 视觉分隔符 ──│
+        │  [属性]                                             │
+        │  ...                                      属性面板  │
+        │─────────────────────────────────────── 视觉分隔符 ──│
+        │  [呈现]                                             │
+        │  贴图 / 音效 / 本地化                    呈现面板  │
         ├─────────────────────────────────────────────────────┤
-        │ ┌─────────────────────────────────────────────────┐ │
-        │ │ ← p=16 →                                        │ │
-        │ │  ID        品质        等级                     │ │ 内容区
-        │ │  [input]   [combo]     [combo]                  │ │ (可滚动)
-        │ │  ...                                            │ │
-        │ └─────────────────────────────────────────────────┘ │
-        ├─────────────────────────────────────────────────────┤
-        │ ⚠️ 验证错误...                                      │ 错误区
+        │ ⚠️ 验证错误...                                      │
         └─────────────────────────────────────────────────────┘
 
     Args:
         hybrid: 混合物品数据对象
     """
-    # 导入 panel 模块
     from ui.editors.hybrid.base_panel import draw_base_panel
     from ui.editors.hybrid.behavior_panel import draw_behavior_panel
     from ui.editors.hybrid.stats_panel import draw_stats_panel
     from ui.editors.hybrid.presentation_panel import draw_presentation_panel
 
-    # 是否显示属性 Tab
     show_attrs = _should_show_attributes(hybrid) or isinstance(hybrid.trigger, EffectTrigger)
 
     # =========================================================================
-    # 样式定义
+    # 顶部间距 + 水平缩进
     # =========================================================================
-    # Tab 按钮样式 - 顶部圆角，选中时紫水晶高亮
-    _tab_style = (
-        styles.tab_colors(
-            normal=tw.ABYSS_800,
-            hovered=tw.ABYSS_600,
-            active=tw.ABYSS_900,  # 选中时与内容区背景融合
-            unfocused=tw.ABYSS_800,
-            unfocused_active=tw.ABYSS_900,
-        ) |
-        styles.tab_rounding(ly.sz(1.5)) |            # 6px 顶部圆角
-        styles.frame_padding(ly.sz(4), ly.sz(2)) |   # Tab 内边距 16px×8px
-        tw.text_default                         # Tab 文字颜色
-    )
+    ly.gap_y(_CONTENT_PY)
+    imgui.indent(ly.sz(_CONTENT_PX))
 
     # =========================================================================
-    # 渲染 TabBar
+    # Section 1: 基础
     # =========================================================================
-    # 顶部间距
-    ly.gap_y(_TAB_BAR_PT)
+    _section_heading("基础")
+    draw_base_panel(hybrid)
 
-    # TabBar 区域 - 有水平边距
-    imgui.indent(ly.sz(_TAB_BAR_PX))
+    # =========================================================================
+    # Section 2: 行为
+    # =========================================================================
+    _section_divider()
+    _section_heading("行为")
+    draw_behavior_panel(hybrid)
 
-    if styles.frame_padding(ly.sz(4), ly.sz(2))(imgui.begin_tab_bar)("##hybrid_tabs"):
-        try:
-            # Tab: 基础
-            if _tab_style(imgui.begin_tab_item)("基础")[0]:
-                imgui.unindent(ly.sz(_TAB_BAR_PX))  # 恢复缩进
-                _draw_tab_content(lambda: draw_base_panel(hybrid))
-                imgui.indent(ly.sz(_TAB_BAR_PX))  # 重新缩进以正确结束
-                imgui.end_tab_item()
+    # =========================================================================
+    # Section 3: 属性 (条件显示)
+    # =========================================================================
+    if show_attrs:
+        _section_divider()
+        _section_heading("属性")
+        draw_stats_panel(hybrid)
 
-            # Tab: 行为
-            if _tab_style(imgui.begin_tab_item)("行为")[0]:
-                imgui.unindent(ly.sz(_TAB_BAR_PX))
-                _draw_tab_content(lambda: draw_behavior_panel(hybrid))
-                imgui.indent(ly.sz(_TAB_BAR_PX))
-                imgui.end_tab_item()
+    # =========================================================================
+    # Section 4: 呈现
+    # =========================================================================
+    _section_divider()
+    _section_heading("呈现")
+    draw_presentation_panel(hybrid)
 
-            # Tab: 属性 (条件显示)
-            if show_attrs:
-                if _tab_style(imgui.begin_tab_item)("属性")[0]:
-                    imgui.unindent(ly.sz(_TAB_BAR_PX))
-                    _draw_tab_content(lambda: draw_stats_panel(hybrid))
-                    imgui.indent(ly.sz(_TAB_BAR_PX))
-                    imgui.end_tab_item()
+    # =========================================================================
+    # 底部留白 (滚动尾部呼吸空间)
+    # =========================================================================
+    ly.gap_y(_SECTION_GAP)
 
-            # Tab: 呈现
-            if _tab_style(imgui.begin_tab_item)("呈现")[0]:
-                imgui.unindent(ly.sz(_TAB_BAR_PX))
-                _draw_tab_content(lambda: draw_presentation_panel(hybrid))
-                imgui.indent(ly.sz(_TAB_BAR_PX))
-                imgui.end_tab_item()
-
-        finally:
-            imgui.end_tab_bar()
-
-    imgui.unindent(ly.sz(_TAB_BAR_PX))
+    imgui.unindent(ly.sz(_CONTENT_PX))
 
     # =========================================================================
     # 验证错误区域
@@ -179,20 +165,35 @@ def draw_hybrid_editor_tabs(hybrid: HybridItemV2) -> None:
         _draw_validation_errors(errors)
 
 
-def _draw_tab_content(draw_fn) -> None:
-    """Tab 内容区容器
+# =============================================================================
+# 内部组件
+# =============================================================================
 
-    提供:
-        - 与 TabBar 的间距
-        - 内容区内边距
-        - 可滚动区域 (TODO: 如需要)
+def _section_heading(title: str) -> None:
+    """区域标题
+
+    Tailwind: text-crystal-400 text-sm font-medium tracking-wide
     """
-    ly.gap_y(_TAB_GAP)
+    tw.text_accent(imgui.text)(title)
+    ly.gap_y(_HEADING_GAP)
 
-    # 内容区内边距
-    imgui.indent(ly.sz(_CONTENT_P))
-    draw_fn()
-    imgui.unindent(ly.sz(_CONTENT_P))
+
+def _section_divider() -> None:
+    """区域分隔符 — 间距 + 细线 + 间距
+
+    Tailwind: my-6 border-t border-stone-700/50
+    """
+    ly.gap_y(_SECTION_GAP)
+    # 细线
+    cursor_x, cursor_y = imgui.get_cursor_screen_pos()
+    max_x = cursor_x + imgui.get_content_region_available_width()
+    draw_list = imgui.get_window_draw_list()
+    draw_list.add_line(
+        cursor_x, cursor_y, max_x, cursor_y,
+        imgui.get_color_u32_rgba(*tw.STONE_800), 1.0
+    )
+    imgui.dummy(0, 1)
+    ly.gap_y(_SECTION_GAP)
 
 
 def _draw_validation_errors(errors: list[str]) -> None:
@@ -225,15 +226,13 @@ def _draw_validation_errors(errors: list[str]) -> None:
 
 
 def _should_show_attributes(hybrid: HybridItemV2) -> bool:
-    """判断是否显示属性加成编辑器
-
-    武器/护甲/护符都显示属性编辑器。
-    """
+    """判断是否显示属性加成编辑器"""
     from specs import is_weapon_mode, is_armor_mode, is_charm_mode
+    return (
+        is_weapon_mode(hybrid.equipment)
+        or is_armor_mode(hybrid.equipment)
+        or is_charm_mode(hybrid.equipment)
+    )
 
-    if is_weapon_mode(hybrid.equipment) or is_armor_mode(hybrid.equipment) or is_charm_mode(hybrid.equipment):
-        return True
-    return False
 
-
-__all__ = ["draw_hybrid_editor_tabs"]
+__all__ = ["draw_hybrid_editor"]
