@@ -105,6 +105,10 @@ def _get_durability(hybrid: HybridItemV2) -> HasDurability | None:
     return None
 
 
+# 技能搜索框缓存
+_skill_search_buf: str = ""
+
+
 # =============================================================================
 # 主入口
 # =============================================================================
@@ -217,29 +221,64 @@ def _draw_trigger_section(hybrid: HybridItemV2) -> None:
 
 
 def _draw_skill_picker(trigger: SkillTrigger) -> None:
-    """技能选择器 - 树形下拉"""
+    """技能选择器 - 平铺分组下拉 (无 tree_node)
+
+    Tailwind: combo dropdown with grouped selectables, search filter
+    """
+    global _skill_search_buf
+
     with field_slot("技能") as w:
         imgui.set_next_item_width(w)
         current = trigger.skill_object
         label = SKILL_OBJECT_NAMES.get(current, current) if current else "-- 选择 --"
 
         if imgui.begin_combo("##skill_object", label):
+            # 清除选项
             if imgui.selectable("-- 无 --", current == "")[0]:
                 object.__setattr__(trigger, "skill_object", "")
+
+            # 搜索框
+            imgui.separator()
+            imgui.set_next_item_width(-1)
+            ch, _skill_search_buf = imgui.input_text(
+                "##skill_search", _skill_search_buf, 64,
+            )
+            search_lower = _skill_search_buf.lower()
             imgui.separator()
 
+            # 平铺分组列表
             for branch in sorted(SKILL_BY_BRANCH.keys()):
-                branch_label = SKILL_BRANCH_TRANSLATIONS.get(branch, branch)
-                skills = SKILL_BY_BRANCH[branch]
-                if not skills or branch in ("none", "unknown"):
+                if branch in ("none", "unknown"):
                     continue
-                if imgui.tree_node(f"{branch_label}##branch_{branch}"):
-                    for skill_obj in skills:
-                        info = SKILL_OBJECTS.get(skill_obj, {})
-                        name = info.get("name_chinese", skill_obj)
-                        if imgui.selectable(f"{name}##{skill_obj}", current == skill_obj)[0]:
-                            object.__setattr__(trigger, "skill_object", skill_obj)
-                    imgui.tree_pop()
+                skills = SKILL_BY_BRANCH[branch]
+                if not skills:
+                    continue
+
+                branch_label = SKILL_BRANCH_TRANSLATIONS.get(branch, branch)
+
+                # 过滤
+                visible: list[tuple[str, str]] = []
+                for skill_obj in skills:
+                    info = SKILL_OBJECTS.get(skill_obj, {})
+                    name = info.get("name_chinese", skill_obj)
+                    name_en = info.get("name_english", "")
+                    if search_lower and search_lower not in f"{name} {name_en} {skill_obj}".lower():
+                        continue
+                    visible.append((skill_obj, name))
+
+                if not visible:
+                    continue
+
+                # 分支标题
+                ly.gap_y(0.5)
+                tw.text_accent(imgui.text)(branch_label)
+
+                # 技能列表
+                for skill_obj, name in visible:
+                    if imgui.selectable(f"  {name}##{skill_obj}", current == skill_obj)[0]:
+                        object.__setattr__(trigger, "skill_object", skill_obj)
+                        _skill_search_buf = ""
+
             imgui.end_combo()
 
 

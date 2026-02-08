@@ -1,28 +1,22 @@
 # -*- coding: utf-8 -*-
-"""混合物品编辑器 - 属性面板
+"""混合物品编辑器 - 属性面板 (全属性网格)
 
 "数值配置" - 装备属性 + 消耗品效果属性
 
 ================================================================================
-样式设计规范
+设计理念
 ================================================================================
 
-布局结构:
-    ┌─────────────────────────────────────────────────────────────────────────┐
-    │ 装备属性 (如有):                                                        │
-    │   [+装备] Label       [input] [×]                  vertical list        │
-    │          Label       [input] [×]                                        │
-    │          ...                                                            │
-    ├─────────────────────────────────────────────────────────────────────────┤
-    │                                                      gap-y = 20px       │
-    ├─────────────────────────────────────────────────────────────────────────┤
-    │ 消耗品属性 (如有 EffectTrigger):                                        │
-    │   [+效果] 效果持续    [input]                       vertical list        │
-    │          中毒几率    [input]                                             │
-    │          ...                                                            │
-    └─────────────────────────────────────────────────────────────────────────┘
+所有可用属性按分组平铺显示，取代逐个添加的弹窗模式。
+- 值为 0 → 标签显示为 faint (灰暗), 输入框保持可编辑
+- 值非 0 → 标签显示为 muted (正常), 属性"已激活"
+- 无需添加/删除按钮; 用户直接编辑数值即可
 
-注意: 本面板使用 ly.sz() 计算列宽，后续可进一步迁移到 ly.columns()。
+Tailwind 映射:
+    grid grid-cols-6 gap-x-6 gap-y-1    → ImGui Table (label-col + input-col) × 3
+    text-stone-500 (faint)               → tw.text_faint
+    text-stone-300 (muted)               → tw.text_muted
+    text-purple-400 (accent heading)     → tw.text_accent
 ================================================================================
 """
 
@@ -31,14 +25,13 @@ from __future__ import annotations
 from ui import imgui_shim as imgui
 from ui import tw
 from ui import layout as ly
-from ui.layout import tooltip
-from ui.state import state as ui_state
+from ui.layout import sz, tooltip
+from ui.fields import field_row, int_field
 
 from hybrid_item_v2 import HybridItemV2
 from ui.editors.common import get_attr_display
 from constants import (
     STRICT_INT_ATTRIBUTES,
-    SPECIAL_STEP_ATTRIBUTES,
     DEFAULT_GROUP_ORDER,
     get_attribute_groups,
     get_hybrid_attrs_for_slot,
@@ -54,11 +47,14 @@ from specs import (
 
 
 # =============================================================================
-# 本地辅助
+# 常量
 # =============================================================================
 
-# red-500 @ 20% — 用于删除按钮 hover
-_BADGE_HOVER_REMOVE = (0.9373, 0.2667, 0.2667, 0.2)
+# 网格每行显示的属性对数 (label + input 为一对)
+_GRID_COLS = 3
+
+# 输入框固定宽度 (Tailwind 单位)
+_INPUT_TW = 22  # 88px
 
 
 # =============================================================================
@@ -92,178 +88,100 @@ def _should_show_equipment_attributes(hybrid: HybridItemV2) -> bool:
 
 
 # =============================================================================
-# 共享: 属性列表渲染
+# 核心: 属性全网格渲染
 # =============================================================================
 
-def _render_attribute_grid(
-    display_list: list[dict],
+def _draw_attribute_full_grid(
+    groups: dict[str, list[str]],
     target_dict: dict,
-    hybrid: HybridItemV2 | None = None,
-    show_add_button: bool = False,
-    add_button_label: str = "",
-    add_popup_id: str = "",
-) -> list[str]:
-    """渲染属性垂直列表
+    id_prefix: str = "eq",
+) -> None:
+    """按分组渲染全属性网格
+
+    每组: 标题 + 紧凑 N×3 表格 (label | input) × 3
 
     Args:
-        display_list: 每项 {key, name, is_basic, custom_bind?, desc?}
-        target_dict: 要修改的属性字典
-        hybrid: 混合物品对象 (custom_bind 需要)
-        show_add_button: 是否在第一行显示添加按钮
-        add_button_label: 添加按钮文字
-        add_popup_id: popup ID
-
-    Returns:
-        需要移除的 key 列表
+        groups: {分组名: [属性名列表]}  (有序)
+        target_dict: 属性值字典, key → number
+        id_prefix: ImGui ID 前缀 (区分装备/消耗品)
     """
-    to_remove: list[str] = []
+    first = True
+    for group_name, attrs in groups.items():
+        if not attrs:
+            continue
 
-    # 列宽常量 (Tailwind 单位: 1 = 4px)
-    COL_BADGE = ly.sz(12)   # 48px - 按钮/徽章宽度
-    COL_LABEL = ly.sz(54)   # 216px - 标签宽度
-    COL_INPUT = ly.sz(26)   # 104px - 输入框宽度
-    COL_GAP = ly.sz(2)      # 8px - 列间距
+        if not first:
+            ly.gap_y(2)
+        first = False
 
-    for idx, item in enumerate(display_list):
-        key = item["key"]
-        name = item.get("name", key)
-        is_basic = item.get("is_basic", False)
-        custom_bind = item.get("custom_bind", None)
-        desc = item.get("desc", None)
+        imgui.push_id(f"{id_prefix}_{group_name}")
 
-        # === Column 1: Add Button (only first row) or spacer ===
-        if idx == 0 and show_add_button:
-            if imgui.button(f"{add_button_label}##{add_popup_id}_btn", COL_BADGE, 0):
-                imgui.open_popup(add_popup_id)
-            tooltip("添加属性")
-        else:
-            imgui.dummy(COL_BADGE, 0)
+        # 分组标题
+        tw.text_accent(imgui.text)(group_name)
+        ly.gap_y(0.5)
 
-        imgui.same_line(spacing=COL_GAP)
+        # 紧凑属性表格
+        _draw_attr_table(attrs, target_dict)
 
-        # === Column 2: Label ===
-        imgui.align_text_to_frame_padding()
-        tw.text_muted(imgui.text)(name)
-        text_w = imgui.calc_text_size(name).x
-        if text_w < COL_LABEL:
-            imgui.same_line(spacing=0)
-            imgui.dummy(COL_LABEL - text_w, 0)
-
-        imgui.same_line(spacing=COL_GAP)
-
-        # === Column 3: Input ===
-        imgui.set_next_item_width(COL_INPUT)
-
-        if custom_bind == "poison_duration" and hybrid and isinstance(hybrid.trigger, EffectTrigger):
-            val = hybrid.trigger.poison_duration
-            ch, nv = imgui.input_int("##v_poison_dur", val)
-            if ch:
-                object.__setattr__(hybrid.trigger, "poison_duration", max(0, nv))
-        else:
-            val = target_dict.get(key, 0)
-            if key in STRICT_INT_ATTRIBUTES:
-                ch, nv = imgui.input_int(f"##v_{key}", int(val))
-            else:
-                step = SPECIAL_STEP_ATTRIBUTES.get(key, 0.1)
-                ch, nv = imgui.input_float(f"##v_{key}", float(val), step, step * 10 if step else 0, "%.2f")
-
-            if ch:
-                target_dict[key] = nv
-                if is_basic:
-                    target_dict[key] = max(0, target_dict[key])
-
-        if desc:
-            tooltip(desc)
-
-        imgui.same_line(spacing=COL_GAP)
-
-        # === Column 4: Delete Button ===
-        if not is_basic:
-            imgui.push_style_color(imgui.COLOR_BUTTON, 0, 0, 0, 0)
-            imgui.push_style_color(imgui.COLOR_BUTTON_HOVERED, *_BADGE_HOVER_REMOVE)
-            imgui.push_style_color(imgui.COLOR_BUTTON_ACTIVE, *_BADGE_HOVER_REMOVE)
-            if imgui.button(f"×##del_{key}", COL_BADGE, 0):
-                to_remove.append(key)
-            imgui.pop_style_color(3)
-            tooltip("移除此属性")
-        else:
-            imgui.dummy(COL_BADGE, 0)
-            tooltip("基础属性不可移除")
-
-    return to_remove
+        imgui.pop_id()
 
 
-# =============================================================================
-# 共享: 添加属性弹窗
-# =============================================================================
+def _draw_attr_table(attrs: list[str], target_dict: dict) -> None:
+    """渲染属性紧凑表格: [label][input] × _GRID_COLS
 
-def _draw_add_attribute_popup(
-    popup_id: str,
-    target_dict: dict,
-    available_attrs: list[tuple[str, str]],
-) -> None:
-    """绘制添加属性弹窗 (不含触发按钮)"""
-    imgui.set_next_window_size(300, 400)
-    if imgui.begin_popup(popup_id):
-        imgui.dummy(0, 2)
-        imgui.set_next_item_width(-1)
+    使用 ImGui Table 实现 6 列 (label, input) × 3 布局。
+    label 列自动拉伸, input 列固定宽度。
+    """
+    input_w = sz(_INPUT_TW)
+    cell_pad_x = sz(1.5)  # 6px 水平间距
+    cell_pad_y = sz(0.5)  # 2px 垂直间距
 
-        if popup_id not in ui_state.attr_search_buffers:
-            ui_state.attr_search_buffers[popup_id] = ""
+    imgui.push_style_var(imgui.STYLE_CELL_PADDING, (cell_pad_x, cell_pad_y))
 
-        changed, search_text = imgui.input_text(
-            f"##search_{popup_id}", ui_state.attr_search_buffers[popup_id], 64,
-        )
-        if changed:
-            ui_state.attr_search_buffers[popup_id] = search_text
+    table_cols = _GRID_COLS * 2  # label + input per logical column
+    flags = imgui.TABLE_SIZING_STRETCH_SAME | imgui.TABLE_NO_BORDERS_IN_BODY
 
-        search_lower = search_text.lower()
-        imgui.separator()
+    if imgui.begin_table("##ag", table_cols, flags):
+        # 列配置: 交替 stretch(label) + fixed(input)
+        for i in range(_GRID_COLS):
+            imgui.table_setup_column(f"##l{i}")  # stretch label
+            imgui.table_setup_column(
+                f"##i{i}", imgui.TABLE_COLUMN_WIDTH_FIXED, input_w
+            )
 
-        # 过滤列表
-        filtered = []
-        for attr, group in available_attrs:
-            if target_dict.get(attr, 0) != 0:
-                continue
+        for i, attr in enumerate(attrs):
+            if i % _GRID_COLS == 0:
+                imgui.table_next_row()
+
+            val = target_dict.get(attr, 0)
             name, desc = get_attr_display(attr)
-            match_text = f"{attr} {name}".lower()
-            if not search_lower or search_lower in match_text:
-                filtered.append((group, attr, name, desc))
+            display_name = name or attr
 
-        if not filtered:
-            tw.text_muted(imgui.text)("无匹配属性")
+            # --- Label column ---
+            imgui.table_next_column()
+            label_style = tw.text_faint if val == 0 else tw.text_muted
+            imgui.align_text_to_frame_padding()
+            label_style(imgui.text)(display_name)
+            if desc:
+                tooltip(desc)
 
-        last_group = None
-        last_group_open = False
-        flat_mode = bool(search_lower)
-        group_visible = False
+            # --- Input column ---
+            imgui.table_next_column()
+            imgui.set_next_item_width(-1)
 
-        for group, attr, name, desc in filtered:
-            if group != last_group:
-                if not flat_mode:
-                    if last_group and last_group_open:
-                        imgui.tree_pop()
-                    last_group_open = imgui.tree_node(f"{group}##grp_{group}_{popup_id}")
-                    group_visible = last_group_open
-                else:
-                    imgui.dummy(0, 2)
-                    tw.text_muted(imgui.text)(f"--- {group} ---")
-                    group_visible = True
-                    last_group_open = False
-                last_group = group
+            if attr in STRICT_INT_ATTRIBUTES:
+                ch, nv = imgui.input_int(f"##v_{attr}", int(val), 0, 0)
+            else:
+                ch, nv = imgui.input_float(
+                    f"##v_{attr}", float(val), 0, 0, "%.2f"
+                )
 
-            if group_visible:
-                if imgui.selectable(f"{name or attr}##sel_{attr}")[0]:
-                    target_dict[attr] = 1
-                    imgui.close_current_popup()
-                    ui_state.attr_search_buffers[popup_id] = ""
-                if desc:
-                    tooltip(desc)
+            if ch:
+                target_dict[attr] = nv
 
-        if not flat_mode and last_group and last_group_open:
-            imgui.tree_pop()
+        imgui.end_table()
 
-        imgui.end_popup()
+    imgui.pop_style_var()
 
 
 # =============================================================================
@@ -271,7 +189,7 @@ def _draw_add_attribute_popup(
 # =============================================================================
 
 def _get_attribute_groups_for_hybrid(hybrid: HybridItemV2) -> dict:
-    """根据槽位获取可编辑属性分组"""
+    """根据槽位获取可编辑属性分组 (有序 dict)"""
     has_passive = is_charm_mode(hybrid.equipment)
     attrs = get_hybrid_attrs_for_slot(hybrid.slot, has_passive)
     result = get_attribute_groups(attrs, DEFAULT_GROUP_ORDER)
@@ -286,67 +204,11 @@ def _get_attribute_groups_for_hybrid(hybrid: HybridItemV2) -> dict:
 
 
 def _draw_equipment_attributes_editor(hybrid: HybridItemV2) -> None:
-    """绘制装备属性编辑器 — 垂直列表布局"""
+    """绘制装备属性编辑器 — 全属性网格"""
     groups = _get_attribute_groups_for_hybrid(hybrid)
     if not groups:
         return
-
-    # 收集所有可用属性用于搜索
-    all_available_attrs = []
-    for group, attrs in groups.items():
-        for attr in attrs:
-            all_available_attrs.append((attr, group))
-
-    # 构建显示列表 (仅已激活的属性)
-    active_attrs = []
-    for _group, attrs in groups.items():
-        for attr in attrs:
-            if hybrid.attributes.get(attr, 0) != 0:
-                active_attrs.append(attr)
-
-    display_list = []
-    for attr in active_attrs:
-        attr_name, attr_desc = get_attr_display(attr)
-        display_list.append({
-            "key": attr,
-            "name": attr_name or attr,
-            "desc": attr_desc,
-            "is_basic": False,
-        })
-
-    # 渲染垂直列表 (集成添加按钮)
-    to_remove = _render_attribute_grid(
-        display_list,
-        hybrid.attributes,
-        show_add_button=True,
-        add_button_label="+装备",
-        add_popup_id="equip_attr",
-    )
-
-    # 空列表时仍需添加按钮
-    if not display_list:
-        if imgui.button("+装备##equip_attr_btn", ly.sz(12), 0):
-            imgui.open_popup("equip_attr")
-        tooltip("添加装备属性")
-
-    _draw_add_attribute_popup("equip_attr", hybrid.attributes, all_available_attrs)
-
-    # 执行移除
-    for attr in to_remove:
-        del hybrid.attributes[attr]
-
-    # 清理不再允许的属性
-    _prune_attributes(hybrid, groups)
-
-
-def _prune_attributes(hybrid: HybridItemV2, groups: dict) -> None:
-    """移除与当前类型不匹配的属性"""
-    allowed = set()
-    for attrs in groups.values():
-        allowed.update(attrs)
-    to_delete = [k for k in hybrid.attributes.keys() if k not in allowed]
-    for k in to_delete:
-        del hybrid.attributes[k]
+    _draw_attribute_full_grid(groups, hybrid.attributes, "eq")
 
 
 # =============================================================================
@@ -354,7 +216,7 @@ def _prune_attributes(hybrid: HybridItemV2, groups: dict) -> None:
 # =============================================================================
 
 def _draw_consumable_attributes_editor(hybrid: HybridItemV2) -> None:
-    """绘制消耗品属性编辑器 — 垂直列表布局"""
+    """绘制消耗品属性编辑器 — 基础字段 + 全效果网格"""
     if not charge_has_charges(hybrid.charges):
         return
     if not isinstance(hybrid.trigger, EffectTrigger):
@@ -362,95 +224,80 @@ def _draw_consumable_attributes_editor(hybrid: HybridItemV2) -> None:
 
     consumable_attrs = hybrid.trigger.consumable_attributes
 
-    # === 1. 构建统一的显示列表 ===
-    display_list: list[dict] = []
+    # === 1. 基础字段 (Duration / Poisoning) ===
+    _draw_consumable_basics(hybrid, consumable_attrs)
 
-    # 基础属性 (Mandatory)
-    display_list.append({
-        "key": CONSUMABLE_DURATION_ATTRIBUTE,
-        "name": "效果持续 (轮)",
-        "is_basic": True,
-    })
-    display_list.append({
-        "key": "Poisoning_Chance",
-        "name": "中毒几率 (%)",
-        "is_basic": True,
-    })
+    ly.gap_y(3)
 
-    # 条件基础属性
-    if consumable_attrs.get("Poisoning_Chance", 0) > 0:
-        display_list.append({
-            "key": "Poison_Duration",
-            "name": "中毒持续 (轮)",
-            "is_basic": True,
-            "custom_bind": "poison_duration",
-        })
+    # === 2. 全效果属性网格 ===
+    all_keys = _build_consumable_attr_keys()
+    groups = get_attribute_groups(all_keys, DEFAULT_GROUP_ORDER)
+    if groups:
+        _draw_attribute_full_grid(groups, consumable_attrs, "ce")
+
+
+def _draw_consumable_basics(
+    hybrid: HybridItemV2,
+    consumable_attrs: dict,
+) -> None:
+    """渲染消耗品基础字段: 效果持续 / 中毒几率 / 中毒持续
+
+    Tailwind: grid grid-cols-3 gap-3
+    """
+    show_poison_dur = consumable_attrs.get("Poisoning_Chance", 0) > 0
+    num_cols = 3 if show_poison_dur else 2
+
+    with field_row(num_cols):
+        ch, nv = int_field(
+            "效果持续 (轮)", "##dur",
+            consumable_attrs.get(CONSUMABLE_DURATION_ATTRIBUTE, 0),
+            vmin=0,
+        )
+        if ch:
+            consumable_attrs[CONSUMABLE_DURATION_ATTRIBUTE] = nv
+
+        ch, nv = int_field(
+            "中毒几率 (%)", "##poison_chance",
+            consumable_attrs.get("Poisoning_Chance", 0),
+            vmin=0,
+        )
+        if ch:
+            consumable_attrs["Poisoning_Chance"] = nv
+
+        if show_poison_dur:
+            ch, nv = int_field(
+                "中毒持续 (轮)", "##poison_dur",
+                hybrid.trigger.poison_duration,
+                vmin=0,
+            )
+            if ch:
+                object.__setattr__(hybrid.trigger, "poison_duration", nv)
+
+
+def _build_consumable_attr_keys() -> list[str]:
+    """构建消耗品全效果属性列表 (即时 + 持续, 去重, 排除基础字段)
+
+    Returns:
+        有序属性 key 列表
+    """
+    skip = {CONSUMABLE_DURATION_ATTRIBUTE, "Poisoning_Chance"}
+    seen: set[str] = set()
+    result: list[str] = []
 
     # 即时效果
-    for _grp, attrs in CONSUMABLE_INSTANT_ATTRS.items():
-        for attr in attrs:
-            if attr == "Poisoning_Chance":
-                continue
-            if consumable_attrs.get(attr, 0) != 0:
-                d_name, d_desc = get_attr_display(attr)
-                display_list.append({
-                    "key": attr,
-                    "name": d_name or attr,
-                    "desc": d_desc,
-                    "is_basic": False,
-                })
+    for attrs in CONSUMABLE_INSTANT_ATTRS.values():
+        for a in attrs:
+            if a not in skip and a not in seen:
+                seen.add(a)
+                result.append(a)
 
     # 持续效果
-    dur_keys = get_consumable_duration_attrs()
-    dur_groups = get_attribute_groups(dur_keys, DEFAULT_GROUP_ORDER)
-    for _grp, attrs in dur_groups.items():
-        for attr in attrs:
-            if attr == CONSUMABLE_DURATION_ATTRIBUTE:
-                continue
-            if consumable_attrs.get(attr, 0) != 0:
-                d_name, d_desc = get_attr_display(attr)
-                display_list.append({
-                    "key": attr,
-                    "name": d_name or attr,
-                    "desc": d_desc,
-                    "is_basic": False,
-                })
+    for a in get_consumable_duration_attrs():
+        if a not in skip and a not in seen:
+            seen.add(a)
+            result.append(a)
 
-    # === 2. 构建可添加属性列表 ===
-    all_instants = []
-    for grp, attrs in CONSUMABLE_INSTANT_ATTRS.items():
-        for a in attrs:
-            if a not in {"Poisoning_Chance"}:
-                all_instants.append((a, grp))
-
-    all_durations = []
-    for grp, attrs in dur_groups.items():
-        for a in attrs:
-            if a != CONSUMABLE_DURATION_ATTRIBUTE:
-                all_durations.append((a, grp))
-
-    merged_source: list[tuple[str, str]] = []
-    for a, g in all_instants:
-        suffix = g.split("（")[-1].rstrip("）") if "（" in g else g
-        merged_source.append((a, f"即时效果 - {suffix}"))
-    for a, g in all_durations:
-        merged_source.append((a, f"持续效果 - {g}"))
-
-    # === 3. 渲染垂直列表 ===
-    to_remove = _render_attribute_grid(
-        display_list,
-        consumable_attrs,
-        hybrid,
-        show_add_button=True,
-        add_button_label="+效果",
-        add_popup_id="add_consum_effect",
-    )
-
-    _draw_add_attribute_popup("add_consum_effect", consumable_attrs, merged_source)
-
-    # === 4. 执行移除 ===
-    for attr in to_remove:
-        del consumable_attrs[attr]
+    return result
 
 
 # =============================================================================

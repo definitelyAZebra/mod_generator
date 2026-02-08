@@ -74,9 +74,6 @@ class UIState:
     # ==================== 标签页状态 (向后兼容) ====================
     active_item_tab: int = 0
 
-    # ==================== 属性搜索缓冲 ====================
-    attr_search_buffers: dict[str, str] = field(default_factory=dict)
-
     # ==================== 项目引用 ====================
     _project: "ModProject | None" = field(default=None, repr=False)
 
@@ -163,7 +160,6 @@ class UIState:
         self.reset_navigation()
         self.current_texture_field = ""
         self.preview_states.clear()
-        self.attr_search_buffers.clear()
         self.selected_model = "Human Male"
         self.selected_race = "Human"
         self.gender_tab_index = 0
