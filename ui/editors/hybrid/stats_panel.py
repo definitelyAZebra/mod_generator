@@ -191,12 +191,15 @@ def _draw_attr_table(attrs: list[str], target_dict: dict) -> None:
 
     # 动态列数 + cell_pad_x 计算
     avail_w = imgui.get_content_region_available_width()
-    # 逻辑列最小宽 = label + input + 4*min_pad (左右各一个 pad per cell)
+    # 逻辑列最小宽 = label + input + 4*min_pad (近似每列间距)
     min_col_w = label_w + input_w + min_pad_x * 4
     num_cols = max(1, min(_MAX_COLS, int(avail_w / min_col_w)))
     # 反算 cell_pad_x 使总宽 = avail_w
-    # total = num_cols * (label_w + input_w + 4*pad_x) = avail_w
-    cell_pad_x = max(min_pad_x, (avail_w - num_cols * (label_w + input_w)) / (num_cols * 4))
+    # ImGui PadInner 模式 (无边框): CellPaddingX=0, 列间距=2*style.CellPadding.x
+    # 共有 2*num_cols 个 table 列, (2*num_cols - 1) 个间隙, 每间隙 2*pad_x
+    # total = num_cols*(label_w+input_w) + (2*num_cols-1)*2*pad_x = avail_w
+    num_gaps = 2 * num_cols - 1
+    cell_pad_x = max(min_pad_x, (avail_w - num_cols * (label_w + input_w)) / (num_gaps * 2))
 
     table_cols = num_cols * 2
 
