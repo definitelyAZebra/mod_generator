@@ -3,33 +3,8 @@
 
 "物品做什么" - 装备形态、触发、充能、耐久、生成规则
 
-================================================================================
-样式设计规范
-================================================================================
-
-布局结构:
-    ┌─────────────────────────────────────────────────────────────────────────┐
-    │ 形态组: [装备形态] [武器类型/护甲类型] [平衡/分类]      grid-cols-3     │
-    ├─────────────────────────────────────────────────────────────────────────┤
-    │                                                         gap-y = 20px    │
-    ├─────────────────────────────────────────────────────────────────────────┤
-    │ 触发组: [触发模式] [技能]                               grid-cols-2     │
-    ├─────────────────────────────────────────────────────────────────────────┤
-    │                                                         gap-y = 20px    │
-    ├─────────────────────────────────────────────────────────────────────────┤
-    │ 耐久组: [耐久上限] [磨损%] [归零销毁]                   grid-cols-3     │
-    ├─────────────────────────────────────────────────────────────────────────┤
-    │                                                         gap-y = 20px    │
-    ├─────────────────────────────────────────────────────────────────────────┤
-    │ 次数组: [次数模式] [次数值] [显次数点]                   grid-cols-3     │
-    ├─────────────────────────────────────────────────────────────────────────┤
-    │                                                         gap-y = 20px    │
-    ├─────────────────────────────────────────────────────────────────────────┤
-    │ 生成组: [排除随机] [容器生成] [商店生成] [预测]          grid-cols-4     │
-    └─────────────────────────────────────────────────────────────────────────┘
-
-注意: 本面板使用模块级辅助函数 (_label/_next/_field_width 等) 实现 grid 布局。
-================================================================================
+使用 ui.fields 声明式字段组件消除布局样板代码。
+弹窗/预览函数保持不变。
 """
 
 from __future__ import annotations
@@ -38,16 +13,17 @@ from ui import imgui_shim as imgui
 from ui import tw
 from ui import layout as ly
 from ui.layout import tooltip, item_width
+from ui.fields import (
+    field_row, enum_field, int_field, toggle_field,
+    readonly_field, button_field, field_slot,
+)
 
 from hybrid_item_v2 import HybridItemV2
-from constants import (
-    HYBRID_WEAPON_TYPES,
-    HYBRID_ARMOR_TYPES,
-)
+from constants import HYBRID_WEAPON_TYPES, HYBRID_ARMOR_TYPES
 from specs import (
     WeaponEquip, ArmorEquip, CharmEquip, NotEquipable,
     is_weapon_mode, is_armor_mode, is_charm_mode,
-    NoDurability, HasDurability,
+    HasDurability,
     NoTrigger, EffectTrigger, SkillTrigger,
     NoCharges, LimitedCharges, UnlimitedCharges,
     charge_has_charges,
@@ -68,127 +44,9 @@ from skill_constants import (
 
 
 # =============================================================================
-# 本地辅助组件
+# Label 映射
 # =============================================================================
 
-def _enum_combo(label: str, current_value, options: list, labels: dict):
-    """值模式下拉框 — 返回选中的值"""
-    current_label = str(labels.get(current_value, current_value))
-    new_value = current_value
-
-    if current_value not in options:
-        options = list(options) + [current_value]
-
-    if imgui.begin_combo(label, current_label):
-        for opt in options:
-            display = str(labels.get(opt, opt))
-            if imgui.selectable(display, opt == current_value)[0]:
-                new_value = opt
-        imgui.end_combo()
-
-    return new_value
-
-
-# =============================================================================
-# Grid 布局辅助 (替代旧版 GridLayout)
-#
-# 列宽常量 (Tailwind 单位: 1 = 4px)
-#   COL_W   = 26 → 104px  输入框/标签列宽
-#   COL_GAP = 2  → 8px    列间距
-# =============================================================================
-
-COL_W = ly.sz(26)     # 104px — 输入框/标签列宽
-COL_GAP = ly.sz(2)    # 8px — 列间距
-
-
-def _label(text: str) -> None:
-    """绘制 muted 标签，占用 COL_W 宽度"""
-    tw.text_muted(imgui.text)(text)
-    text_w = imgui.calc_text_size(text).x
-    if text_w < COL_W:
-        imgui.same_line(spacing=0)
-        imgui.dummy(COL_W - text_w, 0)
-
-
-def _next() -> None:
-    """移动到下一列"""
-    imgui.same_line(spacing=COL_GAP)
-
-
-def _field_width() -> None:
-    """设置下一个控件宽度为 COL_W"""
-    imgui.set_next_item_width(COL_W)
-
-
-def _text_cell(text: str) -> None:
-    """绘制只读文本，占用 COL_W 宽度"""
-    imgui.align_text_to_frame_padding()
-    imgui.text(text)
-    text_w = imgui.calc_text_size(text).x
-    if text_w < COL_W:
-        imgui.same_line(spacing=0)
-        imgui.dummy(COL_W - text_w, 0)
-
-
-def _button_cell(label: str) -> bool:
-    """绘制按钮，占用 COL_W 宽度，返回是否点击"""
-    clicked = imgui.button(label)
-    btn_w = imgui.get_item_rect_size()[0]
-    if btn_w < COL_W:
-        imgui.same_line(spacing=0)
-        imgui.dummy(COL_W - btn_w, 0)
-    return clicked
-
-
-def _checkbox_cell(label: str, value: bool) -> tuple:
-    """绘制 checkbox，占用 COL_W 宽度，返回 (changed, new_value)"""
-    changed, new_value = imgui.checkbox(label, value)
-    cb_w = imgui.get_item_rect_size()[0]
-    if cb_w < COL_W:
-        imgui.same_line(spacing=0)
-        imgui.dummy(COL_W - cb_w, 0)
-    return changed, new_value
-
-
-# =============================================================================
-# 主入口
-# =============================================================================
-
-def draw_behavior_panel(hybrid: HybridItemV2) -> None:
-    """绘制行为面板
-
-    Args:
-        hybrid: 混合物品数据对象
-    """
-    # ━━━ 形态行 ━━━
-    _draw_equipment_section(hybrid)
-
-    ly.gap_y(3.5)
-
-    # ━━━ 触发组 ━━━
-    _draw_trigger_section(hybrid)
-
-    # ━━━ 耐久组（条件显示）━━━
-    if hybrid.has_durability:
-        ly.gap_y(3.5)
-        _draw_durability_section(hybrid)
-
-    # ━━━ 次数组（条件显示）━━━
-    if charge_has_charges(hybrid.charges):
-        ly.gap_y(3.5)
-        _draw_charges_section(hybrid)
-
-    ly.gap_y(3.5)
-
-    # ━━━ 生成组 ━━━
-    _draw_spawn_section(hybrid)
-
-
-# =============================================================================
-# 装备形态
-# =============================================================================
-
-# UI 标签映射
 _EQUIPMENT_MODE_LABELS = {
     "none": "无",
     "weapon": "武器",
@@ -196,154 +54,178 @@ _EQUIPMENT_MODE_LABELS = {
     "charm": "护符",
 }
 
-
-def _get_eq_mode(hybrid: HybridItemV2) -> str:
-    if is_weapon_mode(hybrid.equipment):
-        return "weapon"
-    elif is_armor_mode(hybrid.equipment):
-        return "armor"
-    elif is_charm_mode(hybrid.equipment):
-        return "charm"
-    return "none"
-
-
-def _draw_equipment_section(hybrid: HybridItemV2) -> None:
-    current_eq_mode = _get_eq_mode(hybrid)
-
-    # Label 行
-    _label("装备形态")
-    if is_weapon_mode(hybrid.equipment):
-        _next()
-        _label("武器类型")
-        _next()
-        _label("平衡")
-    elif is_armor_mode(hybrid.equipment):
-        _next()
-        _label("护甲类型")
-        _next()
-        _label("护甲分类")
-        if hybrid.slot not in ["hand", "Ring", "Amulet"]:
-            _next()
-            _label("碎片数")
-
-    # Control 行
-    _field_width()
-    new_eq_mode = _enum_combo(
-        "##eq_mode", current_eq_mode,
-        list(_EQUIPMENT_MODE_LABELS.keys()), _EQUIPMENT_MODE_LABELS,
-    )
-    if new_eq_mode != current_eq_mode:
-        match new_eq_mode:
-            case "weapon":
-                hybrid.equipment = WeaponEquip()
-            case "armor":
-                hybrid.equipment = ArmorEquip()
-            case "charm":
-                hybrid.equipment = CharmEquip()
-            case _:
-                hybrid.equipment = NotEquipable()
-
-    if is_weapon_mode(hybrid.equipment):
-        assert isinstance(hybrid.equipment, WeaponEquip)
-        weapon_eq = hybrid.equipment
-        _next()
-        _field_width()
-        new_wt = _enum_combo(
-            "##wep_type", weapon_eq.weapon_type,
-            list(HYBRID_WEAPON_TYPES.keys()), HYBRID_WEAPON_TYPES,
-        )
-        if new_wt != weapon_eq.weapon_type:
-            object.__setattr__(weapon_eq, "weapon_type", new_wt)
-
-        _next()
-        _field_width()
-        balance_options = {"0": "0", "1": "1", "2": "2", "3": "3", "4": "4"}
-        new_balance = int(_enum_combo(
-            "##wep_balance", str(weapon_eq.balance),
-            list(balance_options.keys()), balance_options,
-        ))
-        if new_balance != weapon_eq.balance:
-            object.__setattr__(weapon_eq, "balance", new_balance)
-
-    elif is_armor_mode(hybrid.equipment):
-        assert isinstance(hybrid.equipment, ArmorEquip)
-        armor_eq = hybrid.equipment
-        _next()
-        _field_width()
-        old_armor_type = armor_eq.armor_type
-        new_armor_type = _enum_combo(
-            "##armor_type", armor_eq.armor_type,
-            list(HYBRID_ARMOR_TYPES.keys()), HYBRID_ARMOR_TYPES,
-        )
-        if new_armor_type != old_armor_type:
-            object.__setattr__(armor_eq, "armor_type", new_armor_type)
-
-        _next()
-        _text_cell(hybrid.armor_class)
-
-        if hybrid.slot not in ["hand", "Ring", "Amulet"]:
-            _next()
-            frag_count = sum(hybrid.fragments.values())
-            if _button_cell(f"({frag_count})##frags"):
-                imgui.open_popup("fragments_popup")
-            _draw_fragments_popup(hybrid)
-
-
-# =============================================================================
-# 触发
-# =============================================================================
-
 _TRIGGER_MODE_LABELS = {
     "none": "无",
     "effect": "效果",
     "skill": "技能",
 }
 
+_CHARGE_MODE_LABELS = {
+    "limited": "有限",
+    "unlimited": "无限",
+}
+
+_BALANCE_LABELS = {"0": "0", "1": "1", "2": "2", "3": "3", "4": "4"}
+
+_SPAWN_RULE_LABELS = {
+    SpawnRuleType.EQUIPMENT: "按装备池",
+    SpawnRuleType.ITEM: "按道具池",
+    SpawnRuleType.NONE: "不生成",
+}
+
+
+# =============================================================================
+# 辅助
+# =============================================================================
+
+def _get_eq_mode(hybrid: HybridItemV2) -> str:
+    if is_weapon_mode(hybrid.equipment):
+        return "weapon"
+    if is_armor_mode(hybrid.equipment):
+        return "armor"
+    if is_charm_mode(hybrid.equipment):
+        return "charm"
+    return "none"
+
+
+def _get_trigger_mode(hybrid: HybridItemV2) -> str:
+    if isinstance(hybrid.trigger, EffectTrigger):
+        return "effect"
+    if isinstance(hybrid.trigger, SkillTrigger):
+        return "skill"
+    return "none"
+
+
+def _get_durability(hybrid: HybridItemV2) -> HasDurability | None:
+    match hybrid.equipment:
+        case WeaponEquip(durability=d) if isinstance(d, HasDurability):
+            return d
+        case ArmorEquip(durability=d) if isinstance(d, HasDurability):
+            return d
+    return None
+
+
+# =============================================================================
+# 主入口
+# =============================================================================
+
+def draw_behavior_panel(hybrid: HybridItemV2) -> None:
+    """绘制行为面板"""
+    _draw_equipment_section(hybrid)
+
+    ly.gap_y(3.5)
+    _draw_trigger_section(hybrid)
+
+    if hybrid.has_durability:
+        ly.gap_y(3.5)
+        _draw_durability_section(hybrid)
+
+    if charge_has_charges(hybrid.charges):
+        ly.gap_y(3.5)
+        _draw_charges_section(hybrid)
+
+    ly.gap_y(3.5)
+    _draw_spawn_section(hybrid)
+
+
+# =============================================================================
+# 装备形态
+# =============================================================================
+
+def _draw_equipment_section(hybrid: HybridItemV2) -> None:
+    current_mode = _get_eq_mode(hybrid)
+
+    with field_row(4):
+        changed, new_mode = enum_field(
+            "装备形态", "##eq_mode", current_mode, _EQUIPMENT_MODE_LABELS,
+        )
+        if changed:
+            match new_mode:
+                case "weapon":
+                    hybrid.equipment = WeaponEquip()
+                case "armor":
+                    hybrid.equipment = ArmorEquip()
+                case "charm":
+                    hybrid.equipment = CharmEquip()
+                case _:
+                    hybrid.equipment = NotEquipable()
+
+        if is_weapon_mode(hybrid.equipment):
+            assert isinstance(hybrid.equipment, WeaponEquip)
+            eq = hybrid.equipment
+
+            ch, new_wt = enum_field(
+                "武器类型", "##wep_type", eq.weapon_type, HYBRID_WEAPON_TYPES,
+            )
+            if ch:
+                object.__setattr__(eq, "weapon_type", new_wt)
+
+            ch, new_bal = enum_field(
+                "平衡", "##wep_balance", str(eq.balance), _BALANCE_LABELS,
+            )
+            if ch:
+                object.__setattr__(eq, "balance", int(new_bal))
+
+        elif is_armor_mode(hybrid.equipment):
+            assert isinstance(hybrid.equipment, ArmorEquip)
+            eq = hybrid.equipment
+
+            ch, new_at = enum_field(
+                "护甲类型", "##armor_type", eq.armor_type, HYBRID_ARMOR_TYPES,
+            )
+            if ch:
+                object.__setattr__(eq, "armor_type", new_at)
+
+            readonly_field("护甲分类", hybrid.armor_class)
+
+            if hybrid.slot not in ["hand", "Ring", "Amulet"]:
+                frag_count = sum(hybrid.fragments.values())
+                if button_field("碎片数", f"({frag_count})##frags"):
+                    imgui.open_popup("fragments_popup")
+                _draw_fragments_popup(hybrid)
+
+
+# =============================================================================
+# 触发
+# =============================================================================
 
 def _draw_trigger_section(hybrid: HybridItemV2) -> None:
-    current_trigger_mode = "none"
-    if isinstance(hybrid.trigger, EffectTrigger):
-        current_trigger_mode = "effect"
-    elif isinstance(hybrid.trigger, SkillTrigger):
-        current_trigger_mode = "skill"
+    old_mode = _get_trigger_mode(hybrid)
 
-    # Label 行
-    _label("触发模式")
-    if isinstance(hybrid.trigger, SkillTrigger):
-        _next()
-        _label("技能")
+    with field_row(2):
+        changed, new_mode = enum_field(
+            "触发模式", "##trigger_mode", old_mode, _TRIGGER_MODE_LABELS,
+        )
+        if changed:
+            match new_mode:
+                case "effect":
+                    hybrid.trigger = EffectTrigger()
+                    if not charge_has_charges(hybrid.charges):
+                        hybrid.charges = LimitedCharges()
+                case "skill":
+                    hybrid.trigger = SkillTrigger()
+                    if not charge_has_charges(hybrid.charges):
+                        hybrid.charges = LimitedCharges()
+                case _:
+                    hybrid.trigger = NoTrigger()
+                    hybrid.charges = NoCharges()
 
-    # Control 行
-    _field_width()
-    old_trigger_mode = current_trigger_mode
-    new_trigger_mode = _enum_combo(
-        "##trigger_mode", current_trigger_mode,
-        list(_TRIGGER_MODE_LABELS.keys()), _TRIGGER_MODE_LABELS,
-    )
-    if new_trigger_mode != old_trigger_mode:
-        match new_trigger_mode:
-            case "effect":
-                hybrid.trigger = EffectTrigger()
-                if not charge_has_charges(hybrid.charges):
-                    hybrid.charges = LimitedCharges()
-            case "skill":
-                hybrid.trigger = SkillTrigger()
-                if not charge_has_charges(hybrid.charges):
-                    hybrid.charges = LimitedCharges()
-            case _:
-                hybrid.trigger = NoTrigger()
-                hybrid.charges = NoCharges()
+        if isinstance(hybrid.trigger, SkillTrigger):
+            _draw_skill_picker(hybrid.trigger)
 
-    if isinstance(hybrid.trigger, SkillTrigger):
-        skill_trigger = hybrid.trigger
-        _next()
-        _field_width()
-        current_skill = skill_trigger.skill_object
-        current_label = SKILL_OBJECT_NAMES.get(current_skill, current_skill) if current_skill else "-- 选择 --"
-        if imgui.begin_combo("##skill_object", current_label):
-            if imgui.selectable("-- 无 --", current_skill == "")[0]:
-                object.__setattr__(skill_trigger, "skill_object", "")
+
+def _draw_skill_picker(trigger: SkillTrigger) -> None:
+    """技能选择器 - 树形下拉"""
+    with field_slot("技能") as w:
+        imgui.set_next_item_width(w)
+        current = trigger.skill_object
+        label = SKILL_OBJECT_NAMES.get(current, current) if current else "-- 选择 --"
+
+        if imgui.begin_combo("##skill_object", label):
+            if imgui.selectable("-- 无 --", current == "")[0]:
+                object.__setattr__(trigger, "skill_object", "")
             imgui.separator()
+
             for branch in sorted(SKILL_BY_BRANCH.keys()):
                 branch_label = SKILL_BRANCH_TRANSLATIONS.get(branch, branch)
                 skills = SKILL_BY_BRANCH[branch]
@@ -351,10 +233,10 @@ def _draw_trigger_section(hybrid: HybridItemV2) -> None:
                     continue
                 if imgui.tree_node(f"{branch_label}##branch_{branch}"):
                     for skill_obj in skills:
-                        skill_info = SKILL_OBJECTS.get(skill_obj, {})
-                        skill_name = skill_info.get("name_chinese", skill_obj)
-                        if imgui.selectable(f"{skill_name}##{skill_obj}", current_skill == skill_obj)[0]:
-                            object.__setattr__(skill_trigger, "skill_object", skill_obj)
+                        info = SKILL_OBJECTS.get(skill_obj, {})
+                        name = info.get("name_chinese", skill_obj)
+                        if imgui.selectable(f"{name}##{skill_obj}", current == skill_obj)[0]:
+                            object.__setattr__(trigger, "skill_object", skill_obj)
                     imgui.tree_pop()
             imgui.end_combo()
 
@@ -364,146 +246,124 @@ def _draw_trigger_section(hybrid: HybridItemV2) -> None:
 # =============================================================================
 
 def _draw_durability_section(hybrid: HybridItemV2) -> None:
-    durability: HasDurability | None = None
-    match hybrid.equipment:
-        case WeaponEquip(durability=d) if isinstance(d, HasDurability):
-            durability = d
-        case ArmorEquip(durability=d) if isinstance(d, HasDurability):
-            durability = d
-
+    durability = _get_durability(hybrid)
     if not durability:
         return
 
     has_charges = charge_has_charges(hybrid.charges)
 
-    # Label 行
-    _label("耐久上限")
-    _next()
-    if has_charges:
-        _label("磨损%")
-        _next()
-    _label("耐久归零销毁")
+    with field_row(3):
+        ch, new_val = int_field("耐久上限", "##dur_max", durability.duration_max, vmin=1)
+        if ch:
+            object.__setattr__(durability, "duration_max", new_val)
 
-    # Control 行
-    _field_width()
-    changed, new_dur_max = imgui.input_int("##dur_max", durability.duration_max)
-    if changed:
-        object.__setattr__(durability, "duration_max", max(1, new_dur_max))
-    _next()
+        if has_charges:
+            ch, new_wear = int_field(
+                "磨损%", "##wear", durability.wear_per_use,
+                vmin=0, vmax=100,
+                tooltip_text="每次使用消耗的耐久百分比",
+            )
+            if ch:
+                object.__setattr__(durability, "wear_per_use", new_wear)
 
-    if has_charges:
-        _field_width()
-        changed, new_wear = imgui.input_int("##wear", durability.wear_per_use)
-        tooltip("每次使用消耗的耐久百分比")
-        if changed:
-            object.__setattr__(durability, "wear_per_use", max(0, min(100, new_wear)))
-        _next()
-
-    _, new_destroy = _checkbox_cell("##dur_del", durability.destroy_on_zero)
-    if new_destroy != durability.destroy_on_zero:
-        object.__setattr__(durability, "destroy_on_zero", new_destroy)
+        ch, new_destroy = toggle_field(
+            "耐久归零销毁", "##dur_del", durability.destroy_on_zero,
+        )
+        if ch:
+            object.__setattr__(durability, "destroy_on_zero", new_destroy)
 
 
 # =============================================================================
 # 次数 / 充能
 # =============================================================================
 
-_CHARGE_MODE_LABELS = {
-    "limited": "有限",
-    "unlimited": "无限",
-}
-
-
 def _draw_charges_section(hybrid: HybridItemV2) -> None:
     is_unlimited = isinstance(hybrid.charges, UnlimitedCharges)
-    current_charge_mode = "unlimited" if is_unlimited else "limited"
+    current_mode = "unlimited" if is_unlimited else "limited"
 
     # --- 第一行: 模式 / 值 / 显示 ---
-    _label("次数模式")
-    _next()
-    _label("次数值")
-    _next()
-    _label("显次数点")
-
-    # Control 行
-    _field_width()
-    new_charge_mode = _enum_combo(
-        "##charge_mode", current_charge_mode,
-        list(_CHARGE_MODE_LABELS.keys()), _CHARGE_MODE_LABELS,
-    )
-    if new_charge_mode != current_charge_mode:
-        if new_charge_mode == "unlimited":
-            hybrid.charges = UnlimitedCharges()
-            hybrid.charge_recovery = NoRecovery()
-        else:
-            hybrid.charges = LimitedCharges()
-
-    _next()
-    if isinstance(hybrid.charges, UnlimitedCharges):
-        _text_cell("∞")
-    elif isinstance(hybrid.charges, LimitedCharges):
-        charges = hybrid.charges
-        _field_width()
-        changed, new_max = imgui.input_int("##charge", charges.max_charges)
+    with field_row(3):
+        changed, new_mode = enum_field(
+            "次数模式", "##charge_mode", current_mode, _CHARGE_MODE_LABELS,
+        )
         if changed:
-            object.__setattr__(charges, "max_charges", max(1, new_max))
+            if new_mode == "unlimited":
+                hybrid.charges = UnlimitedCharges()
+                hybrid.charge_recovery = NoRecovery()
+            else:
+                hybrid.charges = LimitedCharges()
 
-    _next()
-    current_draw = False
-    match hybrid.charges:
-        case LimitedCharges(draw_charges=d):
-            current_draw = d
-        case UnlimitedCharges(draw_charges=d):
-            current_draw = d
+        # 次数值
+        if isinstance(hybrid.charges, UnlimitedCharges):
+            readonly_field("次数值", "∞")
+        elif isinstance(hybrid.charges, LimitedCharges):
+            ch, new_max = int_field(
+                "次数值", "##charge", hybrid.charges.max_charges, vmin=1,
+            )
+            if ch:
+                object.__setattr__(hybrid.charges, "max_charges", new_max)
 
-    _, new_draw = _checkbox_cell("##show_charge", current_draw)
-    tooltip("在物品贴图左下角绘制小点表示剩余次数")
-    if new_draw != current_draw:
-        object.__setattr__(hybrid.charges, "draw_charges", new_draw)
+        # 显次数点
+        current_draw = False
+        match hybrid.charges:
+            case LimitedCharges(draw_charges=d):
+                current_draw = d
+            case UnlimitedCharges(draw_charges=d):
+                current_draw = d
+
+        ch, new_draw = toggle_field(
+            "显次数点", "##show_charge", current_draw,
+            tooltip_text="在物品贴图左下角绘制小点表示剩余次数",
+        )
+        if ch:
+            object.__setattr__(hybrid.charges, "draw_charges", new_draw)
 
     # --- 第二行: 恢复/终止 (仅有限次数) ---
     if isinstance(hybrid.charges, LimitedCharges):
-        is_artifact = isinstance(hybrid.quality, ArtifactQuality)
+        _draw_recovery_row(hybrid)
 
-        _label("自动恢复")
-        has_recovery = recovery_has_recovery(hybrid.charge_recovery)
-        if has_recovery:
-            _next()
-            _label("恢复间隔")
-        if not hybrid.has_durability and not is_artifact:
-            _next()
-            _label("耗尽销毁")
 
-        # Control 行
+def _draw_recovery_row(hybrid: HybridItemV2) -> None:
+    """充能恢复行 - 自动恢复 / 恢复间隔 / 耗尽销毁"""
+    is_artifact = isinstance(hybrid.quality, ArtifactQuality)
+    has_recovery = recovery_has_recovery(hybrid.charge_recovery)
+
+    with field_row(3):
+        # 自动恢复
         if is_artifact:
+            # 文物强制自动恢复 (锁定)
             if not has_recovery:
                 hybrid.charge_recovery = IntervalRecovery()
-            imgui.push_style_var(imgui.STYLE_ALPHA, 0.5)
-            _checkbox_cell("##recovery_locked", True)
-            imgui.pop_style_var()
-            tooltip("文物自动恢复")
+            with field_slot("自动恢复") as _w:
+                imgui.push_style_var(imgui.STYLE_ALPHA, 0.5)
+                imgui.checkbox("##recovery_locked", True)
+                imgui.pop_style_var()
+                tooltip("文物自动恢复")
         else:
-            _, new_recovery = _checkbox_cell("##recovery", has_recovery)
-            if new_recovery != has_recovery:
+            ch, new_recovery = toggle_field("自动恢复", "##recovery", has_recovery)
+            if ch:
                 if new_recovery:
                     hybrid.charge_recovery = IntervalRecovery()
                 else:
                     hybrid.charge_recovery = NoRecovery()
 
+        # 恢复间隔
         if recovery_has_recovery(hybrid.charge_recovery):
             assert isinstance(hybrid.charge_recovery, IntervalRecovery)
-            recovery = hybrid.charge_recovery
-            _next()
-            _field_width()
-            changed, new_interval = imgui.input_int("##interval", recovery.interval)
-            if changed:
-                object.__setattr__(recovery, "interval", max(1, new_interval))
-
-        if not hybrid.has_durability and not is_artifact:
-            _next()
-            _, hybrid.delete_on_charge_zero = _checkbox_cell(
-                "##charge_del", hybrid.delete_on_charge_zero,
+            ch, new_interval = int_field(
+                "恢复间隔", "##interval",
+                hybrid.charge_recovery.interval, vmin=1,
             )
+            if ch:
+                object.__setattr__(hybrid.charge_recovery, "interval", new_interval)
+
+        # 耗尽销毁
+        if not hybrid.has_durability and not is_artifact:
+            ch, new_val = toggle_field(
+                "耗尽销毁", "##charge_del", hybrid.delete_on_charge_zero,
+            )
+            if ch:
+                hybrid.delete_on_charge_zero = new_val
 
 
 # =============================================================================
@@ -511,94 +371,74 @@ def _draw_charges_section(hybrid: HybridItemV2) -> None:
 # =============================================================================
 
 def _draw_spawn_section(hybrid: HybridItemV2) -> None:
-    spawn_rule_labels = {
-        SpawnRuleType.EQUIPMENT: "按装备池",
-        SpawnRuleType.ITEM: "按道具池",
-        SpawnRuleType.NONE: "不生成",
-    }
-    can_use_equipment = not isinstance(hybrid.equipment, NotEquipable)
-
+    can_use_eq = not isinstance(hybrid.equipment, NotEquipable)
     is_excluded = spawn_is_excluded(hybrid.spawn)
-    current_container = hybrid.container_spawn
-    current_shop = hybrid.shop_spawn
 
-    # Label 行
-    _label("排除随机生成")
-    _next()
-    if not is_excluded:
-        _label("容器生成")
-        _next()
-        _label("商店生成")
-        _next()
-    _label("生成预测")
-
-    # Control 行
-    _, new_excluded = _checkbox_cell("##exc_random", is_excluded)
-    tooltip("排除随机生成：物品不会在宝箱/商店随机出现\n启用后其他标签设置不生效")
-    if new_excluded != is_excluded:
-        if new_excluded:
-            hybrid.spawn = ExcludedFromRandom()
-        else:
-            hybrid.spawn = RandomSpawn()
-
-    _next()
-    if not new_excluded and isinstance(hybrid.spawn, RandomSpawn):
-        spawn = hybrid.spawn
-
-        # 容器
-        _field_width()
-        container_options = (
-            [SpawnRuleType.EQUIPMENT, SpawnRuleType.ITEM, SpawnRuleType.NONE]
-            if can_use_equipment
-            else [SpawnRuleType.ITEM, SpawnRuleType.NONE]
+    with field_row(4):
+        ch, new_excluded = toggle_field(
+            "排除随机生成", "##exc_random", is_excluded,
+            tooltip_text="排除随机生成：物品不会在宝箱/商店随机出现\n启用后其他标签设置不生效",
         )
-        if current_container not in container_options:
-            current_container = SpawnRuleType.NONE
-        if imgui.begin_combo("##container_spawn", spawn_rule_labels[current_container]):
-            for rule in container_options:
-                if imgui.selectable(spawn_rule_labels[rule], current_container == rule)[0]:
-                    object.__setattr__(spawn, "container_spawn", rule)
-            imgui.end_combo()
-        tooltip(
-            "容器生成规则（宝箱/桶/尸体等）\n\n"
-            "• 按装备池：根据武器类型/护甲类型 + 标签 + 层级匹配\n"
-            "• 按道具池：根据分类/子分类 + 标签 + 层级匹配\n"
-            "• 不生成：不在容器中随机出现"
-        )
+        if ch:
+            hybrid.spawn = ExcludedFromRandom() if new_excluded else RandomSpawn()
 
-        _next()
-        # 商店
-        _field_width()
-        shop_options = (
-            [SpawnRuleType.EQUIPMENT, SpawnRuleType.ITEM, SpawnRuleType.NONE]
-            if can_use_equipment
-            else [SpawnRuleType.ITEM, SpawnRuleType.NONE]
-        )
-        if current_shop not in shop_options:
-            current_shop = SpawnRuleType.NONE
-        if imgui.begin_combo("##shop_spawn", spawn_rule_labels[current_shop]):
-            for rule in shop_options:
-                if imgui.selectable(spawn_rule_labels[rule], current_shop == rule)[0]:
-                    object.__setattr__(spawn, "shop_spawn", rule)
-            imgui.end_combo()
-        tooltip(
-            "商店生成规则（商人进货时）\n\n"
-            "• 按装备池：根据武器/护甲/珠宝类别 + 层级 + 材质 + 标签匹配\n"
-            "• 按道具池：根据分类/子分类 + 层级 + 标签匹配\n"
-            "• 不生成：不在商店随机出现"
-        )
+        if not spawn_is_excluded(hybrid.spawn) and isinstance(hybrid.spawn, RandomSpawn):
+            spawn = hybrid.spawn
 
-        _next()
+            # 容器生成
+            container_opts = (
+                [SpawnRuleType.EQUIPMENT, SpawnRuleType.ITEM, SpawnRuleType.NONE]
+                if can_use_eq
+                else [SpawnRuleType.ITEM, SpawnRuleType.NONE]
+            )
+            current_container = hybrid.container_spawn
+            if current_container not in container_opts:
+                current_container = SpawnRuleType.NONE
 
-    # 生成预测按钮
-    if _button_cell("▶##gen_preview"):
-        imgui.open_popup("generation_preview_popup")
-    tooltip("查看生成预测")
-    _draw_generation_preview_popup(hybrid)
+            ch_c, new_c = enum_field(
+                "容器生成", "##container_spawn",
+                current_container, container_opts, _SPAWN_RULE_LABELS,
+                tooltip_text=(
+                    "容器生成规则（宝箱/桶/尸体等）\n\n"
+                    "• 按装备池：根据武器类型/护甲类型 + 标签 + 层级匹配\n"
+                    "• 按道具池：根据分类/子分类 + 标签 + 层级匹配\n"
+                    "• 不生成：不在容器中随机出现"
+                ),
+            )
+            if ch_c:
+                object.__setattr__(spawn, "container_spawn", new_c)
+
+            # 商店生成
+            shop_opts = (
+                [SpawnRuleType.EQUIPMENT, SpawnRuleType.ITEM, SpawnRuleType.NONE]
+                if can_use_eq
+                else [SpawnRuleType.ITEM, SpawnRuleType.NONE]
+            )
+            current_shop = hybrid.shop_spawn
+            if current_shop not in shop_opts:
+                current_shop = SpawnRuleType.NONE
+
+            ch_s, new_s = enum_field(
+                "商店生成", "##shop_spawn",
+                current_shop, shop_opts, _SPAWN_RULE_LABELS,
+                tooltip_text=(
+                    "商店生成规则（商人进货时）\n\n"
+                    "• 按装备池：根据武器/护甲/珠宝类别 + 层级 + 材质 + 标签匹配\n"
+                    "• 按道具池：根据分类/子分类 + 层级 + 标签匹配\n"
+                    "• 不生成：不在商店随机出现"
+                ),
+            )
+            if ch_s:
+                object.__setattr__(spawn, "shop_spawn", new_s)
+
+        # 生成预测
+        if button_field("生成预测", "▶##gen_preview", tooltip_text="查看生成预测"):
+            imgui.open_popup("generation_preview_popup")
+        _draw_generation_preview_popup(hybrid)
 
 
 # =============================================================================
-# 碎片弹窗
+# 碎片弹窗 (保持不变)
 # =============================================================================
 
 def _draw_fragments_popup(hybrid: HybridItemV2) -> None:
@@ -632,7 +472,9 @@ def _draw_fragments_popup(hybrid: HybridItemV2) -> None:
                 imgui.table_next_column()
                 val = hybrid.fragments.get(frag_key, 0)
                 with item_width(-1):
-                    changed, new_val = imgui.input_int(f"##{frag_key}_popup", val, step=0, step_fast=0)
+                    changed, new_val = imgui.input_int(
+                        f"##{frag_key}_popup", val, step=0, step_fast=0,
+                    )
                 if changed:
                     hybrid.fragments[frag_key] = max(0, new_val)
 
@@ -642,7 +484,7 @@ def _draw_fragments_popup(hybrid: HybridItemV2) -> None:
 
 
 # =============================================================================
-# 生成预测弹窗
+# 生成预测弹窗 (保持不变)
 # =============================================================================
 
 def _draw_generation_preview_popup(hybrid: HybridItemV2) -> None:
@@ -655,7 +497,6 @@ def _draw_generation_preview_popup(hybrid: HybridItemV2) -> None:
             tw.text_muted(imgui.text)("物品已排除随机生成")
             imgui.text("不会出现在宝箱掉落、商店库存中")
         else:
-            # 容器掉落
             imgui.text("容器掉落:")
             if hybrid.container_spawn == SpawnRuleType.NONE:
                 tw.text_muted(imgui.text)("  关闭")
@@ -666,7 +507,6 @@ def _draw_generation_preview_popup(hybrid: HybridItemV2) -> None:
 
             ly.gap_y(3.5)
 
-            # 商店进货
             imgui.text("商店进货:")
             if hybrid.shop_spawn == SpawnRuleType.NONE:
                 tw.text_muted(imgui.text)("  关闭")
@@ -682,7 +522,7 @@ def _draw_container_preview(hybrid: HybridItemV2, is_equipment: bool) -> None:
     tags_tuple = tuple(hybrid.effective_tags.split()) if hybrid.effective_tags else ()
 
     if is_equipment:
-        eq_categories = []
+        eq_categories: list[str] = []
         match hybrid.equipment:
             case WeaponEquip(weapon_type=wt):
                 eq_categories.append(wt)
@@ -767,7 +607,11 @@ def _draw_shop_preview(hybrid: HybridItemV2) -> None:
             case ArmorEquip(armor_type=at):
                 item_armor_slot = at
 
-        is_jewelry = item_armor_slot in ("ring", "amulet", "Ring", "Amulet") if item_armor_slot else False
+        is_jewelry = (
+            item_armor_slot in ("ring", "amulet", "Ring", "Amulet")
+            if item_armor_slot
+            else False
+        )
 
         for objects_tuple, config in SHOP_CONFIGS.items():
             selling_cats = set(config.get("selling_loot_category", {}).keys())
