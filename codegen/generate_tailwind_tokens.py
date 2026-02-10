@@ -40,6 +40,22 @@ Token Categories:
 """
 
 from pathlib import Path
+import sys
+
+# Allow importing ui.theme from project root
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from ui.theme import CRYSTAL, GOLDRIM, ABYSS, PARCHMENT, BLOOD, STONE  # noqa: E402
+
+
+def _rgba_to_hex(rgba: tuple[float, float, float, float]) -> str:
+    """Convert RGBA tuple (0-1 range) to hex string."""
+    r, g, b, _ = rgba
+    return f"#{round(r * 255):02x}{round(g * 255):02x}{round(b * 255):02x}"
+
+
+def _theme_to_hex(palette: dict) -> dict[int, str]:
+    """Convert a theme palette (int → RGBA tuple) to (int → hex string)."""
+    return {shade: _rgba_to_hex(rgba) for shade, rgba in palette.items()}
 
 # Tailwind CSS v3.4.17 Official Colors
 # Source: https://github.com/tailwindlabs/tailwindcss/blob/v3.4.17/src/public/colors.js
@@ -65,11 +81,6 @@ COLORS = {
         50: "#fafafa", 100: "#f5f5f5", 200: "#e5e5e5", 300: "#d4d4d4",
         400: "#a3a3a3", 500: "#737373", 600: "#525252", 700: "#404040",
         800: "#262626", 900: "#171717", 950: "#0a0a0a",
-    },
-    "stone": {
-        50: "#fafaf9", 100: "#f5f5f4", 200: "#e7e5e4", 300: "#d6d3d1",
-        400: "#a8a29e", 500: "#78716c", 600: "#57534e", 700: "#44403c",
-        800: "#292524", 900: "#1c1917", 950: "#0c0a09",
     },
     "red": {
         50: "#fef2f2", 100: "#fee2e2", 200: "#fecaca", 300: "#fca5a5",
@@ -158,46 +169,16 @@ COLORS = {
     },
 
     # =========================================================================
-    # 自定义主题色 (暗黑2 + 紫水晶风格, 与 stoneshard_asset_browser 一致)
-    # 详细设计理念请参阅: ui/theme.py
+    # 自定义主题色 (暗黑2 + 紫水晶风格)
+    # 单一数据源: ui/theme.py — 此处自动从 RGBA 元组转换为 hex
     # =========================================================================
 
-    # 深渊 (Abyss) - 冷蓝紫中性暗色背景 (H≈248°, 低饱和度)
-    "abyss": {
-        50: "#f1f1f4", 100: "#e3e2e9", 200: "#cccad8", 300: "#a9a6bf",
-        400: "#7e78a0", 500: "#544f73", 600: "#36334d", 700: "#1e1c2b",
-        800: "#13121c", 900: "#0a0a10", 950: "#06060a",
-    },
-
-    # 羊皮纸 (Parchment) - 温暖米黄色文字 (H≈38°)
-    "parchment": {
-        50: "#f4efe6", 100: "#e7ddca", 200: "#d7c6a8", 300: "#c9b38d",
-        400: "#b89e70", 500: "#a88a57", 600: "#8c734a", 700: "#6d5a3c",
-        800: "#4e412c", 900: "#332b1e", 950: "#201b13",
-    },
-
-    # 金边 (Goldrim) - 暗黑2经典金色 (H≈42°, 高饱和度)
-    "goldrim": {
-        50: "#fdf8e8", 100: "#f9edc8", 200: "#efd690", 300: "#e0b952",
-        400: "#d1a22e", 500: "#aa842c", 600: "#856828", 700: "#624d22",
-        800: "#42341a", 900: "#2a2213", 950: "#18140c",
-    },
-
-    # 紫水晶 (Crystal) - 主强调色 (H≈260°, 冷饱和紫, 高饱和度)
-    "crystal": {
-        50: "#f5f2fd", 100: "#ebe5fb", 200: "#dcd0f6", 300: "#c6b3ef",
-        400: "#ae93e6", 500: "#9a79dd", 600: "#845cd1", 700: "#6e40c4",
-        800: "#5a359d", 900: "#4c2e7f", 950: "#2d1c4a",
-    },
-
-    # 血红 (Blood) - 生命/危险 (H≈3°)
-    "blood": {
-        50: "#fdeded", 100: "#f9d2d2", 200: "#f3a7a5", 300: "#e76460",
-        400: "#c92821", 500: "#97221b", 600: "#801f19", 700: "#5d1913",
-        800: "#3e120e", 900: "#290d0a", 950: "#140705",
-    },
-
-    # 岩石 (Stone) - 中性暖灰, 使用 Tailwind 原生 stone
+    "abyss": _theme_to_hex(ABYSS),
+    "parchment": _theme_to_hex(PARCHMENT),
+    "goldrim": _theme_to_hex(GOLDRIM),
+    "crystal": _theme_to_hex(CRYSTAL),
+    "blood": _theme_to_hex(BLOOD),
+    "stone": _theme_to_hex(STONE),
 }
 
 # Tailwind CSS v3.4.17 Official Spacing (in rem, converted to px at 16px base)
@@ -343,7 +324,7 @@ def generate_file() -> str:
         '  • btn_secondary = btn_abyss (深渊按钮)',
         '  • text_default / text_muted / text_subtle / text_faint (文字层级)',
         '  • text_accent = text_crystal_400 (强调色)',
-        '  • bg_app / bg_surface / bg_elevated / bg_input (背景层级)',
+        '  • bg_app / bg_surface / bg_elevated / bg_inset (背景层级)',
         '',
         '详细设计理念和使用指南请参阅: ui/theme.py',
         '==============================================================================',
@@ -787,7 +768,7 @@ def generate_file() -> str:
         'btn_goldrim = button_colors(GOLDRIM_500, GOLDRIM_400, GOLDRIM_600) | text(ABYSS_900)',
         '',
         '# 深渊按钮 (暗色背景)',
-        'btn_abyss = button_colors(ABYSS_700, ABYSS_800, ABYSS_900) | text(PARCHMENT_100)',
+        'btn_abyss = button_colors(ABYSS_700, ABYSS_600, ABYSS_800) | text(PARCHMENT_100)',
     ])
 
     # =========================================================================
@@ -855,20 +836,28 @@ def generate_file() -> str:
         '# =============================================================================',
         '# Semantic Layer Tokens - UI 层级系统',
         '# =============================================================================',
-        '# 从深到浅: bg_app → bg_surface → bg_elevated → bg_overlay',
-        '# 输入框: bg_input (略亮于 bg_elevated, 让控件可辨识)',
+        '# 从深到浅: bg_app → bg_surface → bg_elevated → bg_inset',
+        '#',
+        '#   bg_app     (ABYSS_950)  最深底色，窗口/全局背景',
+        '#   bg_surface (ABYSS_900)  面板、侧栏',
+        '#   bg_elevated(ABYSS_800)  卡片、弹窗、浮层',
+        '#   bg_inset   (ABYSS_700)  凹陷区域 (滚动区域内部、well)',
+        '#',
+        '# 输入框: input_default 使用 frame_bg_abyss_700 + 1px border',
+        '#         在 bg_elevated(800) 上天然比容器暗一档',
+        '#         在 bg_surface(900) 上请用 input_on_surface',
         '',
         '# 应用层 - 最深的背景，用于窗口底层',
-        'bg_app = bg_abyss_900',
+        'bg_app = bg_abyss_950',
         '',
-        '# 表面层 - 卡片、面板的背景',
-        'bg_surface = bg_abyss_800',
+        '# 表面层 - 面板、侧栏的背景',
+        'bg_surface = bg_abyss_900',
         '',
-        '# 浮层 - 弹窗、下拉菜单、tooltip',
-        'bg_elevated = bg_abyss_700',
+        '# 浮层 - 卡片、弹窗、下拉菜单、tooltip',
+        'bg_elevated = bg_abyss_800',
         '',
-        '# 输入层 - 输入框、选择框的背景',
-        'bg_input = bg_abyss_600',
+        '# 凹陷层 - 滚动区域内部、well 等需要"陷入"感的区域',
+        'bg_inset = bg_abyss_700',
         '',
         '# 遮罩层 - 模态框背景遮罩',
         'bg_overlay = alpha(0.7) | bg_black',
@@ -878,8 +867,8 @@ def generate_file() -> str:
         '# Semantic Border Tokens - 语义边框',
         '# =============================================================================',
         '',
-        '# 微妙边框 - 几乎不可见，用于分隔区域',
-        'border_subtle = border_abyss_700',
+        '# 微妙边框 - 在 elevated/surface/app 上均可见',
+        'border_subtle = border_abyss_600',
         '',
         '# 默认边框 - 标准可见边框',
         'border_default = border_stone_700',
@@ -904,20 +893,45 @@ def generate_file() -> str:
         'btn_lg = size_meta(width=48, height=10)  # 192px × 40px',
         'btn_xl = size_meta(width=56, height=11)  # 224px × 44px',
         '',
-        '# 卡片 - 用于 ly.card() 的默认样式',
-        'card_default = bg_abyss_800 | rounded_lg | p_3 | child_rounded_lg',
+        '# 卡片 - 用于 ly.card() 的默认样式 (在 bg_surface 上)',
+        'card_default = bg_elevated | child_rounded_lg | p_3',
         '',
-        '# 面板 - 用于侧边栏、工具栏等',
-        'panel_default = bg_abyss_900 | rounded_md | p_2',
+        '# 面板 - 用于侧边栏、工具栏等 (在 bg_app 上)',
+        'panel_default = bg_surface | rounded_md | p_2',
         '',
-        '# 输入框 - 用于 input_text 等输入控件',
-        'input_default = frame_bg_abyss_700 | rounded | border_stone_700 | frame_border_size(1)',
+        '# 输入框 - 用于 input_text 等输入控件 (在 bg_elevated 上)',
+        '# frame_bg 比容器暗一档 → 凹陷感; 1px border 保底分层',
+        'input_default = frame_bg_abyss_700 | rounded | border_abyss_600 | frame_border_size(1)',
         '',
-        '# 选中状态 - 用于列表项选中',
-        'selected_default = bg_abyss_600',
+        '# 输入框 - 在 bg_surface (ABYSS_900) 上时',
+        'input_on_surface = frame_bg_abyss_800 | rounded | border_abyss_700 | frame_border_size(1)',
+        '',
+        '# 输入框 - 在 bg_app (ABYSS_950) 上时',
+        'input_on_app = frame_bg_abyss_900 | rounded | border_abyss_800 | frame_border_size(1)',
+        '',
+        '# 选中状态 - 用于列表项选中 (带紫调，与 input 区分)',
+        'selected_default = bg_crystal_950',
         '',
         '# Hover 状态 - 用于列表项 hover',
         'hover_default = bg_abyss_700',
+        '',
+        '',
+        '# =============================================================================',
+        '# Semantic Tuple Constants - 语义 RGBA 元组 (供 DrawList/list_item 等 tuple API)',
+        '# =============================================================================',
+        '# 背景层级',
+        'BG_APP = ABYSS_950',
+        'BG_SURFACE = ABYSS_900',
+        'BG_ELEVATED = ABYSS_800',
+        'BG_INSET = ABYSS_700',
+        '',
+        '# 交互状态 (用于 list_item, split_row 等的 hover/selected/bg 参数)',
+        'HOVER_DEFAULT = ABYSS_700',
+        'SELECTED_DEFAULT = CRYSTAL_950',
+        '',
+        '# 边框/分隔线 (用于 DrawList add_line/add_rect 等)',
+        'BORDER_SUBTLE = ABYSS_600',
+        'BORDER_DEFAULT = STONE_700',
         '',
     ])
 

@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
-"""贴图编辑器模块
+"""贴图编辑器模块 — 统一 2 列布局
 
-提供贴图编辑器相关方法，包括：
-- 武器/装备的穿戴状态贴图
-- 多姿势护甲贴图（男性/女性）
-- 物品栏贴图
-- 战利品贴图
-- 混合物品贴图
+所有贴图区域均采用一致的 2 列布局：
+- 护甲: 左列=默认/男性, 右列=女性, 每列 3 行 (站立0/站立1/休息)
+- 武器: 左列=右手(默认), 右列=左手(或占位)
+- 物品栏+战利品: 左列=物品栏, 右列=战利品
+- 画布: 正方形, 宽度=列宽
 """
 
 import os
@@ -14,11 +13,9 @@ from typing import Callable, Union
 
 from ui import imgui_shim as imgui
 
-from ui.editors.common import draw_indented_separator
 from ui.state import state as ui_state
 
 from constants import (
-    ARMOR_PREVIEW_WIDTH,
     CHARACTER_MODELS,
     GAME_FPS,
 )
@@ -29,7 +26,9 @@ from specs import (
     AnimatedSlot, StaticSlot, LootSlot, loot_speed_to_preview_fps,
 )
 from ui import tw
+from ui import layout as ly
 from ui.layout import tooltip
+from ui.scale import Sp
 
 # 任何拥有 textures: ItemTexturesV2 属性的物品
 AnyItemWithTextures = Union[Weapon, Armor, HybridItemV2]
@@ -37,90 +36,122 @@ AnyItemWithTextures = Union[Weapon, Armor, HybridItemV2]
 # 单手武器槽位集合（使用姿势0）
 SINGLE_HAND_SLOTS = frozenset({"dagger", "mace", "sword", "axe", "spear", "bow", "shield"})
 
+# 2 列布局的列间距
+_COL_GAP = Sp.S3
+
+# 画布边框样式 — 在明亮棋盘格画布与深色卡片间提供可见分界线,
+# 抵抗瞳孔收缩导致的明暗适应边界“消失”问题
+_canvas_frame = tw.border_abyss_600 | tw.child_border_size(1) | tw.child_rounded_sm
+
 
 # ============================================================================
-# 模块级函数 - 贴图预览
+# 内部函数 - 物品栏/战利品 贴图
 # ============================================================================
 
 
-def draw_inventory_textures(
+def _draw_inventory_column(
     paths: list[str],
     id_suffix: str,
+    canvas_size: int,
     importer: Callable[[str], str] | None = None,
 ) -> list[str]:
-    """绘制物品栏贴图编辑器
+    """绘制物品栏贴图 (单列内容)
 
-    Args:
-        paths: 当前贴图路径列表
-        id_suffix: ID 后缀
-        importer: 路径转换函数
-
-    Returns:
-        更新后的路径列表
+    Tailwind: flex flex-col gap-1
     """
-    from ui.widgets import frame_strip, slider_index, texture_preview
+    from ui.widgets import frame_strip, texture_preview
 
-    imgui.text("物品栏贴图")
+    tw.text_muted(imgui.text)("物品栏贴图")
     tooltip("多张贴图可表示不同耐久状态，排在后面的贴图代表更低耐久")
 
-    # 使用 frame_strip 管理路径（非动画模式）
     paths, selected = frame_strip(
         f"{id_suffix}_inv",
         paths,
         animated=False,
         importer=importer,
+        max_width=canvas_size,
     )
 
-    # 预览当前选中的贴图
     if paths and 0 <= selected < len(paths) and paths[selected]:
-        texture_preview(f"{id_suffix}_inv_preview", paths[selected])
+        ly.gap_y(Sp.S1)
+        with _canvas_frame:
+            texture_preview(
+                f"{id_suffix}_inv_preview",
+                paths[selected],
+                size=(canvas_size, canvas_size),
+            )
 
     return paths
 
 
-def draw_loot_textures(
+def _draw_loot_column(
     loot: LootSlot,
     id_suffix: str,
+    canvas_size: int,
     importer: Callable[[str], str] | None = None,
 ) -> None:
-    """绘制战利品贴图编辑器
+    """绘制战利品贴图 (单列内容)
 
-    Args:
-        loot: 战利品槽位对象（会被原地修改）
-        id_suffix: ID 后缀
-        importer: 路径转换函数
+    Tailwind: flex flex-col gap-1
     """
     from ui.widgets import frame_strip, texture_preview
 
-    imgui.text("战利品贴图*")
+    tw.text_muted(imgui.text)("战利品贴图*")
     tooltip("战利品掉落时显示的贴图，支持动画")
 
-    # 计算实际 fps（用于动画预览）
     fps = loot_speed_to_preview_fps(loot.speed, GAME_FPS)
 
-    # 使用 frame_strip 管理路径
     new_paths, frame = frame_strip(
         f"{id_suffix}_loot",
         loot.paths,
         animated=True,
         fps=fps,
         importer=importer,
+        max_width=canvas_size,
     )
     loot.paths = new_paths
 
-    # 预览当前帧
     if loot.paths and 0 <= frame < len(loot.paths) and loot.paths[frame]:
-        texture_preview(f"{id_suffix}_loot_preview", loot.paths[frame])
+        ly.gap_y(Sp.S1)
+        with _canvas_frame:
+            texture_preview(
+                f"{id_suffix}_loot_preview",
+                loot.paths[frame],
+                size=(canvas_size, canvas_size),
+            )
 
-    # 动画速度设置
     if loot.is_animated:
         from ui.widgets import loot_speed_input
         loot.speed = loot_speed_input(id_suffix, loot.speed)
 
 
+def _draw_inv_loot_columns(
+    inv_paths: list[str],
+    loot: LootSlot,
+    id_suffix: str,
+    importer: Callable[[str], str] | None = None,
+) -> list[str]:
+    """物品栏 + 战利品 2 列布局
+
+    Tailwind: grid grid-cols-2 gap-3
+    """
+    with ly.columns(2, gap=_COL_GAP) as c:
+        canvas_sz = int(c.col_width)
+
+        with c.col(0):
+            inv_paths = _draw_inventory_column(
+                inv_paths, id_suffix, canvas_sz, importer
+            )
+
+        with c.col(1):
+            _draw_loot_column(loot, id_suffix, canvas_sz, importer)
+
+    return inv_paths
+
+
 
 # ============================================================================
-# 模块级函数 - 角色贴图编辑器
+# 角色贴图编辑器 - 武器
 # ============================================================================
 
 
@@ -131,7 +162,12 @@ def draw_weapon_char_textures(
     pose_index: int = 0,
     importer: Callable[[str], str] | None = None,
 ) -> str:
-    """绘制武器/盾牌手持贴图编辑器
+    """绘制武器/盾牌手持贴图编辑器 — 2 列布局
+
+    左列=右手(默认)，右列=左手(或占位提示)。
+    画布为正方形，宽度填满列宽。
+
+    Tailwind: grid grid-cols-2 gap-3
 
     Args:
         char: WeaponCharTexture 对象（会被原地修改）
@@ -149,7 +185,7 @@ def draw_weapon_char_textures(
     title = "手持状态贴图" if is_weapon else "穿戴状态贴图"
 
     # 标题行 + 模特选择
-    imgui.text(title)
+    tw.text_muted(imgui.text)(title)
     imgui.same_line()
     selected_model = model_combo(id_suffix, ui_state.selected_model)
     ui_state.selected_model = selected_model
@@ -161,34 +197,43 @@ def draw_weapon_char_textures(
         if pose_index < len(model_files) else None
     )
 
-    imgui.dummy(0, 4)
+    ly.gap_y(Sp.S1)
 
-    # 绘制槽位的辅助函数
-    def draw_slot(label: str, slot: AnimatedSlot, slot_suffix: str):
-        imgui.text(label)
+    # 单列内容绘制函数
+    def _draw_weapon_slot(label: str, slot: AnimatedSlot, slot_suffix: str, canvas_sz: int):
+        tw.text_muted(imgui.text)(label)
         slot.paths, frame = frame_strip(
             f"{id_suffix}_{slot_suffix}",
             slot.paths,
             animated=True,
             importer=importer,
+            max_width=canvas_sz,
         )
         if slot.paths and 0 <= frame < len(slot.paths):
-            texture_preview(
-                f"{id_suffix}_{slot_suffix}_preview",
-                slot.paths[frame],
-                origin=slot.origin,
-                model_path=model_path,
-            )
+            ly.gap_y(Sp.S1)
+            with _canvas_frame:
+                texture_preview(
+                    f"{id_suffix}_{slot_suffix}_preview",
+                    slot.paths[frame],
+                    origin=slot.origin,
+                    model_path=model_path,
+                    size=(canvas_sz, canvas_sz),
+                )
         slot.origin = origin_input(f"{id_suffix}_{slot_suffix}_origin", slot.origin)
 
-    # 右手/默认贴图
-    right_label = "右手/默认*" if has_left else "贴图*"
-    draw_slot(right_label, char.main, "main")
+    # 2 列布局
+    with ly.columns(2, gap=_COL_GAP) as c:
+        canvas_sz = int(c.col_width)
 
-    # 左手贴图
-    if has_left:
-        draw_indented_separator()
-        draw_slot("左手*", char.left, "left")
+        with c.col(0):
+            right_label = "右手/默认*" if has_left else "贴图*"
+            _draw_weapon_slot(right_label, char.main, "main", canvas_sz)
+
+        with c.col(1):
+            if has_left:
+                _draw_weapon_slot("左手*", char.left, "left", canvas_sz)
+            else:
+                tw.text_faint(imgui.text)("（无左手贴图）")
 
     return selected_model
 
@@ -196,13 +241,13 @@ def draw_weapon_char_textures(
 # 姿势槽位元数据
 _POSE_SLOTS = {
     # 男性/默认版
-    "standing0": ("站立0", True),   # (标签, 是否必须)
-    "standing1": ("站立1", False),
-    "rest": ("休息", True),
+    "standing0": ("站立0 (男)", True),   # (标签, 是否必须)
+    "standing1": ("站立1 (男)", False),
+    "rest": ("休息 (男)", True),
     # 女性版
-    "standing0_female": ("站立0", False),
-    "standing1_female": ("站立1", False),
-    "rest_female": ("休息", False),
+    "standing0_female": ("站立0 (女)", False),
+    "standing1_female": ("站立1 (女)", False),
+    "rest_female": ("休息 (女)", False),
 }
 
 
@@ -211,6 +256,7 @@ def _draw_pose_slot(
     slot_name: str,
     id_suffix: str,
     model_path: str | None,
+    canvas_size: int,
     importer: Callable[[str], str] | None = None,
 ) -> None:
     """绘制单个姿势槽位
@@ -219,6 +265,9 @@ def _draw_pose_slot(
     - resolve(): 获取实际显示的贴图和 fallback 来源
     - is_ui_enabled(): 判断是否启用编辑
     - clear_with_cascade(): 清除时级联清除依赖
+
+    Args:
+        canvas_size: 画布边长 (像素), 正方形画布
     """
     from ui.widgets import single_texture_input, origin_input, texture_preview
 
@@ -226,16 +275,30 @@ def _draw_pose_slot(
     slot: StaticSlot = getattr(char, slot_name)
     is_enabled = char.is_ui_enabled(slot_name)
 
+    # 提前resolve获取fallback信息
+    resolved_slot, fallback_from = char.resolve(slot_name)
+
     # 标签
-    imgui.text(label)
+    tw.text_muted(imgui.text)(label)
     if required:
         imgui.same_line()
-        imgui.text_colored("*", 1.0, 0.5, 0.5, 1.0)
+        tw.text_blood_400(imgui.text)("*")
+        tooltip("必填项")
     elif not is_enabled:
+        # 禁用状态：显示原因
+        requires = char.UI_ENABLE_REQUIRES.get(slot_name, ())
+        missing = [r for r in requires if not getattr(char, r).has_texture()]
         imgui.same_line()
-        tw.text_muted(imgui.text)("(禁用)")
+        if missing:
+            missing_labels = [_POSE_SLOTS.get(m, (m,))[0] for m in missing]
+            tw.text_muted(imgui.text)(f"(需先设置: {', '.join(missing_labels)})")
+        else:
+            tw.text_muted(imgui.text)("(禁用)")
+    elif fallback_from:
+        imgui.same_line()
+        tw.text_muted(imgui.text)(f"(使用 {_POSE_SLOTS.get(fallback_from, (fallback_from,))[0]})")
 
-    # 编辑按钮
+    # 编辑按钮（禁用时显示占位按钮保持高度一致）
     if is_enabled:
         new_path = single_texture_input(
             f"{id_suffix}_{slot_name}",
@@ -249,26 +312,27 @@ def _draw_pose_slot(
                 # 清除时级联
                 char.clear_with_cascade(slot_name)
     else:
-        # 禁用状态显示原因
-        requires = char.UI_ENABLE_REQUIRES.get(slot_name, ())
-        missing = [r for r in requires if not getattr(char, r).has_texture()]
-        if missing:
-            tw.text_muted(imgui.text)(f"需先设置: {', '.join(missing)}")
+        # 显示灰色占位按钮
+        with tw.text_faint:
+            single_texture_input(
+                f"{id_suffix}_{slot_name}_disabled",
+                "",
+                importer=None,
+            )
 
-    # 预览（使用 resolve 获取实际显示的贴图）
-    resolved_slot, fallback_from = char.resolve(slot_name)
+    # 预览（使用 resolve 获取实际显示的贴图） — 与编辑按钮间加间距
     if resolved_slot.has_texture():
-        if fallback_from:
-            tw.text_muted(imgui.text)(f"(使用 {_POSE_SLOTS.get(fallback_from, (fallback_from,))[0]})")
+        ly.gap_y(Sp.S1)
         # 使用 fallback 时用自己的 origin，否则用 resolved 的 origin
         preview_origin = slot.origin if fallback_from else resolved_slot.origin
-        texture_preview(
-            f"{id_suffix}_{slot_name}_preview",
-            resolved_slot.path,
-            origin=preview_origin,
-            model_path=model_path,
-            size=(ARMOR_PREVIEW_WIDTH, ARMOR_PREVIEW_WIDTH),
-        )
+        with _canvas_frame:
+            texture_preview(
+                f"{id_suffix}_{slot_name}_preview",
+                resolved_slot.path,
+                origin=preview_origin,
+                model_path=model_path,
+                size=(canvas_size, canvas_size),
+            )
 
     # Origin（仅当有自己的贴图时显示）
     if slot.has_texture():
@@ -279,8 +343,14 @@ def draw_multi_pose_armor_textures(
     char: MultiPoseCharTexture,
     id_suffix: str,
     importer: Callable[[str], str] | None = None,
-) -> tuple[str, int]:
-    """绘制多姿势护甲贴图编辑器
+) -> str:
+    """绘制多姿势护甲贴图编辑器 — 2 列布局
+
+    左列=默认/男性 (站立0→站立1→休息)
+    右列=女性 (站立0→站立1→休息)
+    画布正方形，宽度填满列宽。去掉性别 Tab 切换。
+
+    Tailwind: grid grid-cols-2 gap-3
 
     Args:
         char: MultiPoseCharTexture 对象（会被原地修改）
@@ -288,67 +358,48 @@ def draw_multi_pose_armor_textures(
         importer: 路径转换函数
 
     Returns:
-        (当前选中的种族 key, 当前性别 tab index)
+        当前选中的种族 key
     """
     from constants import get_model_key, CHARACTER_MODELS
-    from ui.widgets import race_combo, tab_index
+    from ui.widgets import race_combo
 
-    imgui.text("穿戴状态贴图")
-    tw.text_muted(imgui.text)("需要为站立和休息状态各准备贴图，女性版贴图可选")
+    tw.text_muted(imgui.text)("穿戴状态贴图")
 
     # 模特种族选择
     imgui.same_line()
     selected_race = race_combo(id_suffix, ui_state.selected_race)
     ui_state.selected_race = selected_race
 
-    imgui.dummy(0, 4)
-
-    # 性别 Tab
-    has_female = (
-        char.standing0_female.has_texture()
-        or char.standing1_female.has_texture()
-        or char.rest_female.has_texture()
-    )
-    tab_labels = ["默认/男性", "女性 *" if has_female else "女性"]
-    gender_idx = tab_index(f"{id_suffix}_gender", tab_labels, ui_state.gender_tab_index)
-    ui_state.gender_tab_index = gender_idx
-
-    imgui.dummy(0, 4)
+    ly.gap_y(Sp.S1)
 
     # 获取模型路径
-    is_female = gender_idx == 1
-    model_key = get_model_key(selected_race, is_female)
-    model_files = CHARACTER_MODELS.get(model_key, [])
-    # 多姿势护甲使用姿势0的模型
-    model_path = os.path.join("resources", model_files[0]) if model_files else None
+    male_model_key = get_model_key(selected_race, False)
+    female_model_key = get_model_key(selected_race, True)
+    male_model_files = CHARACTER_MODELS.get(male_model_key, [])
+    female_model_files = CHARACTER_MODELS.get(female_model_key, [])
+    male_model_path = os.path.join("resources", male_model_files[0]) if male_model_files else None
+    female_model_path = os.path.join("resources", female_model_files[0]) if female_model_files else None
 
-    # 三列布局
-    available_width = imgui.get_content_region_available_width()
-    col_width = (available_width - ly.sz(3.5) * 2) / 3
+    # 每列 3 行: standing0 → standing1 → rest
+    male_slots = ["standing0", "standing1", "rest"]
+    female_slots = ["standing0_female", "standing1_female", "rest_female"]
 
-    imgui.columns(3, f"poses_{id_suffix}", False)
-    imgui.set_column_width(0, col_width)
-    imgui.set_column_width(1, col_width)
-    imgui.set_column_width(2, col_width)
+    with ly.columns(2, gap=_COL_GAP) as c:
+        canvas_sz = int(c.col_width)
 
-    if gender_idx == 0:
-        # 男性/默认版
-        _draw_pose_slot(char, "standing0", id_suffix, model_path, importer)
-        imgui.next_column()
-        _draw_pose_slot(char, "standing1", id_suffix, model_path, importer)
-        imgui.next_column()
-        _draw_pose_slot(char, "rest", id_suffix, model_path, importer)
-    else:
-        # 女性版
-        _draw_pose_slot(char, "standing0_female", id_suffix, model_path, importer)
-        imgui.next_column()
-        _draw_pose_slot(char, "standing1_female", id_suffix, model_path, importer)
-        imgui.next_column()
-        _draw_pose_slot(char, "rest_female", id_suffix, model_path, importer)
+        with c.col(0):
+            for i, slot_name in enumerate(male_slots):
+                if i > 0:
+                    ly.gap_y(Sp.S2)
+                _draw_pose_slot(char, slot_name, id_suffix, male_model_path, canvas_sz, importer)
 
-    imgui.columns(1)
+        with c.col(1):
+            for i, slot_name in enumerate(female_slots):
+                if i > 0:
+                    ly.gap_y(Sp.S2)
+                _draw_pose_slot(char, slot_name, id_suffix, female_model_path, canvas_sz, importer)
 
-    return selected_race, gender_idx
+    return selected_race
 
 
 # ============================================================================
@@ -360,7 +411,11 @@ def draw_textures_editor(
     item: AnyItemWithTextures,
     id_suffix: str,
 ) -> None:
-    """绘制贴图编辑器 - 通用实现
+    """绘制贴图编辑器 - 统一 2 列布局
+
+    结构:
+    1. 角色穿戴贴图 (护甲: 男|女, 武器: 右手|左手)
+    2. 物品栏 + 战利品 (左|右)
 
     Args:
         item: 物品对象（Weapon/Armor/HybridItemV2）
@@ -372,6 +427,7 @@ def draw_textures_editor(
             draw_multi_pose_armor_textures(
                 char, id_suffix, importer=ui_state.import_texture
             )
+            ly.gap_y(Sp.S3)
 
         case WeaponCharTexture() as char:
             # 确定姿势索引：单手武器用 0，双手武器用 1
@@ -383,20 +439,15 @@ def draw_textures_editor(
                 pose_index=pose_index,
                 importer=ui_state.import_texture,
             )
+            ly.gap_y(Sp.S3)
 
         case NoCharTexture():
-            tw.text_muted(imgui.text)(f"{item.slot} 槽位无需穿戴贴图")
+            pass
 
-    draw_indented_separator()
-
-    # 物品栏贴图
-    item.textures.inventory = draw_inventory_textures(
+    # 物品栏 + 战利品 2 列
+    item.textures.inventory = _draw_inv_loot_columns(
         item.textures.inventory,
+        item.textures.loot,
         id_suffix,
         importer=ui_state.import_texture,
     )
-
-    draw_indented_separator()
-
-    # 战利品贴图
-    draw_loot_textures(item.textures.loot, id_suffix, importer=ui_state.import_texture)

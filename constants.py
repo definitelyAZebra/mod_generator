@@ -634,7 +634,7 @@ CONSUMABLE_INSTANT_ATTRS = {
 }
 
 
-def get_attribute_groups(attr_list: list, group_order: list = None) -> dict:
+def get_attribute_groups(attr_list: list[str], group_order: list[str] | None = None) -> dict[str, list[str]]:
     """根据属性列表动态生成分组
 
     Args:

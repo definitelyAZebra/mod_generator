@@ -173,7 +173,7 @@ def load_fonts(renderer: Any) -> None:
             print(f"[fonts] 中文字体加载失败: {e}")
 
     # --- 3. 图标字体 (合并，等宽对齐) ---
-    # 使用 subset 字体 (fa-subset.ttf)，由 codegen/generate_icon_font.py 生成
+    # 使用完整 Font Awesome Solid 字体
     if icon_path:
         try:
             icon_cfg = imgui.core.FontConfig(

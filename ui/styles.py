@@ -76,7 +76,7 @@ AGENT_GUIDE = """
 ║  SEMANTIC (推荐优先使用):                                                    ║
 ║    文字: tw.text_bright/default/muted/subtle/faint                           ║
 ║    强调: tw.text_accent, tw.text_gold, tw.text_danger                        ║
-║    背景: tw.bg_app/surface/elevated/input                                    ║
+║    背景: tw.bg_app/surface/elevated/inset                                    ║
 ║    边框: tw.border_subtle/default/strong/interactive                         ║
 ║    按钮: tw.btn_primary/secondary/danger/success/warning                     ║
 ║                                                                              ║
@@ -185,7 +185,7 @@ class StyleContext:
 
     def __or__(self, other: StyleContext) -> StyleContext:
         """组合两个样式: style1 | style2"""
-        if not isinstance(other, StyleContext):
+        if not isinstance(other, StyleContext):  # pyright: ignore[reportUnnecessaryIsInstance]
             return NotImplemented
         return StyleContext._from_parts(
             self._actions + other._actions,
@@ -1037,16 +1037,16 @@ def apply_preflight() -> None:
     dpi = dpi_scale()
 
     # === 间距 - 全部归零 ===
-    style.window_padding = (0, 0)
-    style.frame_padding = (0, 0)
-    style.cell_padding = (0, 0)
-    style.item_spacing = (0, 0)
-    style.item_inner_spacing = (0, 0)
-    style.touch_extra_padding = (0, 0)
+    style.window_padding = (0, 0)  # type: ignore[assignment]
+    style.frame_padding = (0, 0)  # type: ignore[assignment]
+    style.cell_padding = (0, 0)  # type: ignore[assignment]
+    style.item_spacing = (0, 0)  # type: ignore[assignment]
+    style.item_inner_spacing = (0, 0)  # type: ignore[assignment]
+    style.touch_extra_padding = (0, 0)  # type: ignore[assignment]
     style.indent_spacing = 0
     style.scrollbar_size = 14 * dpi  # 滚动条需要最小尺寸才能用
     style.grab_min_size = 10 * dpi   # 抓取手柄需要最小尺寸
-    style.window_min_size = (1, 1)   # 最小窗口尺寸
+    style.window_min_size = (1, 1)   # type: ignore[assignment]  # 最小窗口尺寸
 
     # === 圆角 - 全部归零 ===
     style.window_rounding = 0
@@ -1068,9 +1068,9 @@ def apply_preflight() -> None:
     style.alpha = 1.0
 
     # === 对齐 ===
-    style.window_title_align = (0.0, 0.5)
-    style.button_text_align = (0.5, 0.5)
-    style.selectable_text_align = (0.0, 0.0)
+    style.window_title_align = (0.0, 0.5)  # type: ignore[assignment]
+    style.button_text_align = (0.5, 0.5)  # type: ignore[assignment]
+    style.selectable_text_align = (0.0, 0.0)  # type: ignore[assignment]
 
     # === 颜色 - 纯中性黑白灰 (真正的 preflight/reset) ===
     # 只有纯黑、纯灰、纯白，不带任何色调
@@ -1083,7 +1083,7 @@ def apply_preflight() -> None:
     white = (1.0, 1.0, 1.0, 1.0)
     transparent = (0.0, 0.0, 0.0, 0.0)
 
-    c = style.colors
+    c: Any = style.colors
     c[imgui.COLOR_TEXT] = white
     c[imgui.COLOR_TEXT_DISABLED] = gray_500
     c[imgui.COLOR_WINDOW_BACKGROUND] = black

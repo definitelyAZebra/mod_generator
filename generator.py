@@ -4,11 +4,12 @@
 
 包含 C# 模组代码生成器和贴图处理工具函数。
 """
+from __future__ import annotations
 
 import os
-import re
 import shutil
 from pathlib import Path
+from typing import Any
 
 try:
     from PIL import Image
@@ -21,10 +22,8 @@ from constants import (
     CONSUMABLE_INSTANT_ATTRS,
     DAMAGE_ATTRIBUTES,
     EXTRA_ORDER_ATTRS,
-    GAME_FPS,
     GML_ANCHOR_X,
     GML_ANCHOR_Y,
-    HYBRID_QUALITY_LABELS,
     LANGUAGE_LABELS,
     LANGUAGE_TO_ENUM_MAP,
     PRIMARY_LANGUAGE,
@@ -36,10 +35,17 @@ from constants import (
     VIEWPORT_CHAR_OFFSET_X,
     VIEWPORT_CHAR_OFFSET_Y,
 )
-from models import Armor, Item, ModProject, Weapon, QUALITY_ARTIFACT, QUALITY_UNIQUE, SpawnRule, SpawnMode, EquipmentMode, TriggerMode, ChargeMode
+from models import Armor, Item, ModProject, Weapon
+from specs import (
+    ArtifactQuality, UniqueQuality,
+    SkillTrigger, NoTrigger,
+    LimitedCharges, UnlimitedCharges,
+    ItemTexturesV2, WeaponCharTexture, MultiPoseCharTexture, NoCharTexture,
+    Origin, AbsoluteFps, RelativeSpeed,
+    WeaponEquip, ArmorEquip,
+)
 from hybrid_item_v2 import HybridItemV2
 from skill_constants import SKILL_OBJECTS  # <- 用于获取技能目标类型
-from specs import ItemTexturesV2, WeaponCharTexture, MultiPoseCharTexture, NoCharTexture, Origin, AbsoluteFps, RelativeSpeed
 
 # 武器/护甲属性生成辅助 <- moved to module level
 TIER_TO_ENUM = {1: "Tier1", 2: "Tier2", 3: "Tier3", 4: "Tier4", 5: "Tier5"}
@@ -48,8 +54,17 @@ WEIGHT_TO_ENUM = {
     "Light": "Light", "Medium": "Medium", "Heavy": "Heavy", "Net": "Net",
 }
 
+# HybridItemV2 辅助函数：检查装备类型
+def _is_weapon_equip(item: HybridItemV2) -> bool:
+    """检查混合物品是否为武器装备"""
+    return isinstance(item.equipment, WeaponEquip)
 
-def _compute_damage_type(attributes: dict) -> str:  # <- extracted helper
+def _is_armor_equip(item: HybridItemV2) -> bool:
+    """检查混合物品是否为护甲装备"""
+    return isinstance(item.equipment, ArmorEquip)
+
+
+def _compute_damage_type(attributes: dict[str, Any]) -> str:  # <- extracted helper
     """计算主伤害类型（最高值优先，无则默认 Slashing）"""
     damage_attrs = {k: v for k, v in attributes.items() if k in DAMAGE_ATTRIBUTES and v != 0}
     if not damage_attrs:
@@ -65,7 +80,7 @@ def _compute_damage_type(attributes: dict) -> str:  # <- extracted helper
 
 def calculate_crop_region(
     img_width: int, img_height: int, off_x: int, off_y: int
-) -> tuple:
+) -> tuple[int, int, int, int, bool]:
     """计算武器贴图的裁剪区域
 
     Args:
@@ -91,7 +106,7 @@ def calculate_crop_region(
     return crop_x1, crop_y1, crop_x2, crop_y2, is_valid
 
 
-def calculate_adjusted_offsets(off_x: int, off_y: int) -> tuple:
+def calculate_adjusted_offsets(off_x: int, off_y: int) -> tuple[int, int]:
     """计算真正裁剪后的调整偏移量 (旧版接口，保留兼容性)
 
     X方向最大有效偏移: VIEWPORT_CHAR_OFFSET_X = 8
@@ -127,7 +142,7 @@ def calculate_clamped_origin(origin: Origin) -> tuple[int, int] | None:
     return clamped_x, clamped_y
 
 
-def copy_texture(src_path: str, dst_path, mask_offsets: tuple = None) -> str | None:
+def copy_texture(src_path: str, dst_path: str | Path, mask_offsets: tuple[int, int] | None = None) -> str | None:
     """复制贴图文件，如果指定 mask_offsets 则根据有效范围进行裁剪
 
     Returns:
@@ -173,7 +188,7 @@ def copy_texture(src_path: str, dst_path, mask_offsets: tuple = None) -> str | N
 
 
 def copy_armor_pose_texture(
-    src_path: str, dst_path, off_x: int, off_y: int
+    src_path: str, dst_path: str | Path, off_x: int, off_y: int
 ) -> str | None:
     """复制护甲姿势贴图，通过裁剪+透明填充实现偏移效果
 
@@ -267,19 +282,19 @@ def copy_item_textures_v2(
     Returns:
         错误/警告信息列表
     """
-    errors = []
+    errors: list[str] = []
 
-    def _copy(src, dst, mask=None):
+    def _copy(src: str, dst: str | Path, mask: tuple[int, int] | None = None) -> None:
         err = copy_texture(src, dst, mask)
         if err:
             errors.append(err)
 
-    def _copy_armor_pose(src, dst, off_x, off_y):
+    def _copy_armor_pose(src: str, dst: str | Path, off_x: int, off_y: int) -> None:
         err = copy_armor_pose_texture(src, dst, off_x, off_y)
         if err:
             errors.append(err)
 
-    def _copy_texture_list(paths: list, prefix: str, mask=None):
+    def _copy_texture_list(paths: list[str], prefix: str, mask: tuple[int, int] | None = None) -> None:
         """复制贴图列表，根据长度决定命名方式"""
         if not paths:
             return
@@ -561,7 +576,7 @@ public partial class {code_namespace}
         }
 
         # 生成注入代码行
-        attr_lines = []
+        attr_lines: list[str] = []
         for attr_id, (en_text, zh_text) in missing_attrs.items():
             attr_lines.append(f'''            new LocalizationAttribute(
                 "{attr_id}",
@@ -610,6 +625,7 @@ public partial class {code_namespace}
             prefix = "Weapons"
             code = "        Msl.InjectTableWeapons(\n"
         else:
+            assert isinstance(item, Armor)
             prefix = "Armor"
             code = "        Msl.InjectTableArmor(\n"
             code += f"            hook: Msl.ArmorHook.{item.hook},\n"
@@ -668,7 +684,7 @@ public partial class {code_namespace}
         code += "                name: new Dictionary<ModLanguage, string>() {\n"
 
         required_langs = {PRIMARY_LANGUAGE}
-        if PRIMARY_LANGUAGE != "English":
+        if PRIMARY_LANGUAGE != "English":  # pyright: ignore[reportUnnecessaryComparison]
             required_langs.add("English")
 
         langs_to_generate = set(required_langs)
@@ -814,7 +830,7 @@ popz.v"""
         code += self._generate_hybrid_objects_code(item)
         code += self._generate_hybrid_events_code(item)
         # 武器/盾牌类 hybrid 需要偏移代码
-        if item.init_weapon_stats or (item.init_armor_stats and item.slot == "hand"):
+        if _is_weapon_equip(item) or (_is_armor_equip(item) and item.slot == "hand"):
             code += self._generate_hybrid_gml_offset_code(item)
         code += self._generate_hybrid_loot_animation_code(item)
         code += "    }\n\n"
@@ -831,7 +847,7 @@ popz.v"""
         loot_parent = item.get_loot_parent()
 
         # 确定材质枚举值（首字母大写）
-        if item.init_weapon_stats or item.init_armor_stats:
+        if _is_weapon_equip(item) or _is_armor_equip(item):
             material_enum = item.material.capitalize()
         else:
             material_enum = "Organic"
@@ -847,12 +863,12 @@ popz.v"""
         if "English" not in languages:
             languages = {"English": {"name": "", "description": ""}, **languages}
 
-        localization_entries = []
+        localization_entries: list[str] = []
         for lang, data in languages.items():
             name = data.get("name", "").replace('"', '\\"')
             localization_entries.append(f'                    {{ModLanguage.{lang}, "{name}"}}')
 
-        localization_desc_entries = []
+        localization_desc_entries: list[str] = []
         for lang, data in languages.items():
             desc = format_description(data.get("description", ""))
             localization_desc_entries.append(f'                    {{ModLanguage.{lang}, "{desc}"}}')
@@ -981,7 +997,7 @@ popz.v"""
         - 使用 ds_map_replace 写入 data（覆盖已有值或添加新值）
         - 父类 o_inv_consum.Alarm_0 会处理 charge/duration 的持久化和恢复
         """
-        lines = []
+        lines: list[str] = []
         lines.append("event_inherited();")
         lines.append("")
 
@@ -1001,14 +1017,14 @@ popz.v"""
         lines.append("")
 
         # ============== 品质设置 ==============
-        lines.append(f"quality = {item.quality};")
-        if item.quality == QUALITY_ARTIFACT:  # <- use constant
+        lines.append(f"quality = {item.quality_int};")
+        if isinstance(item.quality, ArtifactQuality):
             lines.append("// 品质: 文物")
             lines.append("shineDelay = room_speed * 2;")
             lines.append('ds_map_set(data, "quality", 7);')
             lines.append('ds_map_set(data, "Colour", make_colour_rgb(229, 193, 85));')
             lines.append("alarm[11] = shineDelay;")
-        elif item.quality == QUALITY_UNIQUE:  # <- use constant
+        elif isinstance(item.quality, UniqueQuality):
             lines.append("// 品质: 独特")
             lines.append('ds_map_set(data, "quality", 6);')
             lines.append('ds_map_set(data, "Colour", make_colour_rgb(130, 72, 188));')
@@ -1037,7 +1053,7 @@ popz.v"""
         if item.is_weapon:
             lines.append("is_weapon = true;")
 
-        if item.init_weapon_stats:
+        if _is_weapon_equip(item):
             lines.append("// 武器数值")
             lines.append(f'type = "{item.weapon_type}";')
             lines.append(f"Balance = {item.balance};")
@@ -1056,7 +1072,7 @@ popz.v"""
                 lines.append('ammunitionType = "arrow";')
             lines.append("")
 
-        if item.init_armor_stats:
+        if _is_armor_equip(item):
             lines.append("// 护甲数值")
             lines.append(f'type = "{item.armor_type}";')
             lines.append(f'armor_type = "{item.armor_class}";')
@@ -1144,17 +1160,17 @@ popz.v"""
         if item.has_durability:
             lines.append(f'ds_map_replace(data, "MaxDuration", {item.duration_max});')
 
-        if item.init_weapon_stats:
+        if _is_weapon_equip(item):
             best_type = _compute_damage_type(item.attributes)  # <- use helper
             lines.append(f'ds_map_replace(data, "DamageType", "{best_type}");')
             lines.append('ds_map_replace(data, "Metatype", "Weapon");')
 
-        if item.init_armor_stats:
+        if _is_armor_equip(item):
             lines.append('ds_map_replace(data, "Metatype", "Armor");')
             lines.append("ds_map_replace(data, \"Armor_Type\", Weight);")
 
-        if item.init_weapon_stats or item.init_armor_stats:
-            lines.append(f'ds_map_replace(data, "Suffix", string({item.quality}) + " " + type);')
+        if _is_weapon_equip(item) or _is_armor_equip(item):
+            lines.append(f'ds_map_replace(data, "Suffix", string({item.quality_int}) + " " + type);')
 
             # 生成 type_text（类型+稀有度文本）
             lines.append("")
@@ -1165,7 +1181,7 @@ popz.v"""
             lines.append('    ? ds_map_find_value_ext(global.consum_type, "treasure", "")')
             lines.append("    : scr_string_get_part(ds_list_find_value(global.rar_text, quality), 1);")
             # 静态判断：仅护甲且非 Ring/Amulet/Waist 时生成护甲等级文本逻辑
-            if item.init_armor_stats and item.armor_type not in ("Ring", "Amulet", "Waist"):
+            if _is_armor_equip(item) and item.armor_type not in ("Ring", "Amulet", "Waist"):
                 lines.append("var _class = ds_map_find_value(global.armor_class, Weight);")
                 lines.append('var _armor = !__is_undefined(_class) ? scr_string_get_part(_class, 1) + _space : "";')
             else:
@@ -1211,7 +1227,7 @@ if (_duration > _maxDuration)
     ds_map_replace(data, "Duration", _maxDuration);""")
 
         # 使用次数恢复逻辑
-        if item.has_charge_recovery and item.charge_mode == ChargeMode.LIMITED:
+        if item.has_charge_recovery and isinstance(item.charges, LimitedCharges):
             sections.append(f"""\
 // 使用次数恢复
 var _lastTurn = ds_map_find_value(data, "last_recovery_turn");
@@ -1232,7 +1248,7 @@ if (!is_undefined(_lastTurn)) {{
 }}""")
 
         # 技能释放状态跟踪
-        if item.trigger_mode == TriggerMode.SKILL:
+        if isinstance(item.trigger, SkillTrigger):
             skill_info = SKILL_OBJECTS[item.skill_object]
             is_no_target = skill_info.get("target", "") == "No Target"
 
@@ -1257,10 +1273,10 @@ if (!is_undefined(_lastTurn)) {{
         _was_successful = _active_skill.last_activated;"""
 
             # 成功时的处理逻辑
-            success_logic_parts = []
+            success_logic_parts: list[str] = []
 
             # 充能扣减
-            if item.charge_mode == ChargeMode.LIMITED:
+            if isinstance(item.charges, LimitedCharges):
                 charge_block = """\
 charge--;
             ds_map_replace(data, "charge", charge);"""
@@ -1290,8 +1306,8 @@ charge--;
             success_logic = "".join(success_logic_parts) if success_logic_parts else "// 无限模式：不扣减"
 
             # 销毁检查（集中处理次数和耐久）
-            destruction_parts = []
-            if item.delete_on_charge_zero and item.charge_mode == ChargeMode.LIMITED:
+            destruction_parts: list[str] = []
+            if item.delete_on_charge_zero and isinstance(item.charges, LimitedCharges):
                 destruction_parts.append("if (charge <= 0) { event_user(12); exit; }")
             if item.has_durability and item.destroy_on_durability_zero:
                 destruction_parts.append('if (ds_map_find_value(data, "Duration") <= 0) { event_user(12); exit; }')
@@ -1346,7 +1362,7 @@ if (!is_undefined(_active_skill)) {{
         lines.append("if (is_new) {")
         lines.append('    var _main = ds_map_find_value(data, "Main");')
 
-        if item.init_weapon_stats:
+        if _is_weapon_equip(item):
             damage_attrs = {k: v for k, v in attrs.items() if k in DAMAGE_ATTRIBUTES}
             total_dmg = sum(damage_attrs.values())
 
@@ -1364,7 +1380,7 @@ if (!is_undefined(_active_skill)) {{
                 else:
                     lines.append(f'    ds_map_add(data, "{attr}", {val});')
 
-        elif item.init_armor_stats:
+        elif _is_armor_equip(item):
             for attr, val in attrs.items():
                 if attr == "DEF":
                     lines.append(f'    ds_map_add(data, "DEF", {val});')
@@ -1386,13 +1402,13 @@ if (!is_undefined(_active_skill)) {{
         o_inv_consum.Other_10 会设置 sprite_index=s_inv_cell, matatype="heal", slot="heal" 等，
         并调用 event_user(1) 计算尺寸。
         """
-        lines = []
+        lines: list[str] = []
         lines.append("event_inherited();")
 
-        if item.init_weapon_stats:
+        if _is_weapon_equip(item):
             lines.append('matatype = "weapon";')
             lines.append(f'slot = "{item.slot}";')
-        elif item.init_armor_stats:
+        elif _is_armor_equip(item):
             lines.append('matatype = "armor";')
             lines.append(f'slot = "{item.slot}";')
         elif item.equipable:
@@ -1415,7 +1431,7 @@ if (!is_undefined(_active_skill)) {{
         注意：使用次数由 o_hoverHybrid 的 Other_20 通过 chargesLeft/Right 显示，
         这里只处理冷却时间（因为 Other_20 不处理冷却）。
         """
-        lines = []  # <- removed dead 'if lines' check
+        lines: list[str] = []  # <- removed dead 'if lines' check
 
         # 完整的 switch 结构（基于 o_inv_slot.Other_13）
         lines.append("switch (guiInteractiveState) {")
@@ -1458,7 +1474,7 @@ if (!is_undefined(_active_skill)) {{
         lines.append('        if (ds_map_find_value_ext(data, "identified", true)) {')
 
         # 根据物品类型选择 hover 类型
-        if item.init_weapon_stats or item.init_armor_stats:
+        if _is_weapon_equip(item) or _is_armor_equip(item):
             # 武器/护甲类：使用 o_hoverHybrid + 对比逻辑
             lines.append("            // 武器/护甲类混合物品：使用混合 hover")
             lines.append("            var _comparisonID = scr_hoverWeaponGetComparisonID(id);")
@@ -1523,10 +1539,10 @@ if (!is_undefined(_active_skill)) {{
         - "skill": 技能释放
         """
         # 未勾选使用次数或模式为 none 时，生成空白代码
-        if not item.has_charges or item.trigger_mode == TriggerMode.NONE:
+        if not item.has_charges or isinstance(item.trigger, NoTrigger):
             return "// 空白 Other_24（未启用主动效果）"
 
-        lines = []
+        lines: list[str] = []
 
         # 通用充能检查
         lines.append("// 充能检查")
@@ -1545,7 +1561,7 @@ if (!is_undefined(_active_skill)) {{
 
         # ====== 根据模式生成不同的效果代码 ======
 
-        if item.trigger_mode == TriggerMode.SKILL:
+        if isinstance(item.trigger, SkillTrigger):
             # 技能释放模式
             lines.append("// 技能释放模式")
 
@@ -1657,7 +1673,7 @@ if (!is_undefined(_active_skill)) {{
 
             # 消耗品模式：充能和耐久扣减（has_charges 在此代码路径必定为 true）
             # 无消耗模式下跳过充能扣减
-            if item.charge_mode != ChargeMode.UNLIMITED:
+            if not isinstance(item.charges, UnlimitedCharges):
                 lines.append("charge--;")
                 lines.append("ds_map_replace(data, \"charge\", charge);")
 
@@ -1793,7 +1809,7 @@ popz.v"""
         # 创建分组索引
         group_order_map = {g: i for i, g in enumerate(DEFAULT_GROUP_ORDER)}
 
-        def get_sort_key(attr):
+        def get_sort_key(attr: str) -> int:
             group = ATTRIBUTE_TO_GROUP.get(attr, "其他")
             return group_order_map.get(group, len(DEFAULT_GROUP_ORDER))
 
@@ -1833,7 +1849,7 @@ popz.v"""
         用于绘制消耗品属性，为非即时效果属性显示持续时间
         """
         # 收集所有即时效果属性
-        instant_attrs = []
+        instant_attrs: list[str] = []
         for attrs in CONSUMABLE_INSTANT_ATTRS.values():
             instant_attrs.extend(attrs)
         instant_attrs_str = ", ".join(f'"{attr}"' for attr in instant_attrs)
@@ -3319,12 +3335,12 @@ if (!is_undefined(argument0) && variable_struct_exists(global.hybrid_item_regist
             return ""
 
         # 生成混合物品数据数组
-        item_entries = []
+        item_entries: list[str] = []
         for h in self.registered_hybrids:
             # 确定槽位
-            if h.equipment_mode == EquipmentMode.WEAPON:
+            if isinstance(h.equipment, WeaponEquip):
                 slot = h.weapon_type
-            elif h.equipment_mode == EquipmentMode.ARMOR:
+            elif isinstance(h.equipment, ArmorEquip):
                 slot = h.armor_type
             else:
                 slot = h.slot
@@ -3333,7 +3349,7 @@ if (!is_undefined(argument0) && variable_struct_exists(global.hybrid_item_regist
             item_entries.append(
                 f'[\"\"{h.id}\"\", \"\"{slot}\"\", {h.tier}, \"\"{h.material}\"\", '
                 f'\"\"{h.effective_tags}\"\", \"\"{h.container_spawn.value}\"\", \"\"{h.shop_spawn.value}\"\", '
-                f'\"\"{h.equipment_mode.value}\"\", {h.quality}]'
+                f'\"\"{h.equipment_mode_value}\"\", {h.quality_int}]'
             )
 
         items_array = ", ".join(item_entries)

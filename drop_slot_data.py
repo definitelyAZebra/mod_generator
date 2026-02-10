@@ -7,7 +7,7 @@ Drop Slot 匹配数据模块
 """
 
 from functools import lru_cache
-from typing import Dict, List, Tuple, Set
+from typing import Any, Dict, List, Tuple, Set
 
 from drop_slot_index import SLOT_METADATA, TIER_INDEX, EQ_METADATA, EQ_TIER_INDEX
 
@@ -165,7 +165,7 @@ def _tags_match_equipment(item_tags: Set[str], slot_tags_str: str) -> bool:
 
 
 @lru_cache(maxsize=256)
-def find_matching_slots(cat: str, subcats: Tuple[str, ...], item_tags: Tuple[str, ...], tier: int) -> Tuple[dict, ...]:
+def find_matching_slots(cat: str, subcats: Tuple[str, ...], item_tags: Tuple[str, ...], tier: int) -> Tuple[dict[str, Any], ...]:
     """查询非装备物品可能出现的所有 drop slots
 
     Args:
@@ -222,7 +222,7 @@ def find_matching_slots(cat: str, subcats: Tuple[str, ...], item_tags: Tuple[str
 
 
 @lru_cache(maxsize=256)
-def find_matching_eq_slots(eq_category: str, item_tags: Tuple[str, ...], tier: int) -> Tuple[dict, ...]:
+def find_matching_eq_slots(eq_category: str, item_tags: Tuple[str, ...], tier: int) -> Tuple[dict[str, Any], ...]:
     """查询装备物品可能出现的所有 equipment drop slots
 
     Args:

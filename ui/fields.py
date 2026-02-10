@@ -35,11 +35,11 @@ field_flow()    自然宽度流式布局 — 每个字段指定自己的宽度�
 
     # 自然宽度流式布局 (niri 风格)
     with field_flow():
-        enum_field("品质", "##q", q, labels, width=40)   # 160px
-        enum_field("等级", "##t", t, labels, width=25)   # 100px
-        int_field("价格", "##p", p, width=25)             # 100px
-        enum_field("重量", "##w", w, labels, width=35)   # 140px
-        enum_field("材质", "##m", m, labels, width=35)   # 140px
+        enum_field("品质", "##q", q, labels, width=Sp.S40)   # 160px
+        enum_field("等级", "##t", t, labels, width=Sp.S24)   # 96px
+        int_field("价格", "##p", p, width=Sp.S24)             # 96px
+        enum_field("重量", "##w", w, labels, width=Sp.S36)   # 144px
+        enum_field("材质", "##m", m, labels, width=Sp.S36)   # 144px
     # → 所有字段在一行内 (640px < 容器宽度)，窄屏自动换行
 """
 
@@ -47,11 +47,11 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypeVar
 
 from ui import imgui_shim as imgui
-from ui.layout import sz, gap_y, tooltip
-from ui.state import dpi_scale as _dpi_scale
+from ui.layout import gap_y, tooltip
+from ui.scale import Sp, SpacingArg, SizingArg, dp
 
 
 # =============================================================================
@@ -92,7 +92,10 @@ class _FieldFlowState:
 _row_stack: list[_FieldRowState | _FieldFlowState] = []
 
 
-def _clamp(v, lo, hi):
+_T = TypeVar('_T', int, float)
+
+
+def _clamp(v: _T, lo: _T | None, hi: _T | None) -> _T:
     """Clamp 值到 [lo, hi] 范围，None 表示不限"""
     if lo is not None and v < lo:
         return lo
@@ -106,7 +109,7 @@ def _clamp(v, lo, hi):
 # =============================================================================
 
 @contextmanager
-def field_row(cols: int, *, width: float = 26, gap: float = 2):
+def field_row(cols: int, *, width: SizingArg = Sp.S28, gap: SpacingArg = Sp.S2):
     """N 列表单字段行
 
     每个 field_* 函数自动占用下一列，渲染 label (上) + control (下)。
@@ -116,8 +119,8 @@ def field_row(cols: int, *, width: float = 26, gap: float = 2):
 
     Args:
         cols: 最大列数
-        width: 列宽 (tw 单位, 26 = 104px)
-        gap: 列间距 (tw 单位, 2 = 8px)
+        width: 列宽 (Sp token, Sp.S28 = 112px)
+        gap: 列间距 (Sp token, Sp.S2 = 8px)
 
     用法::
 
@@ -131,8 +134,8 @@ def field_row(cols: int, *, width: float = 26, gap: float = 2):
     state = _FieldRowState(
         start_x=cursor.x,
         start_y=cursor.y,
-        col_width=sz(width),
-        gap_px=sz(gap),
+        col_width=dp(width),
+        gap_px=dp(gap),
         num_cols=cols,
     )
     _row_stack.append(state)
@@ -149,7 +152,7 @@ def field_row(cols: int, *, width: float = 26, gap: float = 2):
 # =============================================================================
 
 @contextmanager
-def field_flow(*, gap: float = 2, row_gap: float = 3, default_width: float = 26):
+def field_flow(*, gap: SpacingArg = Sp.S2, row_gap: SpacingArg = Sp.S3, default_width: SizingArg = Sp.S28):
     """自然宽度流式布局 — 每个字段指定自己的宽度，自动换行
 
     类似 CSS flex-wrap: wrap。字段按自然宽度排列，超出容器宽度时自动换行。
@@ -157,16 +160,16 @@ def field_flow(*, gap: float = 2, row_gap: float = 3, default_width: float = 26)
     ⚠️ 容器类型: 纯 cursor 定位 (无 Child/Group/Table)
 
     Args:
-        gap: 字段间距 (tw 单位, 2 = 8px)
-        row_gap: 行间距 (tw 单位, 3 = 12px)
-        default_width: 未指定 width 时的默认字段宽度 (tw 单位, 26 = 104px)
+        gap: 字段间距 (Sp token, Sp.S2 = 8px)
+        row_gap: 行间距 (Sp token, Sp.S3 = 12px)
+        default_width: 未指定 width 时的默认字段宽度 (Sp token, Sp.S28 = 112px)
 
     用法::
 
         with field_flow():
-            enum_field("品质", "##q", q, labels, width=40)   # 160px
-            enum_field("等级", "##t", t, labels, width=25)   # 100px
-            int_field("价格", "##p", p, width=25)             # 100px
+            enum_field("品质", "##q", q, labels, width=Sp.S40)   # 160px
+            enum_field("等级", "##t", t, labels, width=Sp.S24)   # 96px
+            int_field("价格", "##p", p, width=Sp.S24)             # 96px
             # → 一行放得下就一行，放不下自动换行
     """
     cursor = imgui.get_cursor_pos()
@@ -175,9 +178,9 @@ def field_flow(*, gap: float = 2, row_gap: float = 3, default_width: float = 26)
         start_x=cursor.x,
         start_y=cursor.y,
         available_width=avail,
-        gap_px=sz(gap),
-        row_gap_px=sz(row_gap),
-        default_width=sz(default_width),
+        gap_px=dp(gap),
+        row_gap_px=dp(row_gap),
+        default_width=dp(default_width),
     )
     _row_stack.append(state)
     try:
@@ -189,28 +192,28 @@ def field_flow(*, gap: float = 2, row_gap: float = 3, default_width: float = 26)
         imgui.set_cursor_pos((state.start_x, state.start_y + total))
 
 
-def set_next_field_width(width: float) -> None:
-    """设置下一个 field 的宽度 (tw 单位)
+def set_next_field_width(width: SizingArg) -> None:
+    """设置下一个 field 的宽度 (Sp/Cn token)
 
     仅在 field_flow() 内有效。field_row 内忽略。
 
     Args:
-        width: 字段宽度 (tw 单位, 如 40 = 160px)
+        width: 字段宽度 (Sp token, 如 Sp.S40 = 160px)
     """
     if _row_stack and isinstance(_row_stack[-1], _FieldFlowState):
-        _row_stack[-1]._next_width = sz(width)
+        _row_stack[-1]._next_width = dp(width)  # pyright: ignore[reportPrivateUsage]
 
 
 # =============================================================================
 # 内部: 字段 begin/end
 # =============================================================================
 
-def _begin_field(label: str, *, width: float | None = None) -> float:
+def _begin_field(label: str, *, width: SizingArg | None = None) -> float:
     """开始一个字段单元格: 定位到当前列, 画标签, 设置控件宽度。
 
     Args:
         label: 标签文字
-        width: 字段宽度 (tw 单位)。仅 field_flow 模式使用，field_row 忽略。
+        width: 字段宽度 (Sp/Cn token)。仅 field_flow 模式使用，field_row 忽略。
 
     Returns:
         列宽 (px), 可用于自定义控件的 set_next_item_width
@@ -234,7 +237,7 @@ def _begin_field_row(state: _FieldRowState, label: str) -> float:
 
     from ui import tw as _tw
     _tw.text_muted(imgui.text)(label)
-    gap_y(0.5)
+    gap_y(Sp.S0_5)
 
     # 控件默认样式: 背景 + 边框 + 圆角
     _tw.input_default.__enter__()
@@ -243,14 +246,14 @@ def _begin_field_row(state: _FieldRowState, label: str) -> float:
     return state.col_width
 
 
-def _begin_field_flow(state: _FieldFlowState, label: str, width_tw: float | None) -> float:
+def _begin_field_flow(state: _FieldFlowState, label: str, width_tw: SizingArg | None) -> float:
     """field_flow 模式: 自然宽度 + 自动换行"""
     # 确定本 field 的宽度
-    if state._next_width is not None:
-        field_w = state._next_width
-        state._next_width = None
+    if state._next_width is not None:  # pyright: ignore[reportPrivateUsage]
+        field_w = state._next_width  # pyright: ignore[reportPrivateUsage]
+        state._next_width = None  # pyright: ignore[reportPrivateUsage]
     elif width_tw is not None:
-        field_w = sz(width_tw)
+        field_w = dp(width_tw)
     else:
         field_w = state.default_width
 
@@ -268,7 +271,7 @@ def _begin_field_flow(state: _FieldFlowState, label: str, width_tw: float | None
 
     from ui import tw as _tw
     _tw.text_muted(imgui.text)(label)
-    gap_y(0.5)
+    gap_y(Sp.S0_5)
 
     # 控件默认样式: 背景 + 边框 + 圆角
     _tw.input_default.__enter__()
@@ -304,10 +307,10 @@ def enum_field(
     label: str,
     id: str,
     value: Any,
-    options: list | dict,
-    labels: dict | None = None,
+    options: list[Any] | dict[Any, str],
+    labels: dict[Any, str] | None = None,
     *,
-    width: float | None = None,
+    width: SizingArg | None = None,
     tooltip_text: str | None = None,
 ) -> tuple[bool, Any]:
     """枚举下拉框字段
@@ -359,7 +362,7 @@ def int_field(
     id: str,
     value: int,
     *,
-    width: float | None = None,
+    width: SizingArg | None = None,
     vmin: int | None = None,
     vmax: int | None = None,
     step: int = 0,
@@ -399,7 +402,7 @@ def toggle_field(
     id: str,
     value: bool,
     *,
-    width: float | None = None,
+    width: SizingArg | None = None,
     tooltip_text: str | None = None,
 ) -> tuple[bool, bool]:
     """布尔开关 (checkbox) 字段
@@ -422,7 +425,7 @@ def readonly_field(
     label: str,
     value: str,
     *,
-    width: float | None = None,
+    width: SizingArg | None = None,
     tooltip_text: str | None = None,
 ) -> None:
     """只读文本显示字段"""
@@ -442,7 +445,7 @@ def text_field(
     id: str,
     value: str,
     *,
-    width: float | None = None,
+    width: SizingArg | None = None,
     buffer_size: int = 256,
     tooltip_text: str | None = None,
 ) -> tuple[bool, str]:
@@ -473,7 +476,7 @@ def button_field(
     label: str,
     btn_label: str,
     *,
-    width: float | None = None,
+    width: SizingArg | None = None,
     tooltip_text: str | None = None,
 ) -> bool:
     """按钮字段
@@ -493,7 +496,7 @@ def button_field(
 
 
 @contextmanager
-def field_slot(label: str, *, width: float | None = None, tooltip_text: str | None = None):
+def field_slot(label: str, *, width: SizingArg | None = None, tooltip_text: str | None = None):
     """自定义字段槽位 — 标签由 field_slot 绘制, 控件由用户提供
 
     适用于标准 field 函数无法覆盖的复杂控件 (如树形选择器)。

@@ -174,11 +174,13 @@ def _draw_welcome_screen():
     from ui import layout as ly
     from ui.icons import FA_FOLDER_OPEN, FA_SWORD, FA_SHIELD, FA_FLASK, FA_PLUS
     from ui.dialogs import open_project_dialog
+    from ui.scale import Sp, Cn, dp
+    from ui.state import dpi_scale
 
     # 手动居中计算
     avail = imgui.get_content_region_available()
-    card_width = ly.sz(120)  # 480px
-    card_height = ly.sz(100)  # 400px (减少高度因为删除了快速指南)
+    card_width = dp(Cn.CSM)        # 480px
+    card_height = 400 * dpi_scale()  # 无精确 Cn 匹配
 
     start_x = (avail.x - card_width) / 2
     start_y = (avail.y - card_height) / 2
@@ -194,30 +196,30 @@ def _draw_welcome_screen():
         with tw.text_crystal_500 | tw.text_xl:
             ly.text_center(f"{FA_SWORD}  {FA_SHIELD}  {FA_FLASK}")
 
-        ly.gap_y(4)
+        ly.gap_y(Sp.S4)
 
         # ===== 主标题 =====
         with tw.text_parchment_50 | tw.text_2xl:
             ly.text_center("Stoneshard 装备模组编辑器")
 
-        ly.gap_y(2)
+        ly.gap_y(Sp.S2)
 
         # ===== 副标题 =====
         with tw.text_parchment_400 | tw.text_sm:
             ly.text_center("武器、装备、混合物品模组的可视化创建工具")
 
-        ly.gap_y(8)
+        ly.gap_y(Sp.S8)
 
         # ===== 分隔线 =====
         _draw_simple_divider()
 
-        ly.gap_y(8)
+        ly.gap_y(Sp.S8)
 
         # ===== 操作标题 =====
         with tw.text_goldrim_500 | tw.text_lg:
             ly.text_center("开始使用")
 
-        ly.gap_y(6)
+        ly.gap_y(Sp.S6)
 
         # ===== 按钮组 =====
         with ly.auto_hcenter():
@@ -227,13 +229,13 @@ def _draw_welcome_screen():
                 if project := dialogs.new_project_dialog():
                     ui_state.set_project(project)
 
-            ly.same_line(3)
+            ly.same_line(Sp.S3)
 
             if (tw.btn_secondary | tw.rounded_lg | tw.border_abyss_600 | tw.frame_border_size(1) | tw.btn_md)(imgui.button)(f"{FA_FOLDER_OPEN}  打开项目"):
                 if project := open_project_dialog():
                     ui_state.set_project(project)
 
-        ly.gap_y(8)
+        ly.gap_y(Sp.S8)
 
         # ===== 底部提示 =====
         with tw.text_parchment_600 | tw.text_xs:

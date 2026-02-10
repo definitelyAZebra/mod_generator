@@ -14,6 +14,7 @@ from __future__ import annotations
 from ui import imgui_shim as imgui
 from ui import tw
 from ui import layout as ly
+from ui.scale import Sp, dp
 from ui.layout import tooltip
 from ui.fields import (
     field_row, enum_field, int_field, toggle_field,
@@ -25,6 +26,7 @@ from constants import HYBRID_WEAPON_TYPES, HYBRID_ARMOR_TYPES
 from specs import (
     WeaponEquip, ArmorEquip, CharmEquip, NotEquipable,
     is_weapon_mode, is_armor_mode, is_charm_mode,
+    char_texture_for_equipment,
     HasDurability,
     NoTrigger, EffectTrigger, SkillTrigger,
     NoCharges, LimitedCharges, UnlimitedCharges,
@@ -97,6 +99,16 @@ def _get_durability(hybrid: HybridItemV2) -> HasDurability | None:
     return None
 
 
+def _sync_char_texture(hybrid: HybridItemV2) -> None:
+    """同步 textures.char 类型与当前 equipment 匹配
+
+    仅在类型不一致时替换，避免丢弃用户已设置的贴图数据。
+    """
+    expected = char_texture_for_equipment(hybrid.equipment)
+    if type(hybrid.textures.char) is not type(expected):
+        hybrid.textures.char = expected
+
+
 # 技能搜索框缓存
 _skill_search_buf: str = ""
 
@@ -105,20 +117,30 @@ _skill_search_buf: str = ""
 # 主入口
 # =============================================================================
 
-def draw_behavior_panel(hybrid: HybridItemV2) -> None:
-    """绘制装备与触发面板"""
+def draw_behavior_panel(hybrid: HybridItemV2, *, flex_extra: float = 0) -> None:
+    """绘制装备与触发面板
+
+    Args:
+        hybrid: 混合物品数据对象
+        flex_extra: 由 equal_height_row 传入的剩余拉伸空间,
+                   在面板底部以 dummy 填充使卡片撑满等高行.
+    """
     _draw_equipment_section(hybrid)
 
-    ly.gap_y(4)
+    ly.gap_y(Sp.S4)
     _draw_trigger_section(hybrid)
 
     if hybrid.has_durability:
-        ly.gap_y(4)
+        ly.gap_y(Sp.S4)
         _draw_durability_section(hybrid)
 
     if charge_has_charges(hybrid.charges):
-        ly.gap_y(4)
+        ly.gap_y(Sp.S4)
         _draw_charges_section(hybrid)
+
+    # flex 填充: 短列底部空白撑满等高行
+    if flex_extra > 2:
+        imgui.dummy(0, flex_extra)
 
 
 # =============================================================================
@@ -142,6 +164,7 @@ def _draw_equipment_section(hybrid: HybridItemV2) -> None:
                     hybrid.equipment = CharmEquip()
                 case _:
                     hybrid.equipment = NotEquipable()
+            _sync_char_texture(hybrid)
 
         if is_weapon_mode(hybrid.equipment):
             assert isinstance(hybrid.equipment, WeaponEquip)
@@ -168,6 +191,7 @@ def _draw_equipment_section(hybrid: HybridItemV2) -> None:
             )
             if ch:
                 object.__setattr__(eq, "armor_type", new_at)
+                _sync_char_texture(hybrid)
 
             readonly_field("护甲分类", hybrid.armor_class)
 
@@ -176,7 +200,7 @@ def _draw_equipment_section(hybrid: HybridItemV2) -> None:
 
     # 碎片内联网格 (仅护甲非饰品)
     if is_armor_mode(hybrid.equipment) and hybrid.slot not in ["hand", "Ring", "Amulet"]:
-        ly.gap_y(2)
+        ly.gap_y(Sp.S2)
         _draw_fragments_inline(hybrid)
 
 
@@ -259,7 +283,7 @@ def _draw_skill_picker(trigger: SkillTrigger) -> None:
                     continue
 
                 # 分支标题
-                ly.gap_y(0.5)
+                ly.gap_y(Sp.S0_5)
                 tw.text_accent(imgui.text)(branch_label)
 
                 # 技能列表
@@ -350,7 +374,7 @@ def _draw_charges_section(hybrid: HybridItemV2) -> None:
 
     # --- 第二行: 恢复/终止 (仅有限次数) ---
     if isinstance(hybrid.charges, LimitedCharges):
-        ly.gap_y(2)
+        ly.gap_y(Sp.S2)
         _draw_recovery_row(hybrid)
 
 
@@ -415,11 +439,11 @@ def _draw_fragments_inline(hybrid: HybridItemV2) -> None:
     Tailwind: grid grid-cols-4 gap-2, 每格 label + input
     """
     tw.text_muted(imgui.text)("拆解碎片")
-    ly.gap_y(1)
+    ly.gap_y(Sp.S1)
 
-    input_w = ly.sz(14)     # 56px 固定输入宽度
-    cell_px = ly.sz(2)      # 8px 列间距
-    cell_py = ly.sz(0.75)   # 3px 行间距
+    input_w = dp(Sp.S14)    # 56px 固定输入宽度
+    cell_px = dp(Sp.S2)     # 8px 列间距
+    cell_py = dp(Sp.S1)     # 4px 行间距
     cols_per_row = 4
     table_cols = cols_per_row * 2  # label + input per logical column
 

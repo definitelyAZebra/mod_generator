@@ -34,7 +34,6 @@ from __future__ import annotations
 
 import os
 import time
-from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Callable, TYPE_CHECKING
 
@@ -49,10 +48,10 @@ from constants import (
 )
 from specs import Origin, AbsoluteFps, RelativeSpeed
 from ui.dialogs import file_dialog
+from ui import layout as ly
 from ui.layout import tooltip
-from ui.state import dpi_scale
+from ui.scale import Sp, dp
 from ui import tw
-from ui.styles import StyleContext
 
 if TYPE_CHECKING:
     from ui.canvas import InfiniteCanvas, CanvasOutput
@@ -158,18 +157,13 @@ def tab_index(
 
     for i, label in enumerate(labels):
         if i > 0:
-            imgui.same_line()
+            imgui.same_line(0, dp(Sp.S1))
 
         is_selected = (i == state.index)
+        style = tw.btn_primary | tw.btn_xs if is_selected else tw.btn_secondary | tw.btn_xs
 
-        if is_selected and accent_color:
-            imgui.push_style_color(imgui.COLOR_BUTTON, *accent_color)
-
-        if imgui.button(f"{label}##{id_suffix}_{i}"):
+        if style(imgui.button)(f"{label}##{id_suffix}_{i}"):
             state.index = i
-
-        if is_selected and accent_color:
-            imgui.pop_style_color()
 
     return state.index
 
@@ -205,22 +199,21 @@ def origin_input(
             f"默认 ({CHAR_MODEL_ORIGIN[0]}, {CHAR_MODEL_ORIGIN[1]}) 与人体模型对齐。"
         )
 
-    imgui.text(label)
+    tw.text_muted(imgui.text)(label)
     tooltip(tooltip_text)
 
-    imgui.push_item_width(150)
+    with tw.input_default:
+        imgui.push_item_width(dp(Sp.S16))
 
-    changed_x, new_x = imgui.input_int(f"X##{id_suffix}_x", origin.x)
-    tooltip(f"默认 {CHAR_MODEL_ORIGIN[0]}。值越小，装备越向右偏移。")
+        changed_x, new_x = imgui.input_int(f"X##{id_suffix}_x", origin.x)
+        tooltip(f"默认 {CHAR_MODEL_ORIGIN[0]}。值越小，装备越向右偏移。")
 
-    imgui.same_line()
-    imgui.dummy(10, 0)
-    imgui.same_line()
+        imgui.same_line(0, dp(Sp.S2))
 
-    changed_y, new_y = imgui.input_int(f"Y##{id_suffix}_y", origin.y)
-    tooltip(f"默认 {CHAR_MODEL_ORIGIN[1]}。值越小，装备越向下偏移。")
+        changed_y, new_y = imgui.input_int(f"Y##{id_suffix}_y", origin.y)
+        tooltip(f"默认 {CHAR_MODEL_ORIGIN[1]}。值越小，装备越向下偏移。")
 
-    imgui.pop_item_width()
+        imgui.pop_item_width()
 
     if changed_x or changed_y:
         return Origin(new_x, new_y)
@@ -313,24 +306,24 @@ def single_texture_input(
 
     if path:
         # 已设置状态
-        if imgui.button(f"更换##{id_suffix}"):
+        if (tw.btn_secondary | tw.btn_xs)(imgui.button)(f"更换##{id_suffix}"):
             selected = file_dialog([("PNG文件", "*.png")])
             if selected and isinstance(selected, str):
                 result = importer(selected) if importer else selected
 
-        imgui.same_line()
+        imgui.same_line(0, dp(Sp.S1))
 
-        if imgui.button(f"清除##{id_suffix}"):
+        if (tw.btn_danger | tw.btn_xs)(imgui.button)(f"清除##{id_suffix}"):
             result = ""
 
-        imgui.same_line()
+        imgui.same_line(0, dp(Sp.S1))
         filename = os.path.basename(path)
         tw.text_muted(imgui.text)(filename)
         if imgui.is_item_hovered():
             imgui.set_tooltip(path)
     else:
         # 未设置状态
-        if imgui.button(f"选择...##{id_suffix}"):
+        if (tw.btn_secondary | tw.btn_xs)(imgui.button)(f"选择...##{id_suffix}"):
             selected = file_dialog([("PNG文件", "*.png")])
             if selected and isinstance(selected, str):
                 result = importer(selected) if importer else selected
@@ -378,21 +371,21 @@ def loot_speed_input(
             speed.fps,
             step=1.0,
             step_fast=5.0,
-            format="%.1f",
+            format_="%.1f",
         )
         if changed:
             speed.fps = max(0.1, new_fps)
         imgui.pop_item_width()
         tooltip("每秒播放的帧数。\n这是一个固定值，不会随游戏速度变化。\n默认值: 10")
 
-    elif isinstance(speed, RelativeSpeed):
+    elif isinstance(speed, RelativeSpeed):  # pyright: ignore[reportUnnecessaryIsInstance]
         imgui.push_item_width(180)
         changed, new_mult = imgui.input_float(
             f"速度倍率##{id_suffix}_mult",
             speed.multiplier,
             step=0.01,
             step_fast=0.1,
-            format="%.3f",
+            format_="%.3f",
         )
         if changed:
             speed.multiplier = max(0.001, round(new_mult, 3))
@@ -427,13 +420,14 @@ def model_combo(id_suffix: str, current: str) -> str:
     """
     current_label = CHARACTER_MODEL_LABELS.get(current, current)
 
-    imgui.push_item_width(120)
-    if imgui.begin_combo(f"模特##{id_suffix}", current_label):
-        for model_key, model_label in CHARACTER_MODEL_LABELS.items():
-            if imgui.selectable(model_label, model_key == current)[0]:
-                current = model_key
-        imgui.end_combo()
-    imgui.pop_item_width()
+    with tw.input_default:
+        imgui.push_item_width(dp(Sp.S32))
+        if imgui.begin_combo(f"▼模特##{id_suffix}", current_label):
+            for model_key, model_label in CHARACTER_MODEL_LABELS.items():
+                if imgui.selectable(model_label, model_key == current)[0]:
+                    current = model_key
+            imgui.end_combo()
+        imgui.pop_item_width()
 
     return current
 
@@ -450,14 +444,15 @@ def race_combo(id_suffix: str, current: str) -> str:
     """
     current_label = CHARACTER_RACE_LABELS.get(current, current)
 
-    imgui.push_item_width(80)
-    if imgui.begin_combo(f"人种##{id_suffix}", current_label):
-        for race in CHARACTER_RACES:
-            label = CHARACTER_RACE_LABELS.get(race, race)
-            if imgui.selectable(label, race == current)[0]:
-                current = race
-        imgui.end_combo()
-    imgui.pop_item_width()
+    with tw.input_default:
+        imgui.push_item_width(dp(Sp.S20))
+        if imgui.begin_combo(f"人种##{id_suffix}", current_label):
+            for race in CHARACTER_RACES:
+                label = CHARACTER_RACE_LABELS.get(race, race)
+                if imgui.selectable(label, race == current)[0]:
+                    current = race
+            imgui.end_combo()
+        imgui.pop_item_width()
 
     return current
 
@@ -468,12 +463,12 @@ def race_combo(id_suffix: str, current: str) -> str:
 
 
 # 画布实例缓存
-_preview_canvases: dict[str, "InfiniteCanvas"] = {}
+_preview_canvases: dict[str, InfiniteCanvas] = {}
 # 上次预览的内容路径（用于检测内容变更并重置视口）
 _preview_last_paths: dict[str, str] = {}
 
 
-def _get_preview_canvas(id_suffix: str, content_path: str = "") -> "InfiniteCanvas":
+def _get_preview_canvas(id_suffix: str, content_path: str = "") -> InfiniteCanvas:
     """获取或创建预览画布
 
     当 content_path 变化时自动重置画布视口，避免不同物品共用缩放状态。
@@ -498,7 +493,7 @@ def texture_preview(
     size: tuple[int, int] | None = None,
     draggable: bool = False,
     layer_select: bool = False,
-) -> "CanvasOutput":
+) -> CanvasOutput:
     """贴图预览控件
 
     Args:
@@ -514,7 +509,7 @@ def texture_preview(
         CanvasOutput 包含交互信息
     """
     from ui.canvas import (
-        InfiniteCanvas, CanvasOutput, CanvasItem,
+        InfiniteCanvas as InfiniteCanvas, CanvasOutput as CanvasOutput, CanvasItem,
         centered_sprite_item, char_sprite_item, char_model_item,
     )
     from ui.texture_manager import load_texture
@@ -596,14 +591,28 @@ def frame_strip(
     animated: bool = True,
     fps: float = 10.0,
     importer: Callable[[str], str] | None = None,
+    max_width: float = 0,
 ) -> tuple[list[str], int]:
     """帧条控件 - 多帧管理 + 帧选择
 
-    渲染帧缩略图条 + 控制按钮：
-    - 点击帧：切换预览
-    - 悬停帧：显示删除按钮
-    - [+] 添加帧
-    - [▶/⏸] 播放/暂停（animated=True 时）
+    Layout (Tailwind):
+        <div class="flex flex-col gap-1">
+          <!-- Row 1: scrollable thumbnail strip -->
+          <div class="overflow-x-auto flex items-center gap-1 h-8">
+            [frame1] [frame2] [frame3] ...
+          </div>
+          <!-- Row 2: compact controls toolbar -->
+          <div class="flex items-center gap-0.5 text-xs text-muted">
+            [+ 添加帧]  [⏮] [▶⏸] [⏭]  10fps          帧 3/8
+          </div>
+        </div>
+
+    交互方式：
+    - 点击缩略图：选中帧
+    - 右键缩略图：移动/删除菜单
+    - 鼠标滚轮悬停缩略图条：水平滚动（无 scrollbar）
+    - ⏮/⏭ 按钮：逐帧导航（自动滚动到当前帧）
+    - ▶/⏸ 按钮：播放/暂停动画
 
     Args:
         id_suffix: 唯一标识符
@@ -611,18 +620,20 @@ def frame_strip(
         animated: 是否自动播放
         fps: 播放帧率（仅 animated=True 时有效）
         importer: 路径转换函数
+        max_width: 最大宽度 (像素, 0=自动填充)
 
     Returns:
         (更新后的路径列表, 当前帧索引)
     """
     from ui.texture_manager import load_texture
+    from ui.icons import FA_PLUS, FA_PLAY, FA_PAUSE, FA_BACKWARD_STEP, FA_FORWARD_STEP
 
     result_paths = list(paths)  # 复制以便修改
     state = _get_animation_state(id_suffix)
 
     # 空列表处理
     if not result_paths:
-        if imgui.button(f"选择贴图...##{id_suffix}_add"):
+        if (tw.btn_ghost | tw.btn_xs)(imgui.button)(f"{FA_PLUS} 选择贴图...##{id_suffix}_add"):
             selected = file_dialog([("PNG文件", "*.png")], multiple=True)
             if selected:
                 for p in (selected if isinstance(selected, list) else [selected]):
@@ -635,51 +646,85 @@ def frame_strip(
     if state.frame < 0:
         state.frame = 0
 
-    # === 帧条区域 ===
-    frame_height = 32
-    thumb_size = 24
+    # === 尺寸常量 ===
+    thumb_h = round(dp(Sp.S7))       # 缩略图高度 28px
+    pad = round(dp(Sp.S0_5))         # 缩略图 frame padding 2px
+    frame_outer = thumb_h + pad * 2   # 含 padding 的外框高度
+    gap = round(dp(Sp.S1))           # 缩略图间距 4px
+
+    # === 缩略图样式 ===
+    # 选中: 紫水晶主色 (明显高亮)
+    # 未选中: 深渊按钮 (实体背景，有交互反馈)
+    _thumb_selected = tw.btn_primary | tw.rounded_sm
+    _thumb_unselected = tw.btn_secondary | tw.rounded_sm
+
+    # === Row 1: 缩略图条 (鼠标滚轮滚动, 无 scrollbar) ===
+    # 预计算内容总宽度
+    thumb_widths: list[float] = []
+    for p in result_paths:
+        tex = load_texture(p)
+        if tex and tex["height"] > 0:
+            aspect = tex["width"] / tex["height"]
+            thumb_widths.append(round(thumb_h * aspect) + pad * 2)
+        else:
+            thumb_widths.append(frame_outer)  # 方形 fallback
+
+    total_content_w = sum(thumb_widths) + gap * max(0, len(thumb_widths) - 1)
+
+    child_w = max_width if max_width > 0 else 0
+    child_h = frame_outer  # 缩略图高度
+
+    # 设置内容宽度以启用水平滚动 (滚轮)
+    imgui.set_next_window_content_size(total_content_w, 0)
+    imgui.begin_child(
+        f"##framebar_{id_suffix}",
+        width=child_w,
+        height=child_h,
+        border=False,
+        flags=imgui.WINDOW_HORIZONTAL_SCROLLBAR | imgui.WINDOW_NO_SCROLLBAR,
+    )
 
     # 绘制帧缩略图
     to_delete: int | None = None
-    to_move: tuple[int, int] | None = None  # (from_idx, to_idx)
+    to_move: tuple[int, int] | None = None
 
     for i, p in enumerate(result_paths):
         if i > 0:
-            imgui.same_line()
+            imgui.same_line(0, gap)
 
         is_current = (i == state.frame)
+        imgui.push_id(f"{id_suffix}_{i}")
 
-        # 缩略图按钮
         tex = load_texture(p)
-        if tex:
-            # 有贴图：显示缩略图
-            if is_current:
-                imgui.push_style_color(imgui.COLOR_BUTTON, 0.3, 0.5, 0.8, 1.0)
+        thumb_style = _thumb_selected if is_current else _thumb_unselected
 
-            # 使用 image_button
-            clicked = imgui.image_button(
-                tex["tex_id"],
-                thumb_size, thumb_size,
-                uv0=(0, 0), uv1=(1, 1),
-                frame_padding=2,
-            )
-            if clicked:
-                state.frame = i
-                state.paused = True  # 点击时暂停
-
-            if is_current:
-                imgui.pop_style_color()
+        if tex and tex["height"] > 0:
+            aspect = tex["width"] / tex["height"]
+            img_h = thumb_h
+            img_w = round(img_h * aspect)
+            with thumb_style:
+                imgui.push_style_var(imgui.STYLE_FRAME_PADDING, (pad, pad))
+                clicked = imgui.image_button(
+                    tex["tex_id"],
+                    img_w, img_h,
+                    uv0=(0, 0), uv1=(1, 1),
+                )
+                if clicked:
+                    state.frame = i
+                    state.paused = True
+                imgui.pop_style_var()
         else:
-            # 无贴图：显示序号
-            if is_current:
-                imgui.push_style_color(imgui.COLOR_BUTTON, 0.3, 0.5, 0.8, 1.0)
-
-            if imgui.button(f"{i+1}##{id_suffix}_frame_{i}", width=thumb_size, height=thumb_size):
+            # 无贴图：显示序号 (方形)
+            if thumb_style(imgui.button)(
+                f"{i+1}##{id_suffix}_frame_{i}",
+                width=frame_outer, height=frame_outer,
+            ):
                 state.frame = i
                 state.paused = True
 
-            if is_current:
-                imgui.pop_style_color()
+        # 选中帧自动滚动到可见区域
+        if is_current:
+            imgui.set_scroll_here_x(0.5)
 
         # 右键上下文菜单
         if imgui.begin_popup_context_item(f"frame_ctx_{id_suffix}_{i}"):
@@ -709,52 +754,85 @@ def frame_strip(
         elif imgui.is_item_hovered():
             imgui.set_tooltip(f"帧 {i+1}: {os.path.basename(p)}\n右键打开菜单")
 
-    # 执行移动
+        imgui.pop_id()
+
+    imgui.end_child()  # framebar scroll child
+
+    # === 执行移动/删除 (在 scroll child 之外) ===
     if to_move is not None:
         from_idx, to_idx = to_move
         result_paths[from_idx], result_paths[to_idx] = result_paths[to_idx], result_paths[from_idx]
-        # 跟随移动选中帧
         if state.frame == from_idx:
             state.frame = to_idx
         elif state.frame == to_idx:
             state.frame = from_idx
 
-    # 执行删除
     if to_delete is not None:
         result_paths.pop(to_delete)
         if state.frame >= len(result_paths) and result_paths:
             state.frame = len(result_paths) - 1
 
-    imgui.same_line()
+    # === Row 2: 控制栏 ===
+    # Tailwind: flex items-center gap-0.5 text-xs text-muted
+    # 使用 same_line() 保证垂直对齐 (所有元素在同一基线)
+    ly.gap_y(Sp.S1)
 
-    # 添加按钮
-    if imgui.button(f"+##{id_suffix}_add", width=thumb_size, height=thumb_size):
-        selected = file_dialog([("PNG文件", "*.png")], multiple=True)
-        if selected:
-            for p in (selected if isinstance(selected, list) else [selected]):
-                result_paths.append(importer(p) if importer else p)
-    tooltip("添加帧")
+    avail_w = child_w if child_w > 0 else imgui.get_content_region_available().x
+    ctrl_h = round(dp(Sp.S5))  # 20px 紧凑控制按钮
+    ctrl_style = tw.btn_secondary | tw.rounded_sm
 
-    # 动画控制
-    if animated and len(result_paths) > 1:
-        imgui.same_line()
-        imgui.dummy(8, 0)
-        imgui.same_line()
+    # [+ 添加帧]
+    with ctrl_style:
+        if imgui.button(f"{FA_PLUS} 添加帧##{id_suffix}_add", 0, ctrl_h):
+            selected_files = file_dialog([("PNG文件", "*.png")], multiple=True)
+            if selected_files:
+                for p in (selected_files if isinstance(selected_files, list) else [selected_files]):
+                    result_paths.append(importer(p) if importer else p)
 
-        pause_label = "⏸" if not state.paused else "▶"
-        if imgui.button(f"{pause_label}##{id_suffix}_pause"):
-            state.paused = not state.paused
+    if len(result_paths) > 1:
+        imgui.same_line(0, dp(Sp.S3))
 
-        imgui.same_line()
-        tw.text_muted(imgui.text)(f"{fps:.0f}fps")
+        # [⏮] 上一帧
+        with ctrl_style:
+            if imgui.button(f"{FA_BACKWARD_STEP}##{id_suffix}_prev", ctrl_h, ctrl_h):
+                state.frame = (state.frame - 1) % len(result_paths)
+                state.paused = True
 
-        # 自动播放
-        if not state.paused and fps > 0:
-            now = time.time()
-            elapsed = now - state.last_update
-            if elapsed >= 1.0 / fps:
+        imgui.same_line(0, dp(Sp.S0_5))
+
+        # [▶/⏸] 播放/暂停 (仅 animated 模式)
+        if animated:
+            play_icon = FA_PAUSE if not state.paused else FA_PLAY
+            with ctrl_style:
+                if imgui.button(f"{play_icon}##{id_suffix}_pause", ctrl_h, ctrl_h):
+                    state.paused = not state.paused
+            imgui.same_line(0, dp(Sp.S0_5))
+
+        # [⏭] 下一帧
+        with ctrl_style:
+            if imgui.button(f"{FA_FORWARD_STEP}##{id_suffix}_next", ctrl_h, ctrl_h):
                 state.frame = (state.frame + 1) % len(result_paths)
-                state.last_update = now
+                state.paused = True
+
+        if animated:
+            imgui.same_line(0, dp(Sp.S2))
+            imgui.align_text_to_frame_padding()
+            tw.text_muted(imgui.text)(f"{fps:.0f}fps")
+
+    # 右对齐帧计数器
+    frame_text = f"帧 {state.frame + 1}/{len(result_paths)}"
+    text_w = imgui.calc_text_size(frame_text).x
+    imgui.same_line(avail_w - text_w)
+    imgui.align_text_to_frame_padding()
+    tw.text_muted(imgui.text)(frame_text)
+
+    # === 自动播放逻辑 ===
+    if animated and len(result_paths) > 1 and not state.paused and fps > 0:
+        now = time.time()
+        elapsed = now - state.last_update
+        if elapsed >= 1.0 / fps:
+            state.frame = (state.frame + 1) % len(result_paths)
+            state.last_update = now
 
     return result_paths, state.frame
 
@@ -799,7 +877,7 @@ def slider_index(
         state.index,
         0,
         count - 1,
-        format=f"%d / {count - 1}",
+        format_=f"%d / {count - 1}",
     )
     if changed:
         state.index = new_val

@@ -25,15 +25,17 @@ from specs import (
     needs_char_texture, needs_left_texture, needs_multi_pose,
     # Trigger
     TriggerSpec, NoTrigger, EffectTrigger, SkillTrigger,
-    ChargeSpec, NoCharges, LimitedCharges, UnlimitedCharges,
-    ChargeRecoverySpec, NoRecovery, IntervalRecovery,
-    NoDurability, HasDurability,
+    ChargeSpec, NoCharges,
+    charge_has_charges, charge_effective_value, charge_draw_charges,
+    ChargeRecoverySpec, NoRecovery,
+    recovery_has_recovery, recovery_interval,
+    HasDurability,
     durability_has_durability, SpawnSpec, SpawnRuleType, ExcludedFromRandom, RandomSpawn,
     spawn_effective_tags, spawn_is_excluded,
     # Textures (V2)
     ItemTexturesV2,
 )
-from models import ItemLocalization
+from localization import ItemLocalization
 
 
 # ============================================================================
@@ -126,6 +128,43 @@ class HybridItemV2:
         """手数"""
         return equipment_hands(self.equipment)
 
+    @property
+    def is_weapon(self) -> bool:
+        """是否为武器装备"""
+        return isinstance(self.equipment, WeaponEquip)
+
+    @property
+    def weapon_type(self) -> str:
+        """武器类型 (仅武器装备有效)"""
+        if isinstance(self.equipment, WeaponEquip):
+            return self.equipment.weapon_type
+        return ""
+
+    @property
+    def armor_type(self) -> str:
+        """护甲类型 (仅护甲装备有效)"""
+        if isinstance(self.equipment, ArmorEquip):
+            return self.equipment.armor_type
+        return ""
+
+    @property
+    def balance(self) -> int:
+        """平衡性 (仅武器装备有效)"""
+        if isinstance(self.equipment, WeaponEquip):
+            return self.equipment.balance
+        return 0
+
+    @property
+    def duration_max(self) -> int:
+        """最大耐久 (从装备内嵌的 durability 规格中获取)"""
+        match self.equipment:
+            case WeaponEquip(durability=HasDurability(duration_max=d)):
+                return d
+            case ArmorEquip(durability=HasDurability(duration_max=d)):
+                return d
+            case _:
+                return 0
+
     # ====== 兼容性别名 (保留：与 Weapon/Armor 接口兼容) ======
     @property
     def name(self) -> str:
@@ -171,6 +210,106 @@ class HybridItemV2:
                 return durability_has_durability(d)
             case _:
                 return False
+
+    @property
+    def wear_per_use(self) -> int:
+        """每次使用磨损百分比 (从装备内嵌的 durability 规格中获取)"""
+        match self.equipment:
+            case WeaponEquip(durability=HasDurability(wear_per_use=w)):
+                return w
+            case ArmorEquip(durability=HasDurability(wear_per_use=w)):
+                return w
+            case _:
+                return 0
+
+    @property
+    def destroy_on_durability_zero(self) -> bool:
+        """耐久耗尽时是否删除物品"""
+        match self.equipment:
+            case WeaponEquip(durability=HasDurability(destroy_on_zero=d)):
+                return d
+            case ArmorEquip(durability=HasDurability(destroy_on_zero=d)):
+                return d
+            case _:
+                return False
+
+    # ====== Trigger 投影属性 ======
+
+    @property
+    def consumable_attributes(self) -> dict[str, Any]:
+        """消耗品效果属性 (仅 EffectTrigger 时有效)"""
+        match self.trigger:
+            case EffectTrigger(consumable_attributes=a):
+                return a
+            case _:
+                return {}
+
+    @property
+    def poison_duration(self) -> int:
+        """中毒持续时间 (仅 EffectTrigger 时有效)"""
+        match self.trigger:
+            case EffectTrigger(poison_duration=d):
+                return d
+            case _:
+                return 0
+
+    @property
+    def skill_object(self) -> str:
+        """技能对象名称 (仅 SkillTrigger 时有效)"""
+        match self.trigger:
+            case SkillTrigger(skill_object=s):
+                return s
+            case _:
+                return ""
+
+    # ====== Charge 投影属性 ======
+
+    @property
+    def has_charges(self) -> bool:
+        """是否有使用次数系统"""
+        return charge_has_charges(self.charges)
+
+    @property
+    def effective_charge(self) -> int:
+        """实际使用次数值"""
+        return charge_effective_value(self.charges)
+
+    @property
+    def draw_charges(self) -> bool:
+        """是否绘制次数条"""
+        return charge_draw_charges(self.charges)
+
+    # ====== ChargeRecovery 投影属性 ======
+
+    @property
+    def has_charge_recovery(self) -> bool:
+        """是否有使用次数恢复"""
+        return recovery_has_recovery(self.charge_recovery)
+
+    @property
+    def charge_recovery_interval(self) -> int:
+        """恢复间隔 (回合数)"""
+        return recovery_interval(self.charge_recovery)
+
+    # ====== Equipment 投影属性 ======
+
+    @property
+    def has_passive(self) -> bool:
+        """是否为被动效果物品 (CharmEquip)"""
+        return isinstance(self.equipment, CharmEquip)
+
+    @property
+    def equipment_mode_value(self) -> str:
+        """装备形态字符串 (用于 GML 生成): weapon/armor/charm/none"""
+        match self.equipment:
+            case WeaponEquip():
+                return "weapon"
+            case ArmorEquip():
+                return "armor"
+            case CharmEquip():
+                return "charm"
+            case _:
+                return "none"
 
     @property
     def exclude_from_random(self) -> bool:
@@ -311,6 +450,6 @@ class HybridItemV2:
         return "hybrid"
 
     @classmethod
-    def get_config(cls) -> dict:
+    def get_config(cls) -> dict[str, Any]:
         from constants import ITEM_TYPE_CONFIG
         return ITEM_TYPE_CONFIG[cls.get_type_key()]

@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Any, Callable, TYPE_CHECKING
+from typing import Any, Callable, cast, TYPE_CHECKING
 
 from ui import imgui_shim as imgui
 
@@ -158,10 +158,12 @@ class InfiniteCanvas:
 
         # === 显示选项 ===
         self.checker_cell_size: int = 8  # 棋盘格基础格子大小（世界坐标/像素）
-        # Photoshop 风格浅色棋盘格 (#CCCCCC 和 #FFFFFF)
-        self.checker_color_dark: tuple = (0.8, 0.8, 0.8, 1.0)   # #CCCCCC
-        self.checker_color_light: tuple = (1.0, 1.0, 1.0, 1.0)  # #FFFFFF
-        self.selection_color: tuple = (0.0, 0.6, 1.0, 1.0)  # 选中框颜色（蓝色更专业）
+        # 中灰棋盘格 — 适配暗色 UI，避免明暗适应导致的眩目
+        # 设计参考: Blender/Krita 暗色主题 (平均亮度 ~30%, 格间 ΔL ~10%)
+        # 微带冷紫色调与 Abyss 主题协调, 不影响贴图颜色判断
+        self.checker_color_dark: tuple[float, float, float, float] = (0.22, 0.22, 0.25, 1.0)   # ~#383840
+        self.checker_color_light: tuple[float, float, float, float] = (0.30, 0.30, 0.33, 1.0)  # ~#4D4D54
+        self.selection_color: tuple[float, float, float, float] = (0.0, 0.6, 1.0, 1.0)  # 选中框颜色（蓝色更专业）
         self.selection_thickness: float = 1.0
 
         # === 内部状态 ===
@@ -212,12 +214,6 @@ class InfiniteCanvas:
     # ========================================================================
     # 视口控制
     # ========================================================================
-
-    def reset_view(self) -> None:
-        """重置视口到原点，默认缩放"""
-        self.center_x = 0.0
-        self.center_y = 0.0
-        self.zoom = 4.0
 
     def fit_content(self, items: list[CanvasItem], padding: float = 20.0) -> None:
         """调整视口以适应所有项
@@ -481,7 +477,7 @@ class InfiniteCanvas:
             self._pan_start_center = (self.center_x, self.center_y)
 
         # 空格 + 左键拖拽平移（备选）
-        space_pressed = imgui.is_key_down(imgui.KEY_SPACE)
+        space_pressed = imgui.is_key_down(imgui.KEY_SPACE)  # type: ignore[arg-type]
         if space_pressed and not self._dragging_id and not self._is_panning:
             if imgui.is_mouse_clicked(0):
                 self._is_panning = True
@@ -574,7 +570,7 @@ class InfiniteCanvas:
     ) -> list[CanvasItem]:
         """获取某点下的所有项（按 z_order 从高到低）"""
         wx, wy = world_pos
-        hit = []
+        hit: list[CanvasItem] = []
 
         for item in items:
             if not item.visible:
@@ -647,7 +643,8 @@ def image_renderer(
     from ui.texture_manager import load_texture
 
     if isinstance(item.user_data, dict):
-        path = item.user_data.get("path", "")
+        data: dict[str, Any] = cast("dict[str, Any]", item.user_data)  # pyright: ignore[reportUnknownMemberType]
+        path: str = data.get("path", "")
     else:
         path = item.user_data or ""
 
@@ -665,9 +662,9 @@ def rect_outline_renderer(
     user_data 格式:
         {"color": (r, g, b, a), "thickness": float}
     """
-    data = item.user_data if isinstance(item.user_data, dict) else {}
-    color = data.get("color", (1.0, 1.0, 0.0, 1.0))
-    thickness = data.get("thickness", 2.0)
+    data: dict[str, Any] = cast("dict[str, Any]", item.user_data) if isinstance(item.user_data, dict) else {}  # pyright: ignore[reportUnknownMemberType]
+    color: tuple[float, float, float, float] = data.get("color", (1.0, 1.0, 0.0, 1.0))
+    thickness: float = data.get("thickness", 2.0)
     col = imgui.get_color_u32_rgba(*color)
     draw_list.add_rect(
         rect.min[0], rect.min[1], rect.max[0], rect.max[1], col, thickness=thickness
@@ -682,8 +679,8 @@ def rect_filled_renderer(
     user_data 格式:
         {"color": (r, g, b, a)}
     """
-    data = item.user_data if isinstance(item.user_data, dict) else {}
-    color = data.get("color", (0.5, 0.5, 0.5, 0.5))
+    data: dict[str, Any] = cast("dict[str, Any]", item.user_data) if isinstance(item.user_data, dict) else {}  # pyright: ignore[reportUnknownMemberType]
+    color: tuple[float, float, float, float] = data.get("color", (0.5, 0.5, 0.5, 0.5))
     col = imgui.get_color_u32_rgba(*color)
     draw_list.add_rect_filled(rect.min[0], rect.min[1], rect.max[0], rect.max[1], col)
 

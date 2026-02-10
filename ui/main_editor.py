@@ -13,10 +13,8 @@ from __future__ import annotations
 
 from ui import imgui_shim as imgui
 
-from ui.state import state as ui_state, dpi_scale
-from ui import layout as ly
+from ui.state import state as ui_state
 from ui import tw
-from ui.theme import PARCHMENT
 
 
 def draw_main_editor(width: float, height: float) -> None:
@@ -39,8 +37,7 @@ def draw_main_editor(width: float, height: float) -> None:
 
     if nav_type is None or not ui_state.has_selection():
         # 没有选中任何物品，显示项目编辑器
-        from ui.editors.project_editor import draw_project_editor
-        draw_project_editor(width, height)
+        _draw_project_main(width, height)
 
     elif nav_type == "weapon":
         _draw_weapon_main(width, height)
@@ -55,50 +52,107 @@ def draw_main_editor(width: float, height: float) -> None:
         _draw_empty_state(width, height, "请从左侧导航选择要编辑的内容")
 
 
-def _draw_weapon_main(width: float, height: float) -> None:
-    """绘制武器编辑器主区域"""
-    from ui.panels import panel_style
-    from ui.editors.weapon_editor import draw_weapon_editor
+def _draw_project_main(width: float, height: float) -> None:
+    """绘制项目编辑器主区域 - 卡片布局, 滚轮可滚动
 
-    with panel_style:
-        imgui.begin_child("WeaponEditor", width, height, border=False, flags=imgui.WINDOW_NO_SCROLLBAR)
+    ⚠️ 容器类型: Child Window (NO_SCROLLBAR 隐藏滚动条, 滚轮仍有效)
+
+    布局结构: 单个 Child → draw_project_editor (内部为卡片)
+    """
+    from ui.editors.project_editor import draw_project_editor
+
+    _style = (
+        tw.bg_app |
+        tw.child_rounded_none |
+        tw.child_border_size(0) |
+        tw.p_5
+    )
+    _style(imgui.begin_child)(
+        "ProjectEditor",
+        width,
+        height,
+        border=False,
+        flags=imgui.WINDOW_NO_SCROLLBAR,
+        child_flags=int(imgui.ChildFlags.AlwaysUseWindowPadding),
+    )
+
+    draw_project_editor()
+
+    imgui.end_child()
+
+
+def _draw_weapon_main(width: float, height: float) -> None:
+    """绘制武器编辑器主区域 - 卡片布局, 滚轮可滚动
+
+    ⚠️ 容器类型: Child Window (NO_SCROLLBAR 隐藏滚动条, 滚轮仍有效)
+
+    布局结构: 单个 Child → draw_weapon_editor (内部为响应式卡片)
+    """
+    from ui.editors.weapon_editor import draw_weapon_editor
 
     current_index = ui_state.current_weapon_index
     weapons = ui_state.project.weapons
+    has_weapon = 0 <= current_index < len(weapons)
 
-    if current_index < 0 or current_index >= len(weapons):
+    # 单层容器: bg_app 背景, 隐藏滚动条但滚轮可用
+    # p_5 = 20px 四周 padding → 卡片自动尊重左右边距
+    _style = (
+        tw.bg_app |
+        tw.child_rounded_none |
+        tw.child_border_size(0) |
+        tw.p_5
+    )
+    _style(imgui.begin_child)(
+        "WeaponEditor",
+        width,
+        height,
+        border=False,
+        flags=imgui.WINDOW_NO_SCROLLBAR,
+        child_flags=int(imgui.ChildFlags.AlwaysUseWindowPadding),
+    )
+
+    if not has_weapon:
         _draw_empty_hint("请从左侧列表选择一个武器进行编辑")
     else:
-        d = dpi_scale()
-        padding = ly.sz(1.75)
-        ly.gap_y_px(padding / d)
-        imgui.indent(padding)
         draw_weapon_editor()
-        imgui.unindent()
 
     imgui.end_child()
 
 
 def _draw_armor_main(width: float, height: float) -> None:
-    """绘制装备编辑器主区域"""
-    from ui.panels import panel_style
-    from ui.editors.armor_editor import draw_armor_editor
+    """绘制装备编辑器主区域 - 卡片布局, 滚轮可滚动
 
-    with panel_style:
-        imgui.begin_child("ArmorEditor", width, height, border=False, flags=imgui.WINDOW_NO_SCROLLBAR)
+    ⚠️ 容器类型: Child Window (NO_SCROLLBAR 隐藏滚动条, 滚轮仍有效)
+
+    布局结构: 单个 Child → draw_armor_editor (内部为响应式卡片)
+    """
+    from ui.editors.armor_editor import draw_armor_editor
 
     current_index = ui_state.current_armor_index
     armors = ui_state.project.armors
+    has_armor = 0 <= current_index < len(armors)
 
-    if current_index < 0 or current_index >= len(armors):
+    # 单层容器: bg_app 背景, 隐藏滚动条但滚轮可用
+    # p_5 = 20px 四周 padding → 卡片自动尊重左右边距
+    _style = (
+        tw.bg_app |
+        tw.child_rounded_none |
+        tw.child_border_size(0) |
+        tw.p_5
+    )
+    _style(imgui.begin_child)(
+        "ArmorEditor",
+        width,
+        height,
+        border=False,
+        flags=imgui.WINDOW_NO_SCROLLBAR,
+        child_flags=int(imgui.ChildFlags.AlwaysUseWindowPadding),
+    )
+
+    if not has_armor:
         _draw_empty_hint("请从左侧列表选择一个装备进行编辑")
     else:
-        d = dpi_scale()
-        padding = ly.sz(1.75)
-        ly.gap_y_px(padding / d)
-        imgui.indent(padding)
         draw_armor_editor()
-        imgui.unindent()
 
     imgui.end_child()
 
@@ -161,9 +215,7 @@ def _draw_empty_hint(hint: str) -> None:
     region = imgui.get_content_region_available()
     hint_size = imgui.calc_text_size(hint)
     imgui.set_cursor_pos(((region.x - hint_size.x) / 2, region.y / 2))
-    imgui.push_style_color(imgui.COLOR_TEXT, *PARCHMENT[300])
-    imgui.text(hint)
-    imgui.pop_style_color()
+    tw.text_muted(imgui.text)(hint)
 
 
 

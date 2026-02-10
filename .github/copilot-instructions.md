@@ -34,9 +34,9 @@
 |----------|------------|------------|----------|
 | `padding` (容器内边距) | `WindowPadding` | `tw.p_*` | Child 窗口、弹窗 |
 | `padding` (控件内边距) | `FramePadding` | `tw.frame_p_*` | 按钮、输入框内部 |
-| `gap` (flex/grid 间距) | `ItemSpacing` | `ly.hstack(gap=N)` | 相邻元素之间 |
-| `margin` | **不存在** | `ly.gap_y(N)` | 需手动插入 dummy |
-| `border-radius` | `FrameRounding` / `ChildRounding` | `tw.rounded_*` | Frame/Child |
+| `gap` (flex/grid 间距) | `ItemSpacing` | `ly.hstack(gap=Sp.S2)` | 相邻元素之间 |
+| `margin` | **不存在** | `ly.gap_y(Sp.S4)` | 需手动插入 dummy |
+| `border-radius` | `FrameRounding` / `ChildRounding` | `tw.rounded_*` / `tw.child_rounded_*` | Frame/Child |
 
 ### ⚠️ Padding 设计 (重要)
 
@@ -81,24 +81,24 @@ with tw.p_4:                    # 外层：WindowPadding = 16px
 
 ```python
 # ✅ 正确：样式放在容器外部，控制容器本身
-with tw.bg_abyss_800 | tw.rounded_lg | tw.p_3:
-    with ly.card("my_card", height=20):
+with tw.bg_abyss_800 | tw.child_rounded_lg | tw.p_3:
+    with ly.card("my_card", height=Sp.S20):
         # 这里的内容会有 12px 的内边距
         imgui.text("内容")
 
 # ❌ 错误：样式放在容器内部，无法影响容器
-with ly.card("my_card", height=20):
+with ly.card("my_card", height=Sp.S20):
     with tw.bg_abyss_800 | tw.p_3:  # 太晚了！card 已经创建
         imgui.text("内容")
 
 # ✅ 理解 Group vs Child
-with ly.hstack(gap=2):          # hstack 用 Group，无 padding
+with ly.hstack(gap=Sp.S2):     # hstack 用 Group，无 padding
     with ly.slot():
         imgui.button("A")       # 按钮之间间距 = gap
     with ly.slot():
         imgui.button("B")
 
-with ly.scroll_y(height=50):    # scroll_y 用 Child，有 padding
+with ly.scroll_y(height=Sp.S48):    # scroll_y 用 Child，有 padding
     # 内容距离边缘有 WindowPadding (如果设置了 tw.p_*)
     for item in items:
         imgui.text(item)
@@ -136,16 +136,16 @@ with ly.scroll_y(height=50):    # scroll_y 用 Child，有 padding
 
 | Tailwind | 我们的系统 |
 |----------|------------|
-| `flex flex-col gap-4` | `with ly.vstack(gap=4):` |
-| `flex items-center gap-2` | `with ly.hstack(gap=2):` |
-| `grid grid-cols-2 gap-4` | `with ly.grid(cols=2, gap=4):` |
+| `flex flex-col gap-4` | `with ly.vstack(gap=Sp.S4):` |
+| `flex items-center gap-2` | `with ly.hstack(gap=Sp.S2):` |
+| `grid grid-cols-2 gap-4` | `with ly.grid(cols=2, gap=Sp.S4):` |
 | `bg-slate-800` | `tw.bg_abyss_800` |
 | `rounded-md` | `tw.rounded_md` |
 | `p-3` | `tw.p_3` |
 | `text-stone-400` | `tw.text_parchment_500` |
 | `border border-slate-600` | `tw.border_abyss_600 \| tw.frame_border_size(1)` |
-| `overflow-y-auto h-48` | `with ly.scroll_y(height=48):` |
-| `w-60` | `with ly.fixed_width(60):` |
+| `overflow-y-auto h-48` | `with ly.scroll_y(height=Sp.S48):` |
+| `w-60` | `with ly.fixed_width(Sp.S60):` |
 
 ### 3. 在代码注释中记录映射
 
@@ -155,7 +155,7 @@ def _draw_path_bar():
 
     Tailwind: bg-slate-800 rounded-md px-3 py-2 flex items-center gap-2
     """
-    with ly.hstack(gap=2):
+    with ly.hstack(gap=Sp.S2):
         ...
 ```
 
@@ -164,14 +164,16 @@ def _draw_path_bar():
 - 后续修改时知道原始设计
 - 新人可以通过 Tailwind 文档理解布局
 
-## � 关键文件
+## 📂 关键文件
 
 | 文件 | 用途 | 备注 |
 |------|------|------|
-| `ui/tw.py` | Tailwind 风格预设 tokens | **主要使用此文件** |
-| `ui/layout.py` | 布局 helpers | 间距、居中、按钮等 |
-| `ui/styles.py` | 底层构建函数 | 仅在扩展时使用 |
-| `ui/theme.py` | **主题色定义** | crystal/goldrim/abyss/parchment/blood |
+| `ui/tw.py` | Tailwind 风格预设 tokens | **主要使用此文件** (自动生成) |
+| `ui/layout.py` | 布局 helpers | 间距、居中、flex、grid 等 |
+| `ui/scale.py` | **尺寸/间距枚举** | `Sp`, `Cn`, `dp()` — 类型安全的尺寸系统 |
+| `ui/styles.py` | 底层 StyleContext 构建函数 | 仅在扩展时使用 |
+| `ui/theme.py` | **主题色定义** | crystal/goldrim/abyss/parchment/blood/stone |
+| `ui/widgets.py` | 原子 UI 控件 | tab_index, animation_frame 等 |
 | `codegen/generate_tailwind_tokens.py` | tw.py 生成器 | **添加新 token 必须修改此文件** |
 
 ## ⚠️ 添加新 Token 的正确方式
@@ -184,12 +186,86 @@ def _draw_path_bar():
 python codegen/generate_tailwind_tokens.py
 ```
 
-## �📦 核心导入
+## 📦 核心导入
 
 ```python
-from ui import tw        # Tailwind 风格预设 tokens
-from ui import layout as ly  # 布局 helpers
-from ui import styles    # 底层构建函数 (仅在创建新 token 时使用)
+from ui import tw                   # Tailwind 风格预设 tokens
+from ui import layout as ly         # 布局 helpers
+from ui.scale import Sp, Cn, dp     # 尺寸/间距枚举 + DPI 转换
+from ui import styles               # 底层构建函数 (仅在创建新 token 时使用)
+```
+
+## 📏 尺寸系统 — Sp / Cn / dp()
+
+本项目使用 **类型安全的枚举** 替代旧版 `sz()` / `sz_free()` (已废弃)。
+
+### Sp (Spacing Scale)
+
+```python
+from ui.scale import Sp, dp
+
+# Sp.S{n} = Tailwind spacing-{n} = n × 4 像素
+Sp.S0    # 0px
+Sp.PX    # 1px
+Sp.S0_5  # 2px
+Sp.S1    # 4px
+Sp.S2    # 8px
+Sp.S4    # 16px   ← 常用间距
+Sp.S9    # 36px   ← 按钮高度
+Sp.S40   # 160px  ← 按钮宽度
+Sp.S96   # 384px  ← 最大 spacing 值
+
+# DPI 缩放: dp() 乘以 dpi_scale()
+width = dp(Sp.S40)   # → 160 * dpi_scale()
+```
+
+### Cn (Container Scale)
+
+```python
+from ui.scale import Cn, dp
+
+# 容器级大尺寸 (弹窗/面板/断点)
+Cn.C3XS  # 256px  (16rem)
+Cn.C2XS  # 288px  (18rem)
+Cn.CXS   # 320px  (20rem)
+Cn.CSM   # 384px  (24rem)
+Cn.CMD   # 448px  (28rem)
+Cn.CLG   # 512px  (32rem)
+Cn.CXL   # 576px  (36rem)
+Cn.C2XL  # 672px  (42rem)
+Cn.C3XL  # 768px  (48rem)
+Cn.C4XL  # 896px  (56rem)
+Cn.C5XL  # 1024px (64rem)
+Cn.C6XL  # 1152px (72rem)
+Cn.C7XL  # 1280px (80rem)
+
+popup_width = dp(Cn.CMD)  # 448 * dpi_scale()
+```
+
+### 类型别名
+
+```python
+SpacingArg = Sp         # gap, padding 等小值
+SizingArg = Sp | Cn     # width, height 等可能是大值
+```
+
+### 旧版 → 新版迁移
+
+| 旧版 (已废弃) | 新版 |
+|-------------|------|
+| `sz(4)` | `dp(Sp.S4)` |
+| `sz(40)` | `dp(Sp.S40)` |
+| `sz_free(120)` | `480 * dpi_scale()` 或 `dp(Cn.CSM)` |
+| `gap_y(4)` | `gap_y(Sp.S4)` |
+| `ly.btn("确定", 40, 9)` | `(tw.btn_primary \| tw.btn_md)(imgui.button)("确定")` |
+
+### Escape Hatch (超出 scale)
+
+```python
+from ui.state import dpi_scale
+
+# 需要任意像素值时
+large_value = 480 * dpi_scale()
 ```
 
 ## 🎨 样式使用规范
@@ -201,7 +277,7 @@ from ui import styles    # 底层构建函数 (仅在创建新 token 时使用)
 tw.text_parchment_100(imgui.text)("Hello")
 
 # 组合多个样式
-(tw.bg_abyss_800 | tw.rounded_lg | tw.p_3)(imgui.begin_child)("panel", 0, 200)
+(tw.bg_abyss_800 | tw.child_rounded_lg | tw.p_3)(imgui.begin_child)("panel", 0, 200)
 imgui.text("内容不受上面样式影响")
 imgui.end_child()
 
@@ -238,7 +314,7 @@ with tw.text_blood_500:
 以下 token 只能用函数调用式，使用 `with` 会抛出 `RuntimeError`：
 
 ```python
-# 尺寸类 token
+# 尺寸类 token (size_meta 实现)
 tw.w_*    # 宽度
 tw.h_*    # 高度
 tw.btn_xs / btn_sm / btn_md / btn_lg / btn_xl  # 按钮尺寸预设
@@ -262,22 +338,38 @@ with styles.text((0.9, 0.9, 0.9, 1.0)):  # 应该用 tw.text_gray_200
     ...
 
 # ❌ 硬编码间距
-imgui.set_cursor_pos_y(imgui.get_cursor_pos_y() + 16)  # 应该用 ly.gap_y(4)
+imgui.set_cursor_pos_y(imgui.get_cursor_pos_y() + 16)  # 应该用 ly.gap_y(Sp.S4)
 
 # ❌ 硬编码尺寸
 imgui.button("OK", width=160, height=36)  # 应该用 (tw.btn_* | tw.btn_md)(imgui.button)("OK")
+
+# ❌ 使用已废弃的 sz / sz_free
+ly.sz(4)       # 应该用 dp(Sp.S4)
+ly.sz_free(80) # 应该用 320 * dpi_scale()
 ```
 
 ## 📐 布局使用规范
 
 ### 间距 - 使用 ly.gap_y / ly.gap_x
 
-```python
-# ✅ 正确
-ly.gap_y(4)  # 16px 垂直间距
-ly.gap_x(2)  # 8px 水平间距 (在 same_line 后)
+**必须使用 Sp 枚举值** — 类型系统保证编译时安全：
 
-# ❌ 禁止
+```python
+from ui.scale import Sp
+
+# ✅ 正确 — 使用 Sp 枚举
+ly.gap_y(Sp.S4)   # 16px
+ly.gap_x(Sp.S2)   # 8px
+
+# ✅ 精确像素 (罕用, escape hatch)
+ly.gap_y_px(17)    # 17 * dpi_scale()
+ly.gap_x_px(5)     # 5 * dpi_scale()
+
+# ❌ 禁止 — 裸整数已不被类型系统接受
+ly.gap_y(4)        # Pylance 类型错误
+ly.gap_y(4.3)      # 类型错误
+
+# ❌ 禁止 — 绕过阶梯
 imgui.dummy(0, 16)
 imgui.set_cursor_pos_y(imgui.get_cursor_pos_y() + 16)
 ```
@@ -304,11 +396,11 @@ if (tw.btn_primary | tw.btn_md)(imgui.button)("确定"):
     do_something()
 
 # 预设尺寸:
-# btn_xs = 96px × 28px
-# btn_sm = 128px × 32px
-# btn_md = 160px × 36px (常用)
-# btn_lg = 192px × 40px
-# btn_xl = 224px × 44px
+# btn_xs = 96px × 28px   (w=24, h=7)
+# btn_sm = 128px × 32px  (w=32, h=8)
+# btn_md = 160px × 36px  (w=40, h=9) ← 常用
+# btn_lg = 192px × 40px  (w=48, h=10)
+# btn_xl = 224px × 44px  (w=56, h=11)
 
 # 自定义尺寸
 if (tw.btn_primary | tw.w_60 | tw.h_12)(imgui.button)("大按钮"):
@@ -318,10 +410,6 @@ if (tw.btn_primary | tw.w_60 | tw.h_12)(imgui.button)("大按钮"):
 danger_btn = tw.btn_danger | tw.btn_md
 if danger_btn(imgui.button)("删除"):
     delete()
-
-# ❌ 废弃的用法 (ly.btn 将被废弃)
-if ly.btn("确定", 40, 9):
-    ...
 ```
 
 ## 🔧 高阶函数用法 (@ 装饰器)
@@ -330,15 +418,15 @@ if ly.btn("确定", 40, 9):
 
 ```python
 # 创建样式化组件
-styled_button = tw.btn_primary @ ly.btn
+styled_button = tw.btn_primary @ imgui.button
 
 # 使用
-if styled_button("确定", 40, 9):
+if styled_button("确定"):
     ...
 
 # 等价于
 with tw.btn_primary:
-    if ly.btn("确定", 40, 9):
+    if imgui.button("确定"):
         ...
 ```
 
@@ -348,20 +436,24 @@ with tw.btn_primary:
 
 | 语义名 | Token | 用途 | Hex (代表色) |
 |--------|-------|------|-----|
-| 紫水晶 Crystal | `tw.btn_crystal` / `tw.text_crystal_*` | 冷饱和紫，主按钮/强调 | #9a79dd |
-| 金边 Goldrim | `tw.text_goldrim_*` | 暗黑2经典金色，次强调/警告 | #d1a22e |
-| 深渊 Abyss | `tw.bg_abyss_*` | 冷蓝紫中性暗色背景 | #1e1c2b |
-| 羊皮纸 Parchment | `tw.text_parchment_*` | 温暖米黄色文字 | #e7ddca |
-| 血红 Blood | `tw.text_blood_*` / `tw.btn_danger` | 危险/错误 | #c92821 |
-| 岩石 Stone | `tw.border_stone_*` | 中性暖灰，边框/分隔线 | #44403c |
+| 紫水晶 Crystal | `tw.btn_crystal` / `tw.text_crystal_*` | 冷饱和紫，主按钮/强调 | #9a79dd (500) |
+| 金边 Goldrim | `tw.text_goldrim_*` | 暗黑2经典金色，次强调/警告 | #d1a22e (400) |
+| 深渊 Abyss | `tw.bg_abyss_*` | 冷蓝紫中性暗色背景 | #1e1c2b (700) |
+| 羊皮纸 Parchment | `tw.text_parchment_*` | 温暖米黄色文字 | #e7ddca (100) |
+| 血红 Blood | `tw.text_blood_*` / `tw.btn_danger` | 危险/错误 | #c92821 (400) |
+| 岩石 Stone | `tw.border_stone_*` | 中性暖灰，边框/分隔线 | #44403c (700) |
 
 语义别名：
-- `tw.btn_primary` = `tw.btn_crystal`
-- `tw.btn_secondary` = `tw.btn_abyss`
+- `tw.btn_primary` = `tw.btn_crystal` (紫水晶按钮)
+- `tw.btn_secondary` = `tw.btn_abyss` (深渊按钮)
 - 文字层级: `tw.text_bright` / `text_default` / `text_muted` / `text_subtle` / `text_faint`
 - 强调文字: `tw.text_accent` = `tw.text_crystal_400`
-- 背景层级: `tw.bg_app` / `bg_surface` / `bg_elevated` / `bg_input`
+- 金色文字: `tw.text_gold` = `tw.text_goldrim_400`
+- 状态文字: `tw.text_success` / `text_warning` / `text_danger` / `text_error` / `text_info`
+- 状态背景: `tw.bg_success` / `bg_warning` / `bg_danger` / `bg_error` / `bg_info`
+- 背景层级: `tw.bg_app` / `bg_surface` / `bg_elevated` / `bg_inset` / `bg_overlay`
 - 语义边框: `tw.border_subtle` / `border_default` / `border_strong` / `border_interactive`
+- 输入框: `tw.input_default` (在 bg_elevated 上) / `input_on_surface` / `input_on_app`
 
 ## ⚡ Preflight 注意事项
 
@@ -370,72 +462,84 @@ with tw.btn_primary:
 - 不要假设任何默认样式存在
 - 像写 Tailwind CSS 一样，需要完整声明样式
 
-## 📝 添加新 Helper 的原则
-
-如果需要新的样式或布局 helper：
-
-1. **原子化** - 每个 helper 只做一件事
-2. **正交化** - 不同 helper 之间不重叠
-3. **可组合** - 使用 `|` 运算符组合
-4. **DPI 感知** - 使用 `dpi_scale()` 处理缩放
-
-```python
-# ✅ 好的 helper - 原子化
-def scroll_area_y(height: float) -> StyleContext:
-    """垂直滚动区域高度"""
-    return StyleContext(...)
-
-# ❌ 坏的 helper - 做太多事情
-def fancy_card_with_title_and_border():  # 这是 widget，不是 helper
-    ...
-```
-
 ## 🔍 快速参考
 
 ### tw.py 常用 tokens
 
-- 文字: `tw.text_{color}_{shade}` (例: `tw.text_parchment_200`)
-- 背景: `tw.bg_{color}_{shade}` (例: `tw.bg_abyss_800`)
-- 输入框背景: `tw.frame_bg_{color}_{shade}` (例: `tw.frame_bg_abyss_800`)
-- 边框: `tw.border_{color}_{shade}`
-- 内边距: `tw.p_0` ~ `tw.p_16` (p_1 = 4px)
-- 圆角: `tw.rounded_none/sm/md/lg/xl/2xl/full`
-- 按钮: `tw.btn_primary/secondary/danger/success`
-- 按钮尺寸: `tw.btn_xs/sm/md/lg/xl` (btn_md = 160×36px)
-- 宽度: `tw.w_0` ~ `tw.w_96` (w_40 = 160px) **禁止 CM**
-- 高度: `tw.h_0` ~ `tw.h_96` (h_9 = 36px) **禁止 CM**
-- 颜色常量: `tw.ABYSS_700` 等 (用于 `list_item` 等需要 tuple 的场景)
-- 控件内边距: `tw.frame_p_0` ~ `tw.frame_p_16` (罕用，btn_* 已内置)
+| 类别 | 模式 | 示例 |
+|------|------|------|
+| 文字色 | `tw.text_{color}_{shade}` | `tw.text_parchment_200` |
+| 背景色 | `tw.bg_{color}_{shade}` | `tw.bg_abyss_800` |
+| 输入框背景 | `tw.frame_bg_{color}_{shade}` | `tw.frame_bg_abyss_700` |
+| 边框色 | `tw.border_{color}_{shade}` | `tw.border_stone_700` |
+| 分隔线色 | `tw.separator_{color}_{shade}` | `tw.separator_stone_800` |
+| 容器内边距 | `tw.p_0` ~ `tw.p_16` | p_1 = 4px (含 px_*, py_*) |
+| 控件内边距 | `tw.frame_p_0` ~ `tw.frame_p_16` | 罕用，btn_* 已内置 (含 frame_px_*, frame_py_*) |
+| 圆角 (Frame) | `tw.rounded_none/sm/md/lg/xl/2xl/3xl/full` | `tw.rounded_lg` = 8px |
+| 圆角 (Child) | `tw.child_rounded_none/sm/md/lg/xl/...` | `tw.child_rounded_lg` = 8px |
+| 按钮样式 | `tw.btn_primary/secondary/danger/success/warning/ghost` | `tw.btn_crystal` |
+| 按钮尺寸 | `tw.btn_xs/sm/md/lg/xl` | btn_md = 160×36px **禁止 CM** |
+| 宽度 | `tw.w_0` ~ `tw.w_96` | w_40 = 160px **禁止 CM** |
+| 高度 | `tw.h_0` ~ `tw.h_96` | h_9 = 36px **禁止 CM** |
+| 字体大小 | `tw.text_xs/sm/base/lg/xl/2xl/.../9xl` | `tw.text_lg` |
+| Gap | `tw.gap_0` ~ `tw.gap_96` | 设置 ItemSpacing |
+| 颜色常量 | `tw.ABYSS_700` 等 | 原始 RGBA tuple，**优先使用语义 tuple** |
+| 语义 tuple | `tw.BG_ELEVATED`, `tw.HOVER_DEFAULT` 等 | 用于 `list_item` 等需要 tuple 的场景 |
+| 空样式 | `tw.noop` | 条件样式: `tw.text_red if err else tw.noop` |
+
+### 组件预设 tokens
+
+| Token | 用途 |
+|-------|------|
+| `tw.card_default` | `bg_elevated \| child_rounded_lg \| p_3` |
+| `tw.panel_default` | `bg_surface \| rounded_md \| p_2` |
+| `tw.input_default` | `frame_bg_abyss_700 \| rounded \| border_abyss_600 \| frame_border_size(1)` |
+| `tw.selected_default` | `bg_crystal_950` |
+| `tw.hover_default` | `bg_abyss_700` |
+
+### 语义 Tuple 常量 (供 DrawList/list_item/panel 等 tuple API)
+
+| 常量 | 值 | 用途 |
+|------|-----|------|
+| `tw.BG_APP` | `ABYSS_950` | 最深底色 |
+| `tw.BG_SURFACE` | `ABYSS_900` | 面板、侧栏 |
+| `tw.BG_ELEVATED` | `ABYSS_800` | 卡片、浮层 |
+| `tw.BG_INSET` | `ABYSS_700` | 凹陷区域 |
+| `tw.HOVER_DEFAULT` | `ABYSS_700` | 列表项 hover |
+| `tw.SELECTED_DEFAULT` | `CRYSTAL_950` | 列表项选中 |
+| `tw.BORDER_SUBTLE` | `ABYSS_600` | DrawList 分隔线 |
+| `tw.BORDER_DEFAULT` | `STONE_700` | DrawList 边框 |
 
 ### layout.py 常用函数
 
 #### 基础布局
-- `ly.gap_y(n)` / `ly.gap_x(n)` - 间距
-- `ly.btn(label, w, h)` - 按钮
-- `ly.same_line(gap)` - 同行
-- `ly.sz(n)` - Tailwind 单位转像素 (n * 4 * dpi_scale)
+- `ly.gap_y(Sp.S4)` / `ly.gap_x(Sp.S2)` - 间距 (Sp 枚举)
+- `ly.gap_y_px(17)` / `ly.gap_x_px(5)` - 精确像素间距
+- `ly.same_line(Sp.S4)` - 同行
+- `dp(Sp.S40)` - DPI 感知像素转换
 
 #### 自动居中
 - `ly.auto_hcenter()` / `ly.auto_vcenter()` / `ly.auto_center()` - 自动居中
+- `ly.auto_right()` (别名: `ly.auto_right_slot()`) - 自动右对齐
 - `ly.text_center(text)` / `ly.text_right(text)` - 对齐文本
 
 #### Flex 布局
 ```python
 # 推荐方式 - 使用 slot() 包装每个子元素
-with ly.hstack(gap=2):
+with ly.hstack(gap=Sp.S2):
     with ly.slot():
         imgui.text("左")
     ly.spacer()  # 弹性空间，推后续元素到右侧
     with ly.slot():
         imgui.text("右")
 
-# 传统方式 - 使用 item() (仍然支持)
-with ly.hstack(gap=2):
+# 传统方式 - 使用 item() (仍然支持，不支持对齐)
+with ly.hstack(gap=Sp.S2):
     ly.item(); imgui.text("左")
     ly.item(); imgui.text("右")
 
 # 垂直排列
-with ly.vstack(gap=1):
+with ly.vstack(gap=Sp.S1):
     with ly.slot():
         imgui.text("行1")
     with ly.slot():
@@ -447,10 +551,10 @@ with ly.vstack(gap=1):
 `hstack` 使用 `same_line()` 实现，当 slot 内包含垂直内容时会错位：
 ```python
 # ❌ 错误：slot 内有垂直布局会导致错位
-with ly.hstack(gap=4):
+with ly.hstack(gap=Sp.S4):
     with ly.slot():
         imgui.text("Label")
-        ly.gap_y(1)
+        ly.gap_y(Sp.S1)
         imgui.input_text("##input", ...)  # 错位！
 ```
 
@@ -459,23 +563,22 @@ with ly.hstack(gap=4):
 #### Columns 多列布局 (推荐用于表单)
 ```python
 # ✅ 正确：columns 支持每列独立的垂直内容
-with ly.columns(2, gap=4) as c:
+with ly.columns(2, gap=Sp.S4) as c:
     with c.col(0):
         imgui.text("名称")
-        ly.gap_y(1)
+        ly.gap_y(Sp.S1)
         imgui.input_text("##name", name)
 
     with c.col(1):
         imgui.text("版本")
-        ly.gap_y(1)
+        ly.gap_y(Sp.S1)
         imgui.input_text("##version", version)
 
 # 指定列宽
-with ly.columns(2, widths=[30, 50]) as c:
+with ly.columns(2, widths=[Sp.S28, Sp.S48]) as c:
     with c.col(0):
         imgui.text("短标签")
     with c.col(1):
-        # c.col_width 获取当前列宽度
         imgui.push_item_width(c.col_width)
         imgui.input_text("##input", value)
         imgui.pop_item_width()
@@ -484,7 +587,7 @@ with ly.columns(2, widths=[30, 50]) as c:
 #### Grid 布局
 ```python
 # 2 列网格（类似 CSS grid-cols-2）
-with ly.grid(cols=2, gap=4):
+with ly.grid(cols=2, gap=Sp.S4):
     with ly.grid_item():
         imgui.text("Label 1")
     with ly.grid_item():
@@ -500,7 +603,7 @@ with ly.grid(cols=2, gap=4):
 ```python
 # 标准表单行：左侧标签 + 右侧输入
 with ly.form_row("名称", required=True):
-    _, value = imgui.input_text("##name", value)
+    _, value = imgui.input_text("##name", value, 256)
 
 with ly.form_row("描述", help_text="简短描述"):
     _, value = imgui.input_text_multiline("##desc", value)
@@ -514,40 +617,40 @@ with ly.form_section("基本信息"):
 #### 滚动区域
 ```python
 # 固定高度的垂直滚动区域
-with ly.scroll_y(height=50):  # 200px
+with ly.scroll_y(height=Sp.S48):  # 192px
     for item in long_list:
         imgui.text(item)
 
 # 水平滚动
 with ly.scroll_x():
-    with ly.hstack(gap=2):
+    with ly.hstack(gap=Sp.S2):
         for img in images:
             draw_thumbnail(img)
 ```
 
 #### 固定尺寸容器
 ```python
-with ly.fixed_width(60):   # 240px 宽
+with ly.fixed_width(Sp.S60):   # 240px 宽
     imgui.text("固定宽度")
 
-with ly.fixed_height(25):  # 100px 高
+with ly.fixed_height(Cn.CXS):  # 320px 高 (用 Cn 容器级尺寸)
     imgui.text("固定高度")
 
-with ly.fixed_size(60, 25):  # 240px × 100px
+with ly.fixed_size(Sp.S60, Sp.S48):  # 240px × 192px
     imgui.text("固定尺寸")
 ```
 
 #### 比例分割
 ```python
 # 左右分割 (30% / 70%)
-with ly.split_h(left_ratio=0.3, gap=4) as (left, right):
+with ly.split_h(left_ratio=0.3, gap=Sp.S4) as (left, right):
     with left:
         draw_sidebar()
     with right:
         draw_main_content()
 
 # 上下分割
-with ly.split_v(top_ratio=0.2, gap=2) as (top, bottom):
+with ly.split_v(top_ratio=0.2, gap=Sp.S2) as (top, bottom):
     with top:
         draw_header()
     with bottom:
@@ -566,10 +669,44 @@ with ly.hidden_if(is_empty):
 
 #### 底部对齐
 ```python
-with ly.fixed_height(50):
+with ly.fixed_height(Sp.S48):
     imgui.text("顶部内容")
     with ly.align_bottom():
         (tw.btn_secondary | tw.btn_sm)(imgui.button)("底部按钮")
+```
+
+#### Wrap 布局 (自动换行)
+```python
+with ly.wrap(gap_x=Sp.S2, gap_y=Sp.S2) as w:
+    for tag in tags:
+        with w.item():
+            imgui.text(tag)
+```
+
+#### Inline 布局
+```python
+# 快速水平排列多个元素
+ly.inline("A", "B", "C", gap=Sp.S2)
+```
+
+#### Card 容器
+```python
+# Card = begin_child + 交互状态检测
+with tw.bg_surface | tw.child_rounded_md | tw.p_2:
+    with ly.card("my_card", height=Sp.S12) as state:
+        imgui.text("Card content")
+
+if state.clicked:
+    print("Card clicked!")
+if state.hovered:
+    print("Card hovered!")
+```
+
+#### Panel 容器
+```python
+# Panel = 可选标题 + Child 容器
+with ly.panel("side_panel", title="侧面板", height=Sp.S0):
+    imgui.text("面板内容")
 ```
 
 #### 列表项
@@ -577,18 +714,42 @@ with ly.fixed_height(50):
 with ly.list_item(
     "item_id",
     selected=is_active,
-    hover_color=tw.ABYSS_600,
-    selected_color=tw.ABYSS_500,
+    hover_color=tw.HOVER_DEFAULT,
+    selected_color=tw.SELECTED_DEFAULT,
+    padding_x=Sp.S3,
+    padding_y=Sp.S2,
 ) as state:
     imgui.text("物品名称")
 
 if state.clicked:
     select_item()
+if state.double_clicked:
+    open_item()
+```
+
+#### 折叠面板
+```python
+with ly.collapsible("weapons", header_bg=tw.BG_ELEVATED) as panel:
+    # 头部内容（始终显示）
+    with panel.header:
+        with ly.hstack(gap=Sp.S2):
+            with ly.slot():
+                imgui.text(FA_CHEVRON_DOWN if panel.is_open else FA_CHEVRON_RIGHT)
+            with ly.slot():
+                imgui.text("武器")
+            ly.spacer()
+            with ly.slot():
+                imgui.text("(6)")
+
+    # 折叠内容（仅展开时显示）
+    if panel.is_open:
+        for weapon in weapons:
+            ...
 ```
 
 #### 双槽行 - 左右两端对齐
 ```python
-with ly.split_row("section_id", hover_color=tw.ABYSS_600) as row:
+with ly.split_row("section_id", hover_color=tw.HOVER_DEFAULT) as row:
     with row.left:
         imgui.text("左侧内容")
     with row.right:
@@ -600,7 +761,7 @@ if row.state.clicked:
 
 #### 图标按钮
 ```python
-if ly.icon_btn(FA_PLUS, "add_btn", size=5, tooltip_text="添加"):
+if ly.icon_btn(FA_PLUS, "add_btn", size=Sp.S7, tooltip_text="添加"):
     add_item()
 ```
 
@@ -618,25 +779,35 @@ with ly.context_menu("item_ctx") as opened:
 #### 右对齐
 ```python
 # 自动测量宽度的右对齐
-with ly.auto_right_slot():
+with ly.auto_right():
     ly.icon_btn(FA_GEAR, "settings")
+
+# 已知宽度的右对齐
+ly.push_right(Sp.S8)
+imgui.text("右对齐内容")
+
+# Context manager 形式
+with ly.right_aligned(Sp.S8):
+    imgui.text("右对齐内容")
 ```
 
 ## 🔧 布局选择指南
 
 | 场景 | 推荐方案 |
 |------|----------|
-| 水平排列元素 (单行) | `ly.hstack(gap=N)` |
-| 垂直排列元素 | `ly.vstack(gap=N)` |
+| 水平排列元素 (单行) | `ly.hstack(gap=Sp.S2)` |
+| 垂直排列元素 | `ly.vstack(gap=Sp.S2)` |
 | **多列表单 (有垂直内容)** | **`ly.columns(N)`** ⭐ |
 | 简单网格 | `ly.grid(cols=N)` |
 | 标签+输入行 | `ly.form_row(label)` |
 | 左右分栏 | `ly.split_h(ratio)` 或 `ly.split_row()` |
-| 可滚动列表 | `ly.scroll_y(height=N)` |
+| 可滚动列表 | `ly.scroll_y(height=Sp.S48)` |
 | 固定尺寸区域 | `ly.fixed_width/height/size()` |
-| 行内右对齐 | `ly.auto_right_slot()` |
+| 行内右对齐 | `ly.auto_right()` |
 | 可交互列表项 | `ly.list_item()` |
 | 可折叠区域 | `ly.collapsible()` |
+| 自动换行标签列表 | `ly.wrap()` |
+| 卡片/面板容器 | `ly.card()` / `ly.panel()` |
 
 ## 🐛 调试技巧
 
@@ -672,8 +843,10 @@ with tw.text_red_500:       # push 1
 | 背景色 | `bg_{color}_{shade}` | `bg_abyss_800` |
 | 边框色 | `border_{color}_{shade}` | `border_stone_700` |
 | 输入框背景 | `frame_bg_{color}_{shade}` | `frame_bg_abyss_700` |
+| 分隔线色 | `separator_{color}_{shade}` | `separator_stone_800` |
 | 间距 | `p_{n}` / `gap_{n}` | `p_4`, `gap_2` |
-| 圆角 | `rounded_{size}` | `rounded_lg` |
+| 圆角 (Frame) | `rounded_{size}` | `rounded_lg` |
+| 圆角 (Child) | `child_rounded_{size}` | `child_rounded_lg` |
 | 语义层级 | `bg_{layer}` | `bg_surface`, `bg_elevated` |
 | 语义边框 | `border_{semantic}` | `border_subtle`, `border_default` |
 | 组件预设 | `{component}_default` | `card_default`, `input_default` |
@@ -681,13 +854,20 @@ with tw.text_red_500:       # push 1
 ### 语义 Token 层级
 
 ```
-bg_app        最深层 (窗口底色)
+bg_app        最深层 (窗口底色)       = bg_abyss_950
   ↓
-bg_surface    面板/卡片
+bg_surface    面板/侧栏              = bg_abyss_900
   ↓
-bg_elevated   浮层/弹窗
+bg_elevated   卡片/浮层              = bg_abyss_800
   ↓
-bg_input      输入框
+bg_inset      凹陷区域 (well/scroll)  = bg_abyss_700
+  ↓
+bg_overlay    模态遮罩               = alpha(0.7) | bg_black
+
+输入框策略 (上下文感知):
+  input_default     在 bg_elevated(800) 上  = frame_bg_abyss_700 + border_abyss_600
+  input_on_surface  在 bg_surface(900) 上   = frame_bg_abyss_800 + border_abyss_700
+  input_on_app      在 bg_app(950) 上       = frame_bg_abyss_900 + border_abyss_800
 ```
 
 ## 🔧 扩展 Layout 组件的规范 (ui/layout.py)
@@ -703,14 +883,25 @@ bg_input      输入框
        """
    ```
 
-2. **DPI 感知** - 所有像素值必须使用 `sz(n)` 或 `dpi_scale()`
+2. **DPI 感知** - 所有像素值必须使用 `dp()` 或 `dpi_scale()`
 
-3. **返回类型** - 标注返回值类型 (Generator, bool, namedtuple 等)
+3. **使用类型安全的尺寸参数** - 签名中用 `SpacingArg` 或 `SizingArg`:
+   ```python
+   def my_component(
+       height: SizingArg = Sp.S0,    # 大尺寸: SizingArg (Sp | Cn)
+       gap: SpacingArg = Sp.S2,       # 间距: SpacingArg (Sp only)
+   ):
+       h = dp(height)
+       g = dp(gap)
+   ```
 
-4. **更新 __all__** - 添加到文件顶部的 `__all__` 列表
+4. **返回类型** - 标注返回值类型 (Generator, bool, namedtuple 等)
 
-5. **遵循函数签名约定**:
-   - 尺寸参数用 Tailwind 单位 (1 = 4px): `height: float`
+5. **更新 __all__** - 添加到文件底部的 `__all__` 列表
+
+6. **遵循函数签名约定**:
+   - 尺寸参数用 `SizingArg`: `height: SizingArg`
+   - 间距参数用 `SpacingArg`: `gap: SpacingArg`
    - 颜色参数用 tuple: `color: tuple[float, float, float, float]`
    - ID 参数放第一个: `id: str`
 
@@ -728,7 +919,12 @@ bg_input      输入框
 
 1. **使用 tw/ly** - 新组件必须使用 `tw.*` 和 `ly.*` (参见文件头 LEGACY 注释)
 
-2. **状态管理** - 如需状态，使用 dataclass + dict 模式:
+2. **使用新尺寸系统** - 导入并使用 `Sp`, `dp`:
+   ```python
+   from ui.scale import Sp, dp
+   ```
+
+3. **状态管理** - 如需状态，使用 dataclass + dict 模式:
    ```python
    @dataclass
    class _MyWidgetState:
@@ -737,16 +933,36 @@ bg_input      输入框
    _my_widget_states: dict[str, _MyWidgetState] = {}
    ```
 
-3. **返回变更信号** - 遵循 `(changed: bool, value: T)` 模式
+4. **返回变更信号** - 遵循 `(changed: bool, value: T)` 模式
 
-4. **ID 规范** - 接受 `##id` 格式的 ImGui ID
+5. **ID 规范** - 接受 `##id` 格式的 ImGui ID
 
-5. **样式参数化** - 允许通过参数覆盖默认样式:
+6. **样式参数化** - 允许通过参数覆盖默认样式:
    ```python
    def my_widget(id: str, *, style: StyleContext = tw.noop):
        with tw.input_default | style:
            ...
    ```
+
+## 📝 添加新 Helper 的原则
+
+如果需要新的样式或布局 helper：
+
+1. **原子化** - 每个 helper 只做一件事
+2. **正交化** - 不同 helper 之间不重叠
+3. **可组合** - 使用 `|` 运算符组合
+4. **DPI 感知** - 使用 `dp()` 处理缩放
+
+```python
+# ✅ 好的 helper - 原子化
+def scroll_area_y(height: SizingArg) -> StyleContext:
+    """垂直滚动区域高度"""
+    return StyleContext(...)
+
+# ❌ 坏的 helper - 做太多事情
+def fancy_card_with_title_and_border():  # 这是 widget，不是 helper
+    ...
+```
 
 ## 🚧 例外情况 - 允许直接操作
 
@@ -783,7 +999,11 @@ _cache[id] = (was_hovered, height)
 使用 `tw.*` token 组合样式，直接调用 imgui 函数：
 
 ```python
-# 输入框样式
+# 输入框样式 (推荐使用预设)
+with tw.input_default:
+    changed, value = imgui.input_text("##name", value, 256)
+
+# 或手动组合
 with tw.frame_bg_abyss_800 | tw.border_abyss_600 | tw.rounded_sm:
     changed, value = imgui.input_text("##name", value, 256)
 

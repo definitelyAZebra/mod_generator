@@ -33,6 +33,7 @@ _LAZY_MODULES = {
     'styles': 'ui.styles',
     'tw': 'ui.tw',            # Tailwind-style tokens
     'theme': 'ui.theme',      # 主题色板 (crystal/abyss/parchment/...)
+    'scale': 'ui.scale',      # 尺寸枚举 Sp/Cn + dp()
     'fonts': 'ui.fonts',
     'texture_manager': 'ui.texture_manager',
     'menu': 'ui.menu',

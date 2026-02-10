@@ -47,8 +47,8 @@ FONT_PATHS = {
     # 中文字体 (合并到英文字体)
     "chinese": "fonts/chinese/WenYue_GuDianMingChaoTi_JRFC.otf",
 
-    # 图标字体 (FA 子集)
-    "icon": "fonts/icons/fa-subset.ttf",
+    # 图标字体 (FA Solid 完整字体)
+    "icon": "fonts/icons/fa-solid-900.ttf",
 }
 
 # ==================== 图标缩放 (设计参数) ====================

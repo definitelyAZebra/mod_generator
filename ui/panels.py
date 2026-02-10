@@ -44,20 +44,21 @@ from ui import imgui_shim as imgui
 from ui.state import dpi_scale
 from ui import tw
 from ui import layout as ly
+from ui.scale import SizingArg, Sp, dp
 
 
 # =============================================================================
 # 布局配置 (使用 Tailwind 单位: 1 = 4px)
 # =============================================================================
 
-# 面板宽度配置 (Tailwind 单位)
-_NAV_WIDTH_DEFAULT = 50   # 导航栏默认宽度 = 200px
-_NAV_WIDTH_MIN = 40       # 导航栏最小宽度 = 160px
-_NAV_WIDTH_MAX = 75       # 导航栏最大宽度 = 300px
+# 面板宽度配置 (Sp 枚举值，像素)
+_NAV_WIDTH_DEFAULT = Sp.S48   # 导航栏默认宽度 = 192px
+_NAV_WIDTH_MIN = Sp.S40       # 导航栏最小宽度 = 160px
+_NAV_WIDTH_MAX = Sp.S72       # 导航栏最大宽度 = 288px
 
-_SIDEBAR_WIDTH_DEFAULT = 65  # 右侧栏默认宽度 = 260px
-_SIDEBAR_WIDTH_MIN = 50      # 右侧栏最小宽度 = 200px
-_SIDEBAR_WIDTH_MAX = 90      # 右侧栏最大宽度 = 360px
+_SIDEBAR_WIDTH_DEFAULT = Sp.S64  # 右侧栏默认宽度 = 256px
+_SIDEBAR_WIDTH_MIN = Sp.S48      # 右侧栏最小宽度 = 192px
+_SIDEBAR_WIDTH_MAX = Sp.S96      # 右侧栏最大宽度 = 384px
 
 # VS Code 风格：紧贴式布局，无 gap
 _PANEL_GAP = 0  # 面板之间的间距 = 0px (用分隔线代替)
@@ -70,31 +71,31 @@ _PANEL_PADDING = 2  # 面板内部边距 = 8px
 # 面板状态
 # =============================================================================
 
-# 运行时面板宽度状态 (Tailwind 单位)
-_panel_widths: dict[str, float] = {
-    "nav": _NAV_WIDTH_DEFAULT,
-    "sidebar": _SIDEBAR_WIDTH_DEFAULT,
+# 运行时面板宽度状态
+_panel_widths: dict[str, int] = {
+    "nav": int(_NAV_WIDTH_DEFAULT),
+    "sidebar": int(_SIDEBAR_WIDTH_DEFAULT),
 }
 
 
 def get_nav_width() -> float:
     """获取导航栏宽度 (已应用 DPI，返回像素)"""
-    return ly.sz(_panel_widths["nav"])
+    return _panel_widths["nav"] * dpi_scale()
 
 
 def get_sidebar_width() -> float:
     """获取右侧栏宽度 (已应用 DPI，返回像素)"""
-    return ly.sz(_panel_widths["sidebar"])
+    return _panel_widths["sidebar"] * dpi_scale()
 
 
-def set_nav_width(width_tw: float) -> None:
-    """设置导航栏宽度 (Tailwind 单位)"""
-    _panel_widths["nav"] = max(_NAV_WIDTH_MIN, min(_NAV_WIDTH_MAX, width_tw))
+def set_nav_width(width_tw: SizingArg) -> None:
+    """设置导航栏宽度"""
+    _panel_widths["nav"] = max(int(_NAV_WIDTH_MIN), min(int(_NAV_WIDTH_MAX), int(width_tw)))
 
 
-def set_sidebar_width(width_tw: float) -> None:
-    """设置右侧栏宽度 (Tailwind 单位)"""
-    _panel_widths["sidebar"] = max(_SIDEBAR_WIDTH_MIN, min(_SIDEBAR_WIDTH_MAX, width_tw))
+def set_sidebar_width(width_tw: SizingArg) -> None:
+    """设置右侧栏宽度"""
+    _panel_widths["sidebar"] = max(int(_SIDEBAR_WIDTH_MIN), min(int(_SIDEBAR_WIDTH_MAX), int(width_tw)))
 
 
 # =============================================================================
@@ -163,7 +164,7 @@ def draw_three_column_layout(
 
     # 中间区域宽度 = 总宽度 - 导航 - 侧边栏 - 分隔线
     main_width = available_width - nav_width - sidebar_width - (divider_width * divider_count)
-    main_width = max(main_width, ly.sz(100))  # 最小宽度 400px
+    main_width = max(main_width, dp(Sp.S96))  # 最小宽度 384px
 
     # ===== 左侧导航栏 (自治) =====
     draw_navigator(nav_width, available_height)
@@ -254,9 +255,9 @@ def panel_section(title: str, default_open: bool = True):
 
     if opened:
         try:
-            imgui.indent(ly.sz(2))  # 8px 缩进
+            imgui.indent(dp(Sp.S2))  # 8px 缩进
             yield True
-            imgui.unindent(ly.sz(2))
+            imgui.unindent(dp(Sp.S2))
         finally:
             imgui.tree_pop()
     else:
@@ -288,10 +289,10 @@ def panel_divider() -> None:
 
     Tailwind: border-t border-stone-800, my-1
     """
-    ly.gap_y(1)
+    ly.gap_y(Sp.S1)
     with tw.separator_stone_800:
         imgui.separator()
-    ly.gap_y(1)
+    ly.gap_y(Sp.S1)
 
 
 def panel_heading(text: str) -> None:

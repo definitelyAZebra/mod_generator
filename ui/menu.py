@@ -8,9 +8,10 @@
 from ui import imgui_shim as imgui
 
 from ui import config
-from ui.state import state as ui_state, dpi_scale
+from ui.state import state as ui_state
 from ui import tw
 from ui import layout as ly
+from ui.scale import Sp, dp
 from ui.icons import (
     FA_FILE, FA_FOLDER_OPEN, FA_FLOPPY_DISK,
     FA_DOWNLOAD
@@ -18,15 +19,14 @@ from ui.icons import (
 
 
 # =============================================================================
-# 工具栏配置 (Tailwind 单位: 1 unit = 4px)
+# 工具栏配置
 # =============================================================================
 
 # Debug 模式 - 绘制边框进行调试
 TOOLBAR_DEBUG = False  # 设为 False 关闭 debug 绘制
 
-TOOLBAR_PADDING_Y = 1        # 4px 上下内边距
-TOOLBAR_PADDING_X = 2        # 8px 左右内边距
-TOOLBAR_BTN_GAP = 1          # 4px 按钮间距
+TOOLBAR_PADDING_Y = Sp.S2    # 8px 上下内边距
+TOOLBAR_PADDING_X = Sp.S3    # 12px 左右内边距
 
 
 def get_toolbar_height() -> float:
@@ -37,8 +37,9 @@ def get_toolbar_height() -> float:
     font_size = imgui.get_font_size()
     # 按钮高度由 FramePadding 决定（tw.btn_* 内置）
     # 这里只需计算工具栏自身的 padding
-    btn_height = font_size + ly.sz(2)  # 按钮默认上下 padding ~= 2 units
-    return btn_height + 2 * ly.sz(TOOLBAR_PADDING_Y) + 1  # +1 底部边框
+    frame_py = dp(Sp.S1_5)  # frame_py_1_5 = 6px each side
+    btn_height = font_size + 2 * frame_py
+    return btn_height + 2 * dp(TOOLBAR_PADDING_Y) + 1  # +1 底部边框
 
 
 def draw_main_menu() -> None:
@@ -52,8 +53,6 @@ def draw_main_menu() -> None:
     │ [新建] [打开] [保存] │ [生成模组]       字体: [100%▼] │
     └─────────────────────────────────────────────────────────────────┘
     """
-    from ui import dialogs
-
     toolbar_h = get_toolbar_height()
     viewport_width = imgui.get_io().display_size.x
 
@@ -70,10 +69,11 @@ def draw_main_menu() -> None:
     imgui.set_next_window_position(0, 0)
     imgui.set_next_window_size(viewport_width, toolbar_h)
 
-    # 工具栏样式 (Tailwind: bg-app px-2 py-1 border-0)
+    # Tailwind: bg-app px-3 py-2 gap-1 border-0
     toolbar_style = (
         tw.bg_app |
-        tw.px_2 | tw.py_1 |  # WindowPadding - 工具栏容器内边距
+        tw.px_3 | tw.py_2 |
+        tw.gap_1 |            # ItemSpacing = 4px (按钮间距)
         tw.border_size(0)
     )
 
@@ -86,14 +86,16 @@ def draw_main_menu() -> None:
 
         # 左侧按钮组 + 分隔符 + 生成按钮
         _draw_file_buttons()
-        imgui.same_line(spacing=ly.sz(2))  # 8px 间距
+        imgui.same_line(spacing=dp(Sp.S2))  # 8px 间距
         _draw_separator()
-        imgui.same_line(spacing=ly.sz(2))  # 8px 间距
+        imgui.same_line(spacing=dp(Sp.S2))  # 8px 间距
         _draw_generate_button()
 
         # 右对齐的字体缩放选择器
-        with ly.auto_right_slot("toolbar_right"):
-            _draw_font_scale_selector()
+        # 使用 FramePadding 让 combo 与左侧按钮等高对齐
+        with tw.frame_py_1_5:
+            with ly.auto_right_slot("toolbar_right"):
+                _draw_font_scale_selector()
 
         # 底部边框线
         _draw_bottom_border(viewport_width, toolbar_h)
@@ -167,34 +169,32 @@ def _draw_file_buttons() -> None:
     """
     from ui import dialogs
 
-    btn_style = tw.btn_ghost | tw.rounded_sm
+    # Tailwind: btn-ghost rounded-sm frame-px-2 frame-py-1.5
+    btn_style = tw.btn_ghost | tw.rounded_sm | tw.frame_px_2 | tw.frame_py_1_5
 
     # 新建
-    with btn_style:
-        if imgui.button(f"{FA_FILE} 新建"):
-            project = dialogs.new_project_dialog()
-            if project:
-                ui_state.set_project(project)
+    if btn_style(imgui.button)(f"{FA_FILE} 新建"):
+        project = dialogs.new_project_dialog()
+        if project:
+            ui_state.set_project(project)
     if imgui.is_item_hovered():
         imgui.set_tooltip("新建项目 (Ctrl+N)")
 
     # 打开
-    imgui.same_line()
-    with btn_style:
-        if imgui.button(f"{FA_FOLDER_OPEN} 打开"):
-            project = dialogs.open_project_dialog()
-            if project:
-                ui_state.set_project(project)
+    imgui.same_line(spacing=dp(Sp.S1_5))  # 6px gap
+    if btn_style(imgui.button)(f"{FA_FOLDER_OPEN} 打开"):
+        project = dialogs.open_project_dialog()
+        if project:
+            ui_state.set_project(project)
     if imgui.is_item_hovered():
         imgui.set_tooltip("打开项目 (Ctrl+O)")
 
     # 保存
-    imgui.same_line()
+    imgui.same_line(spacing=dp(Sp.S1_5))  # 6px gap
     has_path = bool(ui_state.project and ui_state.project.file_path)
     save_style = btn_style if has_path else btn_style | tw.alpha(0.4)
-    with save_style:
-        if imgui.button(f"{FA_FLOPPY_DISK} 保存") and has_path:
-            ui_state.project.save()
+    if save_style(imgui.button)(f"{FA_FLOPPY_DISK} 保存") and has_path:
+        ui_state.project.save()
     if imgui.is_item_hovered(flags=imgui.HOVERED_ALLOW_WHEN_DISABLED):
         tip = "保存项目 (Ctrl+S)" if has_path else "请先创建或打开项目"
         imgui.set_tooltip(tip)
@@ -205,19 +205,17 @@ def _draw_separator() -> None:
 
     Tailwind: text-abyss-600
     """
-    with tw.text_abyss_600:
-        imgui.text("|")
+    tw.text_abyss_600(imgui.text)("|")
 
 
 def _draw_generate_button() -> None:
     """绘制生成模组按钮
 
-    Tailwind: btn-crystal rounded-sm (主要操作按钮)
+    Tailwind: btn-crystal rounded-sm
     """
-    with tw.btn_crystal | tw.rounded_sm:
-        if imgui.button(f"{FA_DOWNLOAD} 生成模组"):
-            from generation import generate_mod_with_validation
-            generate_mod_with_validation(ui_state.project)
+    if (tw.btn_crystal | tw.rounded_sm | tw.frame_px_2 | tw.frame_py_1_5)(imgui.button)(f"{FA_DOWNLOAD} 生成模组"):
+        from generation import generate_mod_with_validation
+        generate_mod_with_validation(ui_state.project)
     if imgui.is_item_hovered():
         imgui.set_tooltip("生成 Mod 文件到输出目录")
 
@@ -228,29 +226,24 @@ def _draw_font_scale_selector() -> None:
     Tailwind: flex items-center gap-1 (标签和下拉框水平排列)
     """
     # 标签
-    with tw.text_muted:
-        imgui.text("字体:")
+    tw.text_muted(imgui.text)("字体:")
 
     # 下拉框
     imgui.same_line()
-    combo_style = (
-        tw.frame_bg_abyss_700 |
-        tw.text_default |
-        tw.rounded_sm
-    )
+    combo_style = tw.input_default | tw.text_default
 
     current_scale = config.get_font_scale()
     scales = [0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.5]
     current_label = f"{int(current_scale * 100)}%"
 
-    imgui.push_item_width(ly.sz(20))  # 80px - 字体缩放下拉框
+    imgui.push_item_width(dp(Sp.S20))  # 80px
     with combo_style:
         if imgui.begin_combo("##font_scale", current_label):
             for scale in scales:
                 label = f"{int(scale * 100)}%"
                 is_selected = abs(current_scale - scale) < 0.01
 
-                # 选中项用紫色高亮 (Tailwind: selected ? text-crystal-400 : text-parchment-200)
+                # 选中项用紫色高亮
                 text_style = tw.text_accent if is_selected else tw.text_default
                 with text_style:
                     if imgui.selectable(label, is_selected)[0]:
@@ -265,13 +258,9 @@ def _draw_bottom_border(viewport_width: float, toolbar_h: float) -> None:
     """绘制底部边框线
 
     Tailwind: border-b border-abyss-700
-
-    ⚠️ 特殊情况：工具栏底部边框使用 DrawList 直接绘制，
-    因为 ImGui 的 border 在窗口四周，无法单独控制某一边。
     """
     draw_list = imgui.get_window_draw_list()
-    draw_list.push_clip_rect_full_screen()
-    border_color = imgui.get_color_u32_rgba(*tw.ABYSS_700)
-    y = toolbar_h - 1
+    win_pos = imgui.get_window_position()
+    border_color = imgui.get_color_u32_rgba(*tw.BORDER_SUBTLE)
+    y = win_pos.y + toolbar_h - 1
     draw_list.add_line(0, y, viewport_width, y, border_color, 1.0)
-    draw_list.pop_clip_rect()

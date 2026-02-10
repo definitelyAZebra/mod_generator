@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import os
+import traceback
 from pathlib import Path
 
 from generator import CodeGenerator, copy_item_textures_v2
@@ -29,7 +30,7 @@ def validate_project_for_generation(project: ModProject) -> list[str]:
     Returns:
         错误消息列表，如果为空则验证通过
     """
-    errors = []
+    errors: list[str] = []
 
     # 验证项目本身
     project_errors = project.validate()
@@ -88,13 +89,13 @@ def generate_mod_files_to_disk(project: ModProject) -> list[str]:
         print("生成 hover 辅助脚本...")
 
         with open(codes_dir / "scr_hoversEnsureExtendedOrderLists.gml", "w", encoding="utf-8") as f:
-            f.write(generator._generate_ensure_extended_order_lists_gml())
+            f.write(generator._generate_ensure_extended_order_lists_gml())  # pyright: ignore[reportPrivateUsage]
 
         with open(codes_dir / "scr_hoversDrawHybridConsumAttributes.gml", "w", encoding="utf-8") as f:
-            f.write(generator._generate_draw_hybrid_consum_attrs_gml())
+            f.write(generator._generate_draw_hybrid_consum_attrs_gml())  # pyright: ignore[reportPrivateUsage]
 
     print("复制贴图文件...")
-    texture_errors = []
+    texture_errors: list[str] = []
     for item in project.weapons + project.armors:
         is_multi_pose = (
             isinstance(item, Armor) and item.needs_multi_pose_textures()
@@ -136,7 +137,9 @@ def generate_mod_and_show_result(project: ModProject) -> None:
         mod_dir = os.path.abspath(os.path.join(base_dir, project.code_name.strip() or "ModProject"))
         popups.success(mod_dir)
     except Exception as e:
-        popups.error(f"生成模组失败:\n{e}")
+        error_msg = f"生成模组失败:\n{e}\n\n堆栈跟踪:\n{traceback.format_exc()}"
+        print(error_msg)  # 也打印到控制台
+        popups.error(error_msg)
 
 
 def generate_mod_with_validation(project: ModProject) -> None:

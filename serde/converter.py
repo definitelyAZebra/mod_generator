@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import fields as dataclass_fields, is_dataclass
 from pathlib import Path
-from typing import Any, Type, TypeVar
+from typing import Any, Type, TypeVar, TYPE_CHECKING
 from enum import Enum
 
 import cattrs
@@ -34,7 +34,9 @@ from specs import (
     LootAnimationSpeed, AbsoluteFps, RelativeSpeed,
     ItemTexturesV2, AnimatedSlot, LootSlot, StaticSlot, Origin,
 )
-from models import ItemLocalization
+
+if TYPE_CHECKING:
+    from hybrid_item_v2 import HybridItemV2
 
 
 T = TypeVar("T")
@@ -222,6 +224,8 @@ def _register_union(
 
 def _register_hooks(conv: cattrs.Converter) -> None:
     """注册特殊类型的序列化/反序列化 hooks"""
+    # 延迟导入避免循环依赖
+    from localization import ItemLocalization
 
     # Enum: 序列化为 value
     conv.register_unstructure_hook(SpawnRuleType, lambda e: e.value)
@@ -252,7 +256,15 @@ def _register_hooks(conv: cattrs.Converter) -> None:
 # 全局 Converter 实例
 # ============================================================================
 
-_converter = create_converter()
+_converter: cattrs.Converter | None = None
+
+
+def _get_converter() -> cattrs.Converter:
+    """获取全局 Converter 实例（懒加载）"""
+    global _converter
+    if _converter is None:
+        _converter = create_converter()
+    return _converter
 
 
 # ============================================================================
@@ -262,12 +274,12 @@ _converter = create_converter()
 
 def unstructure(obj: Any) -> Any:
     """将对象序列化为 dict/list/primitive"""
-    return _converter.unstructure(obj)
+    return _get_converter().unstructure(obj)
 
 
 def structure(data: Any, cls: Type[T]) -> T:
     """将 dict/list/primitive 反序列化为对象"""
-    return _converter.structure(data, cls)
+    return _get_converter().structure(data, cls)
 
 
 # ============================================================================
@@ -275,7 +287,7 @@ def structure(data: Any, cls: Type[T]) -> T:
 # ============================================================================
 
 
-def unstructure_hybrid_item(item: "HybridItemV2", project_dir: str = "") -> dict:
+def unstructure_hybrid_item(item: "HybridItemV2", project_dir: str = "") -> dict[str, Any]:
     """序列化 HybridItemV2，处理路径相对化
 
     Args:
@@ -288,7 +300,7 @@ def unstructure_hybrid_item(item: "HybridItemV2", project_dir: str = "") -> dict
     from hybrid_item_v2 import HybridItemV2
 
     # 先用标准 converter 序列化
-    data = _converter.unstructure(item)
+    data = _get_converter().unstructure(item)
 
     # 转换路径为相对路径
     if project_dir:
@@ -297,7 +309,7 @@ def unstructure_hybrid_item(item: "HybridItemV2", project_dir: str = "") -> dict
     return data
 
 
-def structure_hybrid_item(data: dict, project_dir: str = "") -> "HybridItemV2":
+def structure_hybrid_item(data: dict[str, Any], project_dir: str = "") -> "HybridItemV2":
     """反序列化 HybridItemV2，处理路径解析
 
     Args:
@@ -314,7 +326,7 @@ def structure_hybrid_item(data: dict, project_dir: str = "") -> "HybridItemV2":
         _resolve_paths(data, project_dir)
 
     # 用标准 converter 反序列化
-    return _converter.structure(data, HybridItemV2)
+    return _get_converter().structure(data, HybridItemV2)
 
 
 # ============================================================================
@@ -410,7 +422,7 @@ def _resolve_paths(data: dict, project_dir: str) -> None:
 # ============================================================================
 
 
-def unstructure_textures(textures: ItemTexturesV2, project_dir: str = "") -> dict:
+def unstructure_textures(textures: ItemTexturesV2, project_dir: str = "") -> dict[str, Any]:
     """序列化 ItemTexturesV2，处理路径相对化
 
     Args:
@@ -420,7 +432,7 @@ def unstructure_textures(textures: ItemTexturesV2, project_dir: str = "") -> dic
     Returns:
         可 JSON 序列化的 dict
     """
-    data = _converter.unstructure(textures)
+    data = _get_converter().unstructure(textures)
 
     if project_dir:
         # 包装成 {"textures": ...} 格式以复用 _relativize_paths
@@ -431,7 +443,7 @@ def unstructure_textures(textures: ItemTexturesV2, project_dir: str = "") -> dic
     return data
 
 
-def structure_textures(data: dict, project_dir: str = "") -> ItemTexturesV2:
+def structure_textures(data: dict[str, Any], project_dir: str = "") -> ItemTexturesV2:
     """反序列化 ItemTexturesV2，处理路径解析
 
     Args:
@@ -447,4 +459,4 @@ def structure_textures(data: dict, project_dir: str = "") -> ItemTexturesV2:
         _resolve_paths(wrapped, project_dir)
         data = wrapped["textures"]
 
-    return _converter.structure(data, ItemTexturesV2)
+    return _get_converter().structure(data, ItemTexturesV2)

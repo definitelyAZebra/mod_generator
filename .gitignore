@@ -16,7 +16,6 @@ icons/
 
 # === codegen 产物 (可重新生成) ===
 ui/tw.py
-ui/icons.py
 ui/font_config.py
 .font_metrics_cache.json
 

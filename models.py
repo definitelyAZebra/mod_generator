@@ -13,9 +13,23 @@ import re
 import shutil
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
-from specs import ItemTexturesV2, CharTextureSpec, Origin
+from specs import ItemTexturesV2, LimitedCharges, WeaponCharTexture, MultiPoseCharTexture
+from localization import ItemLocalization
+from serde import (
+    unstructure_hybrid_item,
+    unstructure_textures,
+    structure_textures,
+    structure_hybrid_item,
+)
+from migrations import CURRENT_SCHEMA_VERSION, migrate
+from hybrid_item_v2 import (
+    WeaponEquip,
+    ArmorEquip,
+    SkillTrigger,
+    HasDurability,
+)
 
 if TYPE_CHECKING:
     from hybrid_item_v2 import HybridItemV2
@@ -28,6 +42,7 @@ from constants import (
     ITEM_TYPE_CONFIG,
     LEFT_HAND_SLOTS,
     PRIMARY_LANGUAGE,
+    DAMAGE_ATTRIBUTES,
 )
 
 
@@ -102,38 +117,6 @@ def resolve_path(path: str, project_dir: str) -> str:
     return os.path.normpath(os.path.join(project_dir, path)) if path else ""
 
 
-# ============== 本地化数据 ==============
-
-
-@dataclass
-class ItemLocalization:
-    """物品本地化数据，格式: {"Chinese": {"name": "...", "description": "..."}, ...}"""
-
-    languages: Dict[str, Dict[str, str]] = field(default_factory=dict[str, Dict[str, str]])
-
-    def _ensure_lang(self, lang: str) -> Dict[str, str]:
-        return self.languages.setdefault(lang, {"name": "", "description": ""})
-
-    def get_name(self, lang: str) -> str:
-        return self.languages.get(lang, {}).get("name", "")
-
-    def set_name(self, lang: str, value: str) -> None:
-        self._ensure_lang(lang)["name"] = value
-
-    def get_description(self, lang: str) -> str:
-        return self.languages.get(lang, {}).get("description", "")
-
-    def set_description(self, lang: str, value: str) -> None:
-        self._ensure_lang(lang)["description"] = value
-
-    def has_language(self, lang: str) -> bool:
-        return lang in self.languages
-
-    def get_display_name(self) -> str:
-        """获取用于显示的名称（优先主语言，其次英语）"""
-        return self.get_name(PRIMARY_LANGUAGE) or self.get_name("English") or "未命名"
-
-
 # ============== 物品基类 ==============
 
 
@@ -152,7 +135,7 @@ class Item:
     max_duration: int = 100
 
     # 属性字段
-    attributes: Dict[str, Any] = field(default_factory=dict[str, Any])
+    attributes: dict[str, Any] = field(default_factory=lambda: {})
 
     # 本地化
     localization: ItemLocalization = field(default_factory=ItemLocalization)
@@ -175,7 +158,7 @@ class Item:
         raise NotImplementedError
 
     @classmethod
-    def get_config(cls) -> dict:
+    def get_config(cls) -> dict[str, Any]:
         """返回物品类型配置"""
         return ITEM_TYPE_CONFIG[cls.get_type_key()]
 
@@ -200,7 +183,7 @@ class Armor(Item):
     armor_class: str = "Light"
 
     # 拆解材料 (护甲特有)
-    fragments: Dict[str, int] = field(default_factory=dict)
+    fragments: dict[str, int] = field(default_factory=lambda: {})
 
     # 护甲特有布尔属性
     is_open: bool = False
@@ -264,15 +247,15 @@ QUALITY_ARTIFACT = 7
 
 
 def validate_item(
-    item: Item, project=None, include_warnings: bool = False
-) -> List[str]:
+    item: Item, project: "ModProject | None" = None, include_warnings: bool = False
+) -> list[str]:
     """验证物品数据的完整性"""
     config = item.get_config()
     type_name = config["type_name"]
     slot_labels = config["slot_labels"]
     slot_name = slot_labels.get(item.slot, item.slot)
 
-    errors = []
+    errors: list[str] = []
     item.name = item.name.strip()
 
     # ID 格式检查
@@ -321,17 +304,10 @@ def validate_item(
 
 
 def validate_hybrid_item(
-    item: "HybridItemV2", project=None, include_warnings: bool = False
-) -> List[str]:
+    item: "HybridItemV2", project: ModProject | None = None, include_warnings: bool = False
+) -> list[str]:
     """验证混合物品数据的完整性 (V2 接口)"""
-    from hybrid_item_v2 import (
-        WeaponEquip, ArmorEquip, CharmEquip,
-        SkillTrigger, EffectTrigger,
-        LimitedCharges, UnlimitedCharges,
-        HasDurability, NoDurability,
-    )
-
-    errors = []
+    errors: list[str] = []
     item.id = item.id.strip()
 
     # ID 格式检查
@@ -344,7 +320,7 @@ def validate_hybrid_item(
 
     # ID 唯一性检查
     if project:
-        all_ids = []
+        all_ids: list[str] = []
         for w in project.weapons:
             all_ids.append(w.id)
         for a in project.armors:
@@ -370,7 +346,6 @@ def validate_hybrid_item(
         if item.slot != "hand":
             errors.append("WARNING: 武器类型物品的槽位通常应为 'hand'")
         # 检查 attributes 中是否有伤害值
-        from constants import DAMAGE_ATTRIBUTES
         has_damage = any(item.attributes.get(attr, 0) > 0 for attr in DAMAGE_ATTRIBUTES)
         if not has_damage:
             errors.append("武器应在属性中设置至少一种伤害类型")
@@ -395,12 +370,14 @@ def validate_hybrid_item(
     # 耐久检查 (V2: 从 equipment 的 durability 获取)
     if item.has_durability:
         match item.equipment:
-            case WeaponEquip(durability=HasDurability(max_durability=d)):
-                if d <= 0:
+            case WeaponEquip(durability=HasDurability() as dur):
+                if dur.duration_max <= 0:
                     errors.append("耐久度应大于0")
-            case ArmorEquip(durability=HasDurability(max_durability=d)):
-                if d <= 0:
+            case ArmorEquip(durability=HasDurability() as dur):
+                if dur.duration_max <= 0:
                     errors.append("耐久度应大于0")
+            case _:
+                pass
 
     # 贴图检查
     if not item.textures.has_loot():
@@ -440,20 +417,20 @@ class ModProject:
     description: str = "使用 Stoneshard Mod Editor 生成"
     version: str = "1.0.0"
     target_version: str = "0.9.3.13"
-    weapons: List[Weapon] = field(default_factory=list)
-    armors: List[Armor] = field(default_factory=list)
-    hybrid_items: List["HybridItemV2"] = field(default_factory=list)  # V2 格式
+    weapons: list[Weapon] = field(default_factory=lambda: [])
+    armors: list[Armor] = field(default_factory=lambda: [])
+    hybrid_items: list["HybridItemV2"] = field(default_factory=lambda: [])  # V2 格式
     file_path: str = ""
 
-    def validate(self) -> List[str]:
-        errors = []
+    def validate(self) -> list[str]:
+        errors: list[str] = []
         if not self.code_name.strip():
             errors.append("模组代号不能为空")
         elif not re.match(r"^[A-Za-z][A-Za-z0-9]*$", self.code_name.strip()):
             errors.append("模组代号只能包含英文字母和数字，且不能以数字开头")
         return errors
 
-    def save(self, file_path: str = None):
+    def save(self, file_path: str | None = None):
         """保存项目到文件夹结构"""
         if file_path:
             if not file_path.endswith("project.json"):
@@ -470,9 +447,7 @@ class ModProject:
         assets_dir = os.path.join(project_dir, "assets")
         os.makedirs(assets_dir, exist_ok=True)
 
-        from migrations import CURRENT_SCHEMA_VERSION
-
-        data = {
+        data: dict[str, Any] = {
             "schema_version": CURRENT_SCHEMA_VERSION,
             "name": self.name,
             "code_name": self.code_name,
@@ -503,9 +478,9 @@ class ModProject:
         self.clean_unused_assets()
         return True
 
-    def _serialize_item(self, item: Item, project_dir: str) -> dict:
+    def _serialize_item(self, item: Item, project_dir: str) -> dict[str, Any]:
         """序列化物品数据为字典"""
-        item_data = {
+        item_data: dict[str, Any] = {
             "name": item.name,
             "tier": item.tier,
             "slot": item.slot,
@@ -529,27 +504,24 @@ class ModProject:
             item_data["is_open"] = item.is_open
         return item_data
 
-    def _serialize_hybrid_item(self, item: "HybridItemV2", project_dir: str) -> dict:
+    def _serialize_hybrid_item(self, item: "HybridItemV2", project_dir: str) -> dict[str, Any]:
         """序列化混合物品数据为字典 (V2 格式)"""
-        from serde import unstructure_hybrid_item
         return unstructure_hybrid_item(item, project_dir)
 
 
-    def _serialize_textures(self, textures: ItemTexturesV2, project_dir: str) -> dict:
+    def _serialize_textures(self, textures: ItemTexturesV2, project_dir: str) -> dict[str, Any]:
         """序列化贴图数据 (V2 格式)"""
-        from serde import unstructure_textures
         return unstructure_textures(textures, project_dir)
 
     def _deserialize_textures(
-        self, tex_data: dict, project_dir: str
+        self, tex_data: dict[str, Any], project_dir: str
     ) -> ItemTexturesV2:
         """反序列化贴图数据 (V2 格式，迁移已在 migrations.py 完成)"""
-        from serde import structure_textures
         return structure_textures(tex_data, project_dir)
 
 
     def _deserialize_item(
-        self, item_data: dict, project_dir: str, is_weapon: bool
+        self, item_data: dict[str, Any], project_dir: str, is_weapon: bool
     ) -> Item:
         """反序列化物品数据"""
         slot = item_data.get("slot", "sword" if is_weapon else "Head")
@@ -592,9 +564,8 @@ class ModProject:
         item.no_drop = item_data.get("no_drop", False)
         return item
 
-    def _deserialize_hybrid_item(self, item_data: dict, project_dir: str) -> "HybridItemV2":
+    def _deserialize_hybrid_item(self, item_data: dict[str, Any], project_dir: str) -> "HybridItemV2":
         """反序列化混合物品数据"""
-        from serde import structure_hybrid_item
         return structure_hybrid_item(item_data, project_dir)
 
 
@@ -622,15 +593,14 @@ class ModProject:
             return None, False
 
         # 运行迁移 (MigrationError 向上传播)
-        from migrations import migrate
         data, migrated = migrate(data)
 
         project = cls()
         project.file_path = file_path
         project_dir = os.path.dirname(file_path)
 
-        project.name = data.get("name", "MyNewMod")
-        project.code_name = data.get("code_name", "MyNewMod")
+        project.name = str(data.get("name", "MyNewMod"))
+        project.code_name = str(data.get("code_name", "MyNewMod"))
         project.author = data.get("author", "")
         project.description = data.get(
             "description", "使用 Stoneshard Weapon Mod Editor 生成"
@@ -639,12 +609,16 @@ class ModProject:
         project.target_version = data.get("target_version", "0.9.3.13")
 
         project.weapons = [
-            project._deserialize_item(w, project_dir, is_weapon=True)
-            for w in data.get("weapons", [])
+            w for w in (
+                project._deserialize_item(item, project_dir, is_weapon=True)
+                for item in data.get("weapons", [])
+            ) if isinstance(w, Weapon)
         ]
         project.armors = [
-            project._deserialize_item(a, project_dir, is_weapon=False)
-            for a in data.get("armors", [])
+            a for a in (
+                project._deserialize_item(item, project_dir, is_weapon=False)
+                for item in data.get("armors", [])
+            ) if isinstance(a, Armor)
         ]
         project.hybrid_items = [
             project._deserialize_hybrid_item(h, project_dir)
@@ -666,10 +640,8 @@ class ModProject:
         # HybridItemV2 使用 ItemTexturesV2，贴图类型在创建时已正确设置
         # 无需像旧版那样清理
 
-    def _collect_texture_paths_v2(self, textures: ItemTexturesV2, project_dir: str) -> set:
+    def _collect_texture_paths_v2(self, textures: ItemTexturesV2, project_dir: str) -> set[str]:
         """收集 ItemTexturesV2 的所有贴图路径"""
-        from specs import WeaponCharTexture, MultiPoseCharTexture
-
         used_files: set[str] = set()
         all_paths: list[str] = []
 
@@ -697,6 +669,8 @@ class ModProject:
                     all_paths.append(m.standing1_female.path)
                 if m.rest_female.path:
                     all_paths.append(m.rest_female.path)
+            case _:
+                pass
 
         for p in all_paths:
             if p:
@@ -715,14 +689,14 @@ class ModProject:
         if not os.path.exists(assets_dir):
             return
 
-        used_files = set()
+        used_files: set[str] = set()
         for item in self.weapons + self.armors:
             used_files.update(self._collect_texture_paths_v2(item.textures, project_dir))
         for hybrid in self.hybrid_items:
             used_files.update(self._collect_texture_paths_v2(hybrid.textures, project_dir))
 
         cleaned_count = 0
-        for root, dirs, files in os.walk(assets_dir):
+        for root, _dirs, files in os.walk(assets_dir):
             for file in files:
                 file_path = os.path.join(root, file)
                 norm_path = os.path.normpath(file_path).lower()
@@ -762,14 +736,14 @@ class ModProject:
 
         return os.path.relpath(dest_path, project_dir)
 
-    def import_project(self, other_project_path: str):
+    def import_project(self, other_project_path: str) -> tuple[bool, str, list[str]]:
         """导入另一个项目"""
         other_project, _ = ModProject.load(other_project_path)
         if other_project is None:
             return False, "无法加载项目文件", []
 
         imported_count = 0
-        conflicts = []
+        conflicts: list[str] = []
 
         for weapon in other_project.weapons:
             original_name = weapon.name

@@ -48,7 +48,7 @@ class FutureVersionError(MigrationError):
     pass
 
 
-def migrate(data: dict) -> tuple[dict, bool]:
+def migrate(data: dict[str, Any]) -> tuple[dict[str, Any], bool]:
     """运行所有必要的迁移 pass
 
     Args:

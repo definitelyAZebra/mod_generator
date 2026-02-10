@@ -1008,6 +1008,8 @@ class ItemTexturesV2:
                 m.standing1_female.origin = Origin()
                 m.rest_female.path = ""
                 m.rest_female.origin = Origin()
+            case NoCharTexture():
+                pass
 
     def clear_left(self) -> None:
         """清除左手贴图（仅武器）"""

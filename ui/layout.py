@@ -66,14 +66,14 @@ ImGui 与 CSS 的核心区别:
 """
 
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import Callable, TYPE_CHECKING
 from contextlib import contextmanager
 import inspect
-import os
 
 from ui import imgui_shim as imgui
 
 from ui.state import dpi_scale
+from ui.scale import Sp, Cn, SpacingArg, SizingArg, dp
 from ui.styles import StyleContext
 
 if TYPE_CHECKING:
@@ -83,8 +83,6 @@ if TYPE_CHECKING:
 # =============================================================================
 # 自动布局缓存
 # =============================================================================
-
-import inspect
 
 # 缓存每个布局 ID 的尺寸 (width, height)
 _size_cache: dict[str, tuple[float, float]] = {}
@@ -134,15 +132,15 @@ def _auto_id() -> str:
     frame = inspect.currentframe()
     try:
         # 往上跳 2 层: _auto_id -> auto_xxx -> 用户代码
-        caller = frame.f_back.f_back
+        caller = frame.f_back.f_back  # type: ignore[union-attr]
 
         # 组合多个标识以确保唯一性
-        filename = caller.f_code.co_filename
-        lineno = caller.f_lineno
+        filename = caller.f_code.co_filename  # type: ignore[union-attr]
+        lineno = caller.f_lineno  # type: ignore[union-attr]
         # 字节码偏移量 - 比列号更可靠，因为 Python 不直接提供列号
-        lasti = caller.f_lasti
+        lasti = caller.f_lasti  # type: ignore[union-attr]
         # 函数名或代码块名称
-        func_name = caller.f_code.co_name
+        func_name = caller.f_code.co_name  # type: ignore[union-attr]
 
         # 使用相对路径避免 ID 过长（只保留文件名）
         import os
@@ -250,23 +248,45 @@ def auto_center(layout_id: str | None = None):
 # 尺寸转换
 # =============================================================================
 
+# ---------------------------------------------------------------------------
+# DEPRECATED — 旧版尺寸转换函数，请使用 dp(Sp.XX) 替代
+# ---------------------------------------------------------------------------
+
+import warnings as _warnings
+
+_VALID_SCALE = frozenset([
+    0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+    14, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 72, 80, 96,
+])
+
+
 def sz(n: float) -> float:
-    """Tailwind 单位转 DPI 缩放像素
+    """DEPRECATED: Use dp(Sp.XX) instead.
 
-    sz(40) = 160px at 1x DPI
-    sz(9)  = 36px at 1x DPI
-
-    用于需要精确像素值的场景:
-        imgui.button("OK", width=sz(40), height=sz(9))
+    Tailwind 单位转 DPI 缩放像素。保留作为兜底转发。
     """
+    _warnings.warn(
+        f"sz({n}) is deprecated, use dp(Sp.S{n}) instead.",
+        DeprecationWarning, stacklevel=2,
+    )
+    return n * 4 * dpi_scale()
+
+
+def sz_free(n: float) -> float:
+    """DEPRECATED: Use dp(Cn.XX) or raw_px * dpi_scale() instead."""
+    _warnings.warn(
+        f"sz_free({n}) is deprecated.",
+        DeprecationWarning, stacklevel=2,
+    )
     return n * 4 * dpi_scale()
 
 
 def sz_raw(n: float) -> float:
-    """Tailwind 单位转像素 (无 DPI 缩放)
-
-    用于需要原始像素的场景
-    """
+    """DEPRECATED: Use Sp.XX (raw px) directly instead."""
+    _warnings.warn(
+        f"sz_raw({n}) is deprecated.",
+        DeprecationWarning, stacklevel=2,
+    )
     return n * 4
 
 
@@ -274,24 +294,22 @@ def sz_raw(n: float) -> float:
 # Tailwind 风格间距函数
 # =============================================================================
 
-def gap_y(n: float) -> None:
+def gap_y(n: SpacingArg) -> None:
     """添加垂直间距
 
     Args:
-        n: Tailwind 单位 (4 = 16px, 6 = 24px)
+        n: Sp 枚举值 (Sp.S4 = 16px, Sp.S6 = 24px)
     """
-    px = n * 4 * dpi_scale()
-    imgui.dummy(0, px)
+    imgui.dummy(0, dp(n))
 
 
-def gap_x(n: float) -> None:
+def gap_x(n: SpacingArg) -> None:
     """添加水平间距 (配合 same_line)
 
     Args:
-        n: Tailwind 单位 (4 = 16px)
+        n: Sp 枚举值 (Sp.S4 = 16px)
     """
-    px = n * 4 * dpi_scale()
-    imgui.same_line(spacing=px)
+    imgui.same_line(spacing=dp(n))
 
 
 def gap_y_px(px: float) -> None:
@@ -304,13 +322,13 @@ def gap_x_px(px: float) -> None:
     imgui.same_line(spacing=px * dpi_scale())
 
 
-def same_line(gap: float = 0) -> None:
+def same_line(gap: SpacingArg = Sp.S0) -> None:
     """移动到同一行下一位置
 
     Args:
-        gap: Tailwind 单位间距 (4 = 16px)
+        gap: Sp 枚举值 (Sp.S4 = 16px)
     """
-    imgui.same_line(spacing=gap * 4 * dpi_scale())
+    imgui.same_line(spacing=dp(gap))
 
 
 # =============================================================================
@@ -369,17 +387,17 @@ def text_center(content: str, style: StyleContext | None = None, cache_id: str |
     _set_cached_size(cache_key, int(actual_size.x), int(actual_size.y))
 
 
-def text_right(content: str, style: StyleContext | None = None, margin: float = 0, cache_id: str | None = None) -> None:
+def text_right(content: str, style: StyleContext | None = None, margin: SpacingArg = Sp.S0, cache_id: str | None = None) -> None:
     """右对齐绘制文本
 
     Args:
         content: 文本内容
         style: 样式上下文
-        margin: 右边距（Tailwind 单位）
+        margin: 右边距 (Sp 枚举)
         cache_id: 缓存 ID，用于多帧尺寸稳定。如果不提供则使用 content 作为 ID
     """
     window_width = imgui.get_window_width()
-    margin_px = margin * 4 * dpi_scale()
+    margin_px = dp(margin)
     cache_key = cache_id or f"text_right:{content}"
 
     # 获取缓存的真实宽度
@@ -411,7 +429,7 @@ def text_right(content: str, style: StyleContext | None = None, margin: float = 
 def icon_label(
     icon_char: str,
     text: str,
-    gap: float = 2,
+    gap: SpacingArg = Sp.S2,
     icon_style: StyleContext | None = None,
     text_style: StyleContext | None = None,
 ) -> None:
@@ -420,7 +438,7 @@ def icon_label(
     Args:
         icon_char: FA 图标字符
         text: 标签文字
-        gap: 图标与文字间距 (Tailwind 单位)
+        gap: 图标与文字间距 (Sp 枚举)
         icon_style: 图标样式
         text_style: 文字样式
 
@@ -445,18 +463,18 @@ def icon_label(
 # =============================================================================
 
 @contextmanager
-def row(gap: float = 0):
+def row(gap: SpacingArg = Sp.S0):
     """水平行容器 - 子元素水平排列
 
     Args:
-        gap: 子元素间距 (Tailwind 单位, 4 = 16px)
+        gap: 子元素间距 (Sp 枚举, Sp.S4 = 16px)
 
     用法:
-        with ly.row(gap=4):
+        with ly.row(gap=Sp.S4):
             imgui.button("A")
             imgui.button("B")
     """
-    gap_px = gap * 4 * dpi_scale()
+    gap_px = dp(gap)
     style = imgui.get_style()
     original_spacing = style.item_spacing
 
@@ -470,13 +488,13 @@ def row(gap: float = 0):
 
 
 @contextmanager
-def col(gap: float = 0):
+def col(gap: SpacingArg = Sp.S0):
     """垂直列容器 - 子元素垂直排列
 
     Args:
-        gap: 子元素间距 (Tailwind 单位)
+        gap: 子元素间距 (Sp 枚举)
     """
-    gap_px = gap * 4 * dpi_scale()
+    gap_px = dp(gap)
     style = imgui.get_style()
     original_spacing = style.item_spacing
 
@@ -533,8 +551,9 @@ class CardState:
 @contextmanager
 def card(
     label: str,
-    height: float = 0,
+    height: SizingArg = Sp.S0,
     *,
+    border: bool = False,
     flags: int = 0,
 ):
     """可交互卡片容器 - 纯布局组件，样式通过外部 tw tokens 控制
@@ -548,7 +567,8 @@ def card(
 
     Args:
         label: 唯一标识符
-        height: 高度 (Tailwind 单位)。0 表示自适应内容
+        height: 高度 (Sp/Cn 枚举)。Sp.S0 表示自适应内容
+        border: 是否渲染边框 (需配合 tw.border_* + tw.child_border_size)
         flags: 额外的 child window flags
 
     Yields:
@@ -577,7 +597,7 @@ def card(
             with ly.card("project_header", height=12) as state:
                 ...
     """
-    h = sz(height) if height > 0 else 0
+    h = dp(height) if int(height) > 0 else 0
     avail_width = imgui.get_content_region_available().x
 
     state = CardState()
@@ -587,10 +607,10 @@ def card(
     # AlwaysUseWindowPadding: 必须显式设置，否则当 ChildBorderSize=0 时
     # ImGui 会将 WindowPadding 强制归零 (imgui.cpp:7982)
     cf = int(imgui.ChildFlags.AlwaysUseWindowPadding)
-    if height == 0:
+    if int(height) == 0:
         cf |= int(imgui.ChildFlags.AutoResizeY)
 
-    imgui.begin_child(label, width=avail_width, height=h, border=False, child_flags=cf, window_flags=wf)
+    imgui.begin_child(label, width=avail_width, height=h, border=border, child_flags=cf, window_flags=wf)
     try:
         yield state
     finally:
@@ -614,8 +634,8 @@ def clear_panel_cache() -> None:
 def panel(
     label: str,
     bg_color: tuple[float, float, float, float],
-    padding: float = 4,
-    rounding: float = 2,
+    padding: SpacingArg = Sp.S4,
+    rounding: SpacingArg = Sp.S2,
 ):
     """带样式的自动高度面板 - 背景 + padding + 圆角
 
@@ -634,25 +654,25 @@ def panel(
     Args:
         label: 唯一标识符 (用于缓存高度)
         bg_color: 背景色 RGBA tuple
-        padding: 内边距 (Tailwind 单位，默认 4 = 16px)
-        rounding: 圆角 (Tailwind 单位，默认 2 = 8px)
+        padding: 内边距 (Sp 枚举，默认 Sp.S4 = 16px)
+        rounding: 圆角 (Sp 枚举，默认 Sp.S2 = 8px)
 
     用法:
-        from ui.tw import ABYSS_800
+        from ui.tw import BG_ELEVATED
 
-        with ly.panel("my_panel", ABYSS_800, padding=4, rounding=2):
+        with ly.panel("my_panel", BG_ELEVATED, padding=Sp.S4, rounding=Sp.S2):
             imgui.text("自动高度面板")
             imgui.text("背景会正确绘制在内容后面")
     """
-    pad = sz(padding)
-    round_px = sz(rounding)
+    pad = dp(padding)
+    round_px = dp(rounding)
     avail_width = imgui.get_content_region_available().x
 
     # 记录面板起始位置 (屏幕坐标)
     panel_start = imgui.get_cursor_screen_pos()
 
     # 获取缓存的高度 (首次渲染默认为一个合理值)
-    cached_height = _panel_height_cache.get(label, sz(20))
+    cached_height = _panel_height_cache.get(label, dp(Sp.S20))
 
     # 计算面板尺寸
     panel_width = avail_width
@@ -711,7 +731,12 @@ def content_region() -> tuple[float, float]:
 
 
 def scaled(px: float) -> float:
-    """返回 DPI 缩放后的像素值"""
+    """返回 DPI 缩放后的像素值
+
+    .. deprecated:: Use ``dp()`` from ``ui.scale`` instead.
+    """
+    import warnings
+    warnings.warn("scaled() is deprecated, use dp() from ui.scale", DeprecationWarning, stacklevel=2)
     return px * dpi_scale()
 
 
@@ -778,7 +803,7 @@ def _hstack_id_from_caller() -> str:
     try:
         # 往上跳: _hstack_id_from_caller -> hstack -> contextmanager wrapper -> 用户代码
         # 需要找到不在 contextlib.py 的帧
-        f = frame.f_back
+        f = frame.f_back  # type: ignore[union-attr]
         while f:
             filename = f.f_code.co_filename
             if 'contextlib' not in filename and 'layout.py' not in filename:
@@ -792,12 +817,12 @@ def _hstack_id_from_caller() -> str:
 class _FlexContext:
     """Flex 布局上下文 - 管理子元素布局"""
 
-    def __init__(self, direction: str, gap: float, align: str, hstack_id: str | None = None):
+    def __init__(self, direction: str, gap: SpacingArg, align: str, hstack_id: str | None = None):
         self.direction = direction  # 'h' or 'v'
         self.gap = gap
         self.align = align  # 'start', 'center', 'end'
         self._first_item = True
-        self._gap_px = gap * 4 * dpi_scale()
+        self._gap_px = dp(gap)
         self._spacer_used = False  # spacer() 调用后跳过下一次 same_line
 
         # hstack 垂直对齐支持
@@ -947,8 +972,8 @@ def slot():
             )
 
             # 如果有缓存，绘制 max_height 参考线（绿色）
-            if ctx and ctx._hstack_id:
-                cached = _hstack_height_cache.get(ctx._hstack_id)
+            if ctx and ctx._hstack_id:  # pyright: ignore[reportPrivateUsage]
+                cached = _hstack_height_cache.get(ctx._hstack_id)  # pyright: ignore[reportPrivateUsage]
                 if cached:
                     max_height = cached[0]
                     ref_top = start_screen_pos.y
@@ -961,7 +986,7 @@ def slot():
 
 
 @contextmanager
-def hstack(gap: float = 2, align: str = "center"):
+def hstack(gap: SpacingArg = Sp.S2, align: str = "center"):
     """水平 Flex 容器 - 子元素水平排列，支持垂直对齐
 
     ⚠️ 容器类型: Group (begin_group)
@@ -970,7 +995,7 @@ def hstack(gap: float = 2, align: str = "center"):
        - gap 通过 same_line(spacing) 实现，不是 ItemSpacing
 
     Args:
-        gap: 子元素间距 (Tailwind 单位, 2 = 8px)
+        gap: 子元素间距 (Sp 枚举, Sp.S2 = 8px)
         align: 垂直对齐方式
             - 'start': 顶部对齐 (默认 ImGui 行为)
             - 'center': 垂直居中 ⭐ 推荐用于图标+文字
@@ -1004,7 +1029,7 @@ def hstack(gap: float = 2, align: str = "center"):
 
 
 @contextmanager
-def vstack(gap: float = 2, align: str = "start"):
+def vstack(gap: SpacingArg = Sp.S2, align: str = "start"):
     """垂直 Flex 容器 - 子元素垂直排列
 
     ⚠️ 容器类型: Group (begin_group)
@@ -1013,7 +1038,7 @@ def vstack(gap: float = 2, align: str = "start"):
        - gap 通过 dummy 实现，不是 ItemSpacing
 
     Args:
-        gap: 子元素间距 (Tailwind 单位)
+        gap: 子元素间距 (Sp 枚举)
         align: 水平对齐 ('start', 'center', 'end') - 目前未实现
 
     用法:
@@ -1051,7 +1076,7 @@ def spacer():
         return  # 仅在 hstack 中有效
 
     # 标记 spacer 已使用，下一个 slot 不需要再 same_line
-    ctx._spacer_used = True
+    ctx._spacer_used = True  # pyright: ignore[reportPrivateUsage]
 
     # 获取剩余空间，用 same_line 跳到右侧
     # 注意：后续的 slot 会使用 auto_right_slot 机制
@@ -1083,12 +1108,12 @@ def list_item(
     item_id: str,
     selected: bool = False,
     *,
-    padding_x: float = 3,
-    padding_y: float = 2,
-    rounding: float = 1,
-    bg_color: tuple | None = None,
-    selected_color: tuple | None = None,
-    hover_color: tuple | None = None,
+    padding_x: SpacingArg = Sp.S3,
+    padding_y: SpacingArg = Sp.S2,
+    rounding: SpacingArg = Sp.S1,
+    bg_color: tuple[float, float, float, float] | None = None,
+    selected_color: tuple[float, float, float, float] | None = None,
+    hover_color: tuple[float, float, float, float] | None = None,
 ):
     """可交互列表项 - 统一处理背景、padding、hover/selected 状态
 
@@ -1097,9 +1122,9 @@ def list_item(
     Args:
         item_id: 唯一标识符
         selected: 是否选中
-        padding_x: 水平内边距 (Tailwind 单位)
-        padding_y: 垂直内边距 (Tailwind 单位)
-        rounding: 圆角 (Tailwind 单位)
+        padding_x: 水平内边距 (Sp 枚举)
+        padding_y: 垂直内边距 (Sp 枚举)
+        rounding: 圆角 (Sp 枚举)
         bg_color: 默认背景色 (None = 透明)
         selected_color: 选中时背景色
         hover_color: 悬停时背景色
@@ -1110,7 +1135,7 @@ def list_item(
     用法:
         with ly.list_item("item_1", selected=is_active,
                           selected_color=tw.CRYSTAL_600,
-                          hover_color=tw.ABYSS_700) as state:
+                          hover_color=tw.HOVER_DEFAULT) as state:
             imgui.text("物品名称")
 
         if state.clicked:
@@ -1123,11 +1148,11 @@ def list_item(
     if selected_color is None:
         selected_color = _tw.CRYSTAL_600
     if hover_color is None:
-        hover_color = _tw.ABYSS_700
+        hover_color = _tw.HOVER_DEFAULT  # type: ignore[assignment]  # tw tuple constant
 
     avail_width = imgui.get_content_region_available().x
-    px = sz(padding_x)
-    py = sz(padding_y)
+    px = dp(padding_x)
+    py = dp(padding_y)
 
     # 获取上一帧缓存
     was_hovered, cached_height = _list_item_cache.get(item_id, (False, 0))
@@ -1153,7 +1178,7 @@ def list_item(
             start_screen.x, start_screen.y,
             start_screen.x + avail_width, start_screen.y + cached_height,
             imgui.get_color_u32_rgba(*color),
-            rounding=sz(rounding),
+            rounding=dp(rounding),
         )
 
     # ===== 2. 设置内容位置（加 padding）=====
@@ -1213,31 +1238,31 @@ def collapsible(
     panel_id: str,
     *,
     default_open: bool = True,
-    header_padding_x: float = 3,
-    header_padding_y: float = 2,
-    header_rounding: float = 1,
-    header_bg: tuple | None = None,
-    header_hover: tuple | None = None,
-    content_indent: float = 0,
-    content_gap: float = 1,
+    header_padding_x: SpacingArg = Sp.S3,
+    header_padding_y: SpacingArg = Sp.S2,
+    header_rounding: SpacingArg = Sp.S1,
+    header_bg: tuple[float, float, float, float] | None = None,
+    header_hover: tuple[float, float, float, float] | None = None,
+    content_indent: SpacingArg = Sp.S0,
+    content_gap: SpacingArg = Sp.S1,
 ):
     """可折叠面板 - 包含可点击头部和可折叠内容区
 
     Args:
         panel_id: 唯一标识符
         default_open: 默认是否展开
-        header_padding_x/y: 头部内边距
-        header_rounding: 头部圆角
+        header_padding_x/y: 头部内边距 (Sp 枚举)
+        header_rounding: 头部圆角 (Sp 枚举)
         header_bg: 头部背景色
         header_hover: 头部悬停背景色
-        content_indent: 内容区左侧缩进
-        content_gap: 头部与内容间距
+        content_indent: 内容区左侧缩进 (Sp 枚举)
+        content_gap: 头部与内容间距 (Sp 枚举)
 
     Yields:
         CollapsibleState - 包含 is_open, header_clicked, header_hovered
 
     用法:
-        with ly.collapsible("weapons", header_bg=tw.ABYSS_800) as panel:
+        with ly.collapsible("weapons", header_bg=tw.BG_ELEVATED) as panel:
             # 头部内容（始终显示）
             with panel.header:
                 with ly.hstack(gap=2):
@@ -1261,9 +1286,9 @@ def collapsible(
 
     # 使用默认颜色
     if header_bg is None:
-        header_bg = _tw.ABYSS_800
+        header_bg = _tw.BG_ELEVATED
     if header_hover is None:
-        header_hover = _tw.ABYSS_700
+        header_hover = _tw.HOVER_DEFAULT  # type: ignore[assignment]  # tw tuple constant
 
     # 创建面板对象
     class Panel:
@@ -1309,17 +1334,17 @@ def icon_btn(
     icon: str,
     btn_id: str,
     *,
-    size: float = 7,
+    size: SizingArg = Sp.S7,
     tooltip_text: str | None = None,
     disabled: bool = False,
-    style = None,
+    style: StyleContext | None = None,
 ) -> bool:
     """图标按钮 - 统一尺寸和样式
 
     Args:
         icon: Font Awesome 图标字符
         btn_id: 按钮唯一 ID（不含 ##）
-        size: 按钮尺寸 (Tailwind 单位, 7 = 28px)
+        size: 按钮尺寸 (Sp/Cn 枚举, Sp.S7 = 28px)
         tooltip_text: 悬停提示
         disabled: 是否禁用
         style: StyleContext 样式
@@ -1334,7 +1359,7 @@ def icon_btn(
     from ui import styles as _styles
     from ui import tw as _tw
 
-    btn_size = sz(size)
+    btn_size = dp(size)
     clicked = False
 
     # 应用样式
@@ -1384,13 +1409,13 @@ class _RightSlotContext:
 
         if cached_right_width > 0 and cached_row_height > 0:
             # 有缓存：精确右对齐 + 垂直居中
-            right_x = (self._parent._start_cursor.x + self._parent._avail_width
-                      - cached_right_width - self._parent._px)
+            right_x = (self._parent._start_cursor.x + self._parent._avail_width  # pyright: ignore[reportPrivateUsage, reportOptionalMemberAccess]
+                      - cached_right_width - self._parent._px)  # pyright: ignore[reportPrivateUsage]
             # 垂直居中于整行
-            right_y = self._parent._start_cursor.y + (cached_row_height - self._parent._right_height) / 2
+            right_y = self._parent._start_cursor.y + (cached_row_height - self._parent._right_height) / 2  # pyright: ignore[reportPrivateUsage, reportOptionalMemberAccess]
             # 首次右侧高度未知，使用 padding
-            if self._parent._right_height == 0:
-                right_y = self._parent._start_cursor.y + self._parent._py
+            if self._parent._right_height == 0:  # pyright: ignore[reportPrivateUsage]
+                right_y = self._parent._start_cursor.y + self._parent._py  # pyright: ignore[reportPrivateUsage, reportOptionalMemberAccess]
             imgui.set_cursor_pos((right_x, right_y))
         else:
             # 首帧：放在最右边（可能不精确）
@@ -1399,11 +1424,11 @@ class _RightSlotContext:
         imgui.begin_group()
         return self
 
-    def __exit__(self, *args):
+    def __exit__(self, *args: object) -> None:
         imgui.end_group()
         size = imgui.get_item_rect_size()
-        self._parent._right_width = size.x
-        self._parent._right_height = size.y
+        self._parent._right_width = size.x  # pyright: ignore[reportPrivateUsage]
+        self._parent._right_height = size.y  # pyright: ignore[reportPrivateUsage]
 
 
 class SplitRowContext:
@@ -1412,20 +1437,20 @@ class SplitRowContext:
     def __init__(
         self,
         row_id: str,
-        padding_x: float,
-        padding_y: float,
-        hover_color: tuple | None,
-        bg_color: tuple | None,
+        padding_x: SpacingArg,
+        padding_y: SpacingArg,
+        hover_color: tuple[float, float, float, float] | None,
+        bg_color: tuple[float, float, float, float] | None,
     ):
         self.row_id = row_id
-        self._px = sz(padding_x)
-        self._py = sz(padding_y)
+        self._px = dp(padding_x)
+        self._py = dp(padding_y)
         self._hover_color = hover_color
         self._bg_color = bg_color
 
         # 运行时记录
-        self._start_cursor = None
-        self._start_screen = None
+        self._start_cursor: imgui.Vec2 | None = None
+        self._start_screen: imgui.Vec2 | None = None
         self._avail_width = 0.0
         self._left_height = 0.0
         self._right_width = 0.0
@@ -1451,8 +1476,8 @@ class SplitRowContext:
                 y_offset = self._py
 
             imgui.set_cursor_pos((
-                self._start_cursor.x + self._px,
-                self._start_cursor.y + y_offset
+                self._start_cursor.x + self._px,  # pyright: ignore[reportOptionalMemberAccess]
+                self._start_cursor.y + y_offset  # pyright: ignore[reportOptionalMemberAccess]
             ))
             imgui.begin_group()
             try:
@@ -1489,6 +1514,7 @@ class SplitRowContext:
         # ===== 先画背景（用缓存的高度）=====
         if color and cached_height > 0:
             draw_list = imgui.get_window_draw_list()
+            assert self._start_screen is not None
             draw_list.add_rect_filled(
                 self._start_screen.x, self._start_screen.y,
                 self._start_screen.x + self._avail_width,
@@ -1498,7 +1524,7 @@ class SplitRowContext:
 
         return self
 
-    def __exit__(self, *args):
+    def __exit__(self, *args: object) -> None:
         # 计算行高（取整避免抖动）
         content_height = max(self._left_height, self._right_height)
         row_height = int(content_height + self._py * 2)
@@ -1507,6 +1533,7 @@ class SplitRowContext:
         # ===== 放置交互按钮 =====
         # 只覆盖左侧区域，不覆盖右侧按钮（避免吞掉右侧按钮的 hover）
         clickable_width = self._avail_width - self._right_width - self._px
+        assert self._start_cursor is not None
         imgui.set_cursor_pos(self._start_cursor)
         imgui.invisible_button(f"##{self.row_id}_row_btn", clickable_width, row_height)
         self.state.hovered = imgui.is_item_hovered()
@@ -1532,10 +1559,10 @@ class SplitRowContext:
 def split_row(
     row_id: str,
     *,
-    padding_x: float = 3,
-    padding_y: float = 1.5,
-    hover_color: tuple | None = None,
-    bg_color: tuple | None = None,
+    padding_x: SpacingArg = Sp.S3,
+    padding_y: SpacingArg = Sp.S1_5,
+    hover_color: tuple[float, float, float, float] | None = None,
+    bg_color: tuple[float, float, float, float] | None = None,
 ):
     """双槽行布局 - 左右两端对齐，自动处理 hover 背景
 
@@ -1547,8 +1574,8 @@ def split_row(
 
     Args:
         row_id: 唯一标识符
-        padding_x: 水平内边距 (Tailwind 单位)
-        padding_y: 垂直内边距 (Tailwind 单位)
+        padding_x: 水平内边距 (Sp 枚举)
+        padding_y: 垂直内边距 (Sp 枚举)
         hover_color: 悬停背景色
         bg_color: 默认背景色
 
@@ -1556,7 +1583,7 @@ def split_row(
         SplitRowContext - 包含 left, right 槽位和 state
 
     用法:
-        with ly.split_row("section_weapons", hover_color=tw.ABYSS_600) as row:
+        with ly.split_row("section_weapons", hover_color=tw.HOVER_DEFAULT) as row:
             with row.left:
                 imgui.text("武器 (3)")
 
@@ -1575,30 +1602,30 @@ def split_row(
 # 简化的右对齐原语
 # =============================================================================
 
-def push_right(content_width: float) -> None:
+def push_right(content_width: SizingArg) -> None:
     """将光标移到右对齐位置
 
     用于在行内将后续内容右对齐。
 
     Args:
-        content_width: 后续内容的宽度 (Tailwind 单位)
+        content_width: 后续内容的宽度 (Sp/Cn 枚举)
 
     用法:
         imgui.text("左侧内容")
-        ly.push_right(5)  # 后续内容宽 20px
+        ly.push_right(Sp.S5)  # 后续内容宽 20px
         ly.icon_btn(FA_PLUS, "add")
     """
     avail = imgui.get_content_region_available().x
-    width_px = sz(content_width)
+    width_px = dp(content_width)
     cursor = imgui.get_cursor_pos()
     imgui.set_cursor_pos_x(cursor.x + avail - width_px)
 
 
-def right_aligned(content_width: float):
+def right_aligned(content_width: SizingArg):
     """右对齐容器上下文
 
     Args:
-        content_width: 内容宽度 (Tailwind 单位)
+        content_width: 内容宽度 (Sp/Cn 枚举)
 
     用法:
         with ly.right_aligned(10):
@@ -1751,7 +1778,7 @@ def menu_separator():
     cursor_screen = imgui.get_cursor_screen_pos()
     avail_width = imgui.get_content_region_available().x
 
-    color = imgui.get_color_u32_rgba(*_tw.ABYSS_600)
+    color = imgui.get_color_u32_rgba(*_tw.BORDER_SUBTLE)
     draw_list.add_line(
         cursor_screen.x, cursor_screen.y,
         cursor_screen.x + avail_width, cursor_screen.y,
@@ -1766,7 +1793,7 @@ def menu_separator():
 # =============================================================================
 
 @contextmanager
-def grid(cols: int = 2, gap: float = 4, row_gap: float | None = None):
+def grid(cols: int = 2, gap: SpacingArg = Sp.S4, row_gap: SpacingArg | None = None):
     """多列网格布局
 
     ⚠️ 容器类型: Table (begin_table)
@@ -1778,8 +1805,8 @@ def grid(cols: int = 2, gap: float = 4, row_gap: float | None = None):
 
     Args:
         cols: 列数 (默认 2)
-        gap: 列间距 (Tailwind 单位)
-        row_gap: 行间距 (Tailwind 单位，默认等于 gap)
+        gap: 列间距 (Sp 枚举)
+        row_gap: 行间距 (Sp 枚举，默认等于 gap)
 
     用法:
         with ly.grid(cols=2, gap=4):
@@ -1793,8 +1820,8 @@ def grid(cols: int = 2, gap: float = 4, row_gap: float | None = None):
             with ly.grid_item():
                 imgui.input_text("##input2", ...)
     """
-    gap_px = sz(gap)
-    row_gap_px = sz(row_gap) if row_gap is not None else gap_px
+    gap_px = dp(gap)
+    row_gap_px = dp(row_gap) if row_gap is not None else gap_px
 
     # 使用 Table 实现 grid
     flags = (
@@ -1844,9 +1871,9 @@ def grid_row():
 @contextmanager
 def form_row(
     label: str,
-    label_width: float = 25,
+    label_width: SizingArg = Sp.S24,
     *,
-    label_style=None,
+    label_style: StyleContext | None = None,
     required: bool = False,
     help_text: str | None = None,
 ):
@@ -1856,7 +1883,7 @@ def form_row(
 
     Args:
         label: 标签文本
-        label_width: 标签宽度 (Tailwind 单位，25 = 100px)
+        label_width: 标签宽度 (Sp/Cn 枚举，默认 Sp.S24 = 96px)
         label_style: 标签样式 (StyleContext)
         required: 是否显示必填标记 *
         help_text: 帮助文本 (悬停显示)
@@ -1873,7 +1900,7 @@ def form_row(
     """
     from ui import tw as _tw
 
-    label_w = sz(label_width)
+    label_w = dp(label_width)
     avail = imgui.get_content_region_available().x
 
     imgui.begin_group()
@@ -1894,7 +1921,7 @@ def form_row(
                 imgui.set_tooltip(help_text)
 
     # 设置输入区域宽度
-    imgui.same_line(position=label_w)
+    imgui.same_line(offset_from_start_x=label_w)
     imgui.push_item_width(avail - label_w)
 
     try:
@@ -1905,12 +1932,12 @@ def form_row(
 
 
 @contextmanager
-def form_section(title: str, *, gap: float = 3):
+def form_section(title: str, *, gap: SpacingArg = Sp.S3):
     """表单分区 - 带标题的表单区域
 
     Args:
         title: 分区标题
-        gap: 标题与内容间距
+        gap: 标题与内容间距 (Sp 枚举)
 
     用法:
         with ly.form_section("基本信息"):
@@ -1933,7 +1960,7 @@ def form_section(title: str, *, gap: float = 3):
 # =============================================================================
 
 @contextmanager
-def scroll_y(height: float, *, border: bool = False):
+def scroll_y(height: SizingArg, *, border: bool = False):
     """垂直滚动区域
 
     ⚠️ 容器类型: Child Window (begin_child)
@@ -1942,7 +1969,7 @@ def scroll_y(height: float, *, border: bool = False):
        - 样式必须在 scroll_y 之前设置
 
     Args:
-        height: 区域高度 (Tailwind 单位)
+        height: 区域高度 (Sp/Cn 枚举)
         border: 是否显示边框
 
     用法:
@@ -1952,7 +1979,7 @@ def scroll_y(height: float, *, border: bool = False):
                 for item in long_list:
                     imgui.text(item)  # 有 8px 内边距
     """
-    h = sz(height)
+    h = dp(height)
     w = imgui.get_content_region_available().x
 
     imgui.begin_child(
@@ -1969,22 +1996,34 @@ def scroll_y(height: float, *, border: bool = False):
 
 
 @contextmanager
-def scroll_x(width: float = 0, height: float = 0, *, border: bool = False):
+def scroll_x(width: SizingArg = Sp.S0, height: SizingArg = Sp.S0, *, content_width: float = 0, border: bool = False):
     """水平滚动区域
 
+    ⚠️ 容器类型: Child Window (begin_child)
+       - 需要设置 content_width 使内容宽于容器才能触发滚动
+       - 如果不设 content_width，内容在容器边缘自动换行，滚动条不会出现
+
     Args:
-        width: 区域宽度 (0 = 自动)
-        height: 区域高度 (0 = 自动)
+        width: 区域宽度 (Sp.S0 = 自动)
+        height: 区域高度 (Sp.S0 = 自动)
+        content_width: 内容总宽度 (像素, 已 DPI 缩放)。
+                       设为大于容器宽度的值以启用水平滚动。
+                       0 = 不设置 (由 ImGui 自动推断)
         border: 是否显示边框
 
     用法:
-        with ly.scroll_x():
-            with ly.hstack(gap=2):
-                for img in images:
-                    draw_thumbnail(img)
+        # 已知内容总宽度
+        total_w = len(images) * (thumb_size + gap)
+        with ly.scroll_x(content_width=total_w):
+            for img in images:
+                draw_thumbnail(img)
+                imgui.same_line()
     """
-    w = sz(width) if width > 0 else 0
-    h = sz(height) if height > 0 else 0
+    w = dp(width) if int(width) > 0 else 0
+    h = dp(height) if int(height) > 0 else 0
+
+    if content_width > 0:
+        imgui.set_next_window_content_size(content_width, 0)
 
     imgui.begin_child(
         "##scroll_x",
@@ -2004,17 +2043,17 @@ def scroll_x(width: float = 0, height: float = 0, *, border: bool = False):
 # =============================================================================
 
 @contextmanager
-def fixed_width(width: float):
+def fixed_width(width: SizingArg):
     """固定宽度容器
 
     Args:
-        width: 宽度 (Tailwind 单位)
+        width: 宽度 (Sp/Cn 枚举)
 
     用法:
-        with ly.fixed_width(60):  # 240px
+        with ly.fixed_width(Sp.S60):  # 240px
             imgui.text("固定宽度内容")
     """
-    w = sz(width)
+    w = dp(width)
     imgui.begin_group()
     imgui.push_item_width(w)
     try:
@@ -2025,13 +2064,13 @@ def fixed_width(width: float):
 
 
 @contextmanager
-def fixed_height(height: float):
+def fixed_height(height: SizingArg):
     """固定高度容器 (使用 child window)
 
     Args:
-        height: 高度 (Tailwind 单位)
+        height: 高度 (Sp/Cn 枚举)
     """
-    h = sz(height)
+    h = dp(height)
     w = imgui.get_content_region_available().x
 
     imgui.begin_child("##fixed_h", width=w, height=h, border=False)
@@ -2042,15 +2081,15 @@ def fixed_height(height: float):
 
 
 @contextmanager
-def fixed_size(width: float, height: float):
+def fixed_size(width: SizingArg, height: SizingArg):
     """固定尺寸容器
 
     Args:
-        width: 宽度 (Tailwind 单位)
-        height: 高度 (Tailwind 单位)
+        width: 宽度 (Sp/Cn 枚举)
+        height: 高度 (Sp/Cn 枚举)
     """
-    w = sz(width)
-    h = sz(height)
+    w = dp(width)
+    h = dp(height)
 
     imgui.begin_child("##fixed", width=w, height=h, border=False)
     try:
@@ -2064,12 +2103,12 @@ def fixed_size(width: float, height: float):
 # =============================================================================
 
 @contextmanager
-def split_h(left_ratio: float = 0.5, gap: float = 4):
+def split_h(left_ratio: float = 0.5, gap: SpacingArg = Sp.S4):
     """水平分割 - 左右两栏
 
     Args:
         left_ratio: 左侧占比 (0.0 ~ 1.0)
-        gap: 中间间距 (Tailwind 单位)
+        gap: 中间间距 (Sp 枚举)
 
     Yields:
         (left_ctx, right_ctx) 两个 context manager
@@ -2081,7 +2120,7 @@ def split_h(left_ratio: float = 0.5, gap: float = 4):
             with right:
                 draw_main_content()
     """
-    gap_px = sz(gap)
+    gap_px = dp(gap)
     avail = imgui.get_content_region_available().x
     left_w = (avail - gap_px) * left_ratio
     right_w = (avail - gap_px) * (1 - left_ratio)
@@ -2107,12 +2146,12 @@ def split_h(left_ratio: float = 0.5, gap: float = 4):
 
 
 @contextmanager
-def split_v(top_ratio: float = 0.5, gap: float = 4):
+def split_v(top_ratio: float = 0.5, gap: SpacingArg = Sp.S4):
     """垂直分割 - 上下两栏
 
     Args:
         top_ratio: 上方占比 (0.0 ~ 1.0)
-        gap: 中间间距 (Tailwind 单位)
+        gap: 中间间距 (Sp 枚举)
 
     用法:
         with ly.split_v(0.3) as (top, bottom):
@@ -2121,7 +2160,7 @@ def split_v(top_ratio: float = 0.5, gap: float = 4):
             with bottom:
                 draw_content()
     """
-    gap_px = sz(gap)
+    gap_px = dp(gap)
     avail = imgui.get_content_region_available()
     top_h = (avail.y - gap_px) * top_ratio
     bottom_h = (avail.y - gap_px) * (1 - top_ratio)
@@ -2136,7 +2175,7 @@ def split_v(top_ratio: float = 0.5, gap: float = 4):
 
     @contextmanager
     def bottom_region():
-        gap_y(gap / 4)  # 转换回 tailwind 单位
+        imgui.dummy(0, gap_px)  # 使用已计算的 gap_px
         imgui.begin_child("##split_bottom", width=avail.x, height=bottom_h, border=False)
         try:
             yield
@@ -2228,49 +2267,108 @@ def align_bottom():
 # Wrap 布局 - 自动换行
 # =============================================================================
 
-class WrapContext:
-    """Wrap 布局上下文"""
+# wrap_id → 每个 item 的宽度 (上一帧测量)
+_wrap_cache: dict[str, list[float]] = {}
 
-    def __init__(self, gap_x: float, gap_y: float, max_width: float):
-        self._gap_x = sz(gap_x)
-        self._gap_y = sz(gap_y)
-        self._max_width = max_width
-        self._current_x = 0.0
-        self._row_height = 0.0
-        self._first_item = True
+
+class WrapContext:
+    """Wrap 布局上下文 — 基于帧缓存的精确自动换行
+
+    第一帧：使用上一个 item 宽度作为启发式估算，同时记录每个 item 的实际宽度。
+    第二帧起：使用缓存的精确宽度做布局决策。
+    """
+
+    def __init__(self, wrap_id: str, gap_x: SpacingArg, gap_y: SpacingArg, max_width: float):
+        self._id = wrap_id
+        self._gx = dp(gap_x)
+        self._gy = dp(gap_y)
+        self._max_w = max_width
+        self._idx = 0
+        self._line_x = 0.0          # 当前行已用宽度
+        self._prev = _wrap_cache.get(wrap_id, [])   # 上帧缓存
+        self._widths: list[float] = []               # 本帧测量
+        self._wrapped = False        # 上一个 item 是否换了行
 
     def next(self):
-        """在下一个子元素前调用"""
-        if self._first_item:
-            self._first_item = False
+        """在下一个子元素前调用
+
+        内部流程：
+        1. 测量上一个 item 的实际宽度并记录
+        2. 用缓存（或启发式）预测当前 item 宽度
+        3. 判断是否需要换行
+        """
+        idx = self._idx
+        self._idx += 1
+
+        # ---- 测量上一个 item (idx-1) 并更新 _line_x ----
+        if idx > 0:
+            prev_w = imgui.get_item_rect_size().x
+            self._widths.append(prev_w)
+            if self._wrapped:
+                self._line_x = prev_w
+            elif idx == 1:
+                self._line_x = prev_w
+            else:
+                self._line_x += self._gx + prev_w
+
+        # ---- 第一个 item：直接渲染 ----
+        if idx == 0:
+            self._wrapped = False
             return
 
-        # 检查是否需要换行
-        # 这需要预知下一个元素的宽度，ImGui 不支持
-        # 所以这里只能在 same_line 后检查
-        imgui.same_line(spacing=self._gap_x)
+        # ---- 预测当前 item (idx) 的宽度 ----
+        if idx < len(self._prev):
+            est_w = self._prev[idx]          # 上帧精确值
+        elif self._widths:
+            est_w = self._widths[-1]         # fallback: 最近的 item 宽度
+        else:
+            est_w = 0.0
+
+        # ---- 换行判断 ----
+        if self._line_x + self._gx + est_w <= self._max_w:
+            imgui.same_line(spacing=self._gx)
+            self._wrapped = False
+        else:
+            # 换行 — 光标已在新行，补偿垂直间距
+            style = imgui.get_style()
+            extra = self._gy - style.item_spacing.y
+            if extra > 0:
+                imgui.set_cursor_pos_y(imgui.get_cursor_pos_y() + extra)
+            self._line_x = 0.0
+            self._wrapped = True
+
+    def _finish(self):
+        """记录最后一个 item 的宽度并写入缓存"""
+        if self._idx > 0:
+            self._widths.append(imgui.get_item_rect_size().x)
+        _wrap_cache[self._id] = self._widths
 
 
 @contextmanager
-def wrap(gap_x: float = 2, gap_y: float = 2):
-    """自动换行容器
+def wrap(wrap_id: str, gap_x: SpacingArg = Sp.S2, gap_y: SpacingArg = Sp.S2):
+    """自动换行容器 — 基于帧缓存的精确布局
 
-    注意：由于 ImGui 的 immediate mode 特性，完美的 wrap 需要预知元素宽度。
-    这个实现是简化版，依赖 ImGui 的自动换行行为。
+    第一帧使用启发式估算，第二帧起使用上一帧缓存的精确 item 尺寸。
+
+    Args:
+        wrap_id: 唯一 ID，用于跨帧缓存 item 宽度
+        gap_x: 水平间距
+        gap_y: 垂直间距（换行时）
 
     用法:
-        with ly.wrap(gap_x=2, gap_y=2) as w:
+        with ly.wrap("my_tags", gap_x=Sp.S2, gap_y=Sp.S2) as w:
             for tag in tags:
                 w.next()
                 draw_tag(tag)
     """
     max_width = imgui.get_content_region_available().x
-    ctx = WrapContext(gap_x, gap_y, max_width)
+    ctx = WrapContext(wrap_id, gap_x, gap_y, max_width)
 
     imgui.begin_group()
     try:
         yield ctx
     finally:
+        ctx._finish()  # pyright: ignore[reportPrivateUsage]
         imgui.end_group()
 
 
@@ -2278,7 +2376,7 @@ def wrap(gap_x: float = 2, gap_y: float = 2):
 # Inline 布局 - 内联元素
 # =============================================================================
 
-def inline(*items, gap: float = 2):
+def inline(*items: Callable[[], object], gap: SpacingArg = Sp.S2):
     """内联渲染多个元素
 
     简化版的 hstack，用于简单的内联场景。
@@ -2287,10 +2385,10 @@ def inline(*items, gap: float = 2):
         ly.inline(
             lambda: imgui.text("Status:"),
             lambda: imgui.text_colored("OK", 0, 1, 0, 1),
-            gap=1
+            gap=Sp.S1
         )
     """
-    gap_px = sz(gap)
+    gap_px = dp(gap)
     first = True
     for item in items:
         if not first:
@@ -2312,17 +2410,17 @@ class _ColumnContext:
 
     def __enter__(self):
         # 计算此列的 X 位置
-        col_x = self._parent._start_x + self._col_index * (self._parent._col_width + self._parent._gap_px)
+        col_x = self._parent._start_x + self._col_index * (self._parent._col_width + self._parent._gap_px)  # pyright: ignore[reportPrivateUsage]
         # 恢复到行起始 Y 位置
-        imgui.set_cursor_pos((col_x, self._parent._start_y))
+        imgui.set_cursor_pos((col_x, self._parent._start_y))  # pyright: ignore[reportPrivateUsage]
         imgui.begin_group()
         return self
 
-    def __exit__(self, *args):
+    def __exit__(self, *args: object) -> None:
         imgui.end_group()
         # 记录此列的高度
         col_height = imgui.get_item_rect_size().y
-        self._parent._max_height = max(self._parent._max_height, col_height)
+        self._parent._max_height = max(self._parent._max_height, col_height)  # pyright: ignore[reportPrivateUsage]
 
 
 class ColumnsContext:
@@ -2331,9 +2429,9 @@ class ColumnsContext:
     用于管理固定列数的水平布局，每列可以包含垂直内容。
     """
 
-    def __init__(self, num_cols: int, gap: float, col_widths: list[float] | None = None, available_width: float | None = None):
+    def __init__(self, num_cols: int, gap: SpacingArg, col_widths: list[SizingArg] | None = None, available_width: float | None = None):
         self._num_cols = num_cols
-        self._gap_px = sz(gap)
+        self._gap_px = dp(gap)
 
         # 计算列宽
         # 优先使用传入的 available_width，否则从 ImGui 获取
@@ -2341,8 +2439,8 @@ class ColumnsContext:
         total_gap = self._gap_px * (num_cols - 1)
 
         if col_widths:
-            # 使用指定的列宽 (Tailwind 单位)
-            self._col_widths = [sz(w) for w in col_widths]
+            # 使用指定的列宽 (Sp/Cn 枚举)
+            self._col_widths = [dp(w) for w in col_widths]
         else:
             # 等宽列
             single_col_width = (avail_width - total_gap) / num_cols
@@ -2388,13 +2486,13 @@ class ColumnsContext:
     def __enter__(self):
         return self
 
-    def __exit__(self, *args):
+    def __exit__(self, *args: object) -> None:
         # 移动光标到所有列之后
         imgui.set_cursor_pos((self._start_x, self._start_y + self._max_height))
 
 
 @contextmanager
-def columns(num_cols: int = 2, gap: float = 4, widths: list[float] | None = None, available_width: float | None = None):
+def columns(num_cols: int = 2, gap: SpacingArg = Sp.S4, widths: list[SizingArg] | None = None, available_width: float | None = None):
     """固定多列布局 - 解决 hstack + 垂直内容的问题
 
     与 hstack 的区别:
@@ -2403,8 +2501,8 @@ def columns(num_cols: int = 2, gap: float = 4, widths: list[float] | None = None
 
     Args:
         num_cols: 列数 (默认 2)
-        gap: 列间距 (Tailwind 单位)
-        widths: 可选的列宽列表 (Tailwind 单位)，不提供则等宽
+        gap: 列间距 (Sp 枚举)
+        widths: 可选的列宽列表 (Sp/Cn 枚举)，不提供则等宽
         available_width: 可选的可用宽度 (像素)，用于在 panel 等容器内正确计算列宽
 
     用法:
@@ -2430,6 +2528,343 @@ def columns(num_cols: int = 2, gap: float = 4, widths: list[float] | None = None
         yield ctx
 
 
+# =============================================================================
+# Equal Height Row — 等高双列布局 (类似 CSS align-items: stretch)
+# =============================================================================
+#
+# 【核心原理】
+# 每列使用 ImGui begin_child 实现，通过跨帧缓存统一高度：
+#   1. 首帧: 所有列用 AutoResizeY 测量自然高度
+#   2. 缓存: 记录 max(自然高度) 作为目标高度
+#   3. 后续帧: 所有列使用显式 height=cached_max → 强制等高
+#
+# 【高度测量技巧】
+# 使用 Group 包裹内容，在 end_group 后测量 rect_size：
+#   - Group 的 bbox 不受 child 显式高度限制
+#   - 即使 child 被拉伸，Group 仍能测量真实内容高度
+#   - 推算公式: natural_external = content_h + 2 * WindowPadding.y
+#   - 这样内容变化时能即时更新缓存，下一帧生效
+#
+# 【滚动稳定性保障】
+# 问题: 行滚出/滚入视口时，begin_child 返回 False (SkipItems)，
+#       导致测量值异常（~40px 双 padding），更新缓存会导致跳动。
+#
+# 解决方案 - 三重保护机制:
+#   1. 视口检测: 使用 begin_child 返回值判断是否在视口内
+#   2. 视口外锁定: 不在视口内时，冻结缓存，防止异常值污染
+#   3. 稳定期延迟: 滚入视口前 2 帧继续锁定，等测量稳定
+#      - 原因: 窗口重新激活第一帧，CursorMaxPos 可能包含瞬态噪音
+#      - 典型现象: 第 1 帧测量 381px，第 2 帧恢复 352px
+#      - 稳定计数器 2→1→0 过滤前两帧，第 3 帧开始更新
+#
+# 【为什么有效】
+# ✅ 视口内: 所有列统一高度 → 完美等高
+# ✅ 视口外: 锁定缓存 → 保持等高，无跳动
+# ✅ 滚入瞬间: 稳定期过滤噪音 → 平滑过渡，无闪烁
+# ✅ 内容变化: Group 即时测量 → 下一帧响应，无延迟
+#
+# 【用法示例】
+#   with ly.equal_height_row("##dual", cols=2) as row:
+#       with row.col(0, style=card_style):   # col IS the card
+#           draw_heading_and_content()
+#       with row.col(1, style=card_style):
+#           draw_other_content()
+
+# 帧缓存: row_id → (target_height, col_heights, tallest_col_index, last_frame, all_cols_visible, stabilize_counter)
+_equal_height_cache: dict[str, tuple[float, list[float], int, int, bool, int]] = {}
+_equal_height_frame: int = 0
+_equal_height_last_tick_frame: int = -1
+_EQUAL_HEIGHT_MAX_AGE: int = 1800  # ~30s @60fps
+
+# Debug 日志去重: row_id → (last_logged_state, frame)
+_equal_height_debug_cache: dict[str, tuple[str, int]] = {}
+_EQUAL_HEIGHT_DEBUG = False  # Debug 开关（需要调试时改为 True）
+
+
+def clear_equal_height_cache() -> None:
+    """清除等高行缓存 (窗口 resize / 布局变化时调用)"""
+    _equal_height_cache.clear()
+    _equal_height_debug_cache.clear()
+
+
+def _tick_equal_height_cache() -> None:
+    """推进帧计数器并清理过期缓存条目 (每帧最多调用一次)"""
+    global _equal_height_frame, _equal_height_last_tick_frame
+    gui_frame = imgui.get_frame_count()
+    if gui_frame == _equal_height_last_tick_frame:
+        return
+    _equal_height_last_tick_frame = gui_frame
+    _equal_height_frame += 1
+    if _equal_height_frame % 120 == 0:
+        stale = [
+            k for k, v in _equal_height_cache.items()
+            if len(v) >= 4 and _equal_height_frame - v[3] > _EQUAL_HEIGHT_MAX_AGE
+        ]
+        for k in stale:
+            del _equal_height_cache[k]
+        # 同时清理 debug 缓存
+        debug_stale = [
+            k for k, v in _equal_height_debug_cache.items()
+            if _equal_height_frame - v[1] > _EQUAL_HEIGHT_MAX_AGE
+        ]
+        for k in debug_stale:
+            del _equal_height_debug_cache[k]
+
+
+class _EqualHeightCol:
+    """单列上下文 - 管理 child 窗口的渲染和测量
+
+    Args:
+        style: 可选样式。提供 card_style 则 col 本身就是卡片；
+               不提供则 col 是透明容器，用于包含多张独立卡片。
+    """
+
+    __slots__ = ('_row', '_index', '_style', '_active_style', '_pad_y', '_is_visible', '_flex_extra')
+
+    def __init__(self, row: 'EqualHeightRow', index: int, style: 'StyleContext | None' = None):
+        self._row = row
+        self._index = index
+        self._style = style
+        self._active_style: 'StyleContext | None' = None
+        self._pad_y = 0.0
+        self._is_visible = True
+        self._flex_extra = 0.0
+
+    def __enter__(self):
+        from ui import tw as _tw  # lazy import to avoid circular
+        row = self._row
+        idx = self._index
+
+        # 横向排列 (col 1+ 使用 same_line)
+        if idx > 0:
+            imgui.same_line(0, row._gap_px)  # pyright: ignore[reportPrivateUsage]
+
+        # 1. 应用样式 (card 或透明容器)
+        effective = self._style if self._style is not None else _tw.p_0
+        self._active_style = effective
+        effective.__enter__()
+
+        # 2. 打开 child 窗口
+        cached = _equal_height_cache.get(row._row_id)  # pyright: ignore[reportPrivateUsage]
+        child_id = f"{row._row_id}_c{idx}"  # pyright: ignore[reportPrivateUsage]
+        wf = imgui.WINDOW_NO_SCROLLBAR
+        cf = int(imgui.ChildFlags.AlwaysUseWindowPadding)
+
+        # 渲染策略: 首帧 AutoResizeY 测量，后续帧显式高度保持等高
+        if cached is None or cached[0] <= 0:
+            cf |= int(imgui.ChildFlags.AutoResizeY)
+            child_result = imgui.begin_child(child_id, width=row._col_w, height=0,  # pyright: ignore[reportPrivateUsage]
+                              child_flags=cf, window_flags=wf)
+        else:
+            child_result = imgui.begin_child(child_id, width=row._col_w, height=cached[0],  # pyright: ignore[reportPrivateUsage]
+                              child_flags=cf, window_flags=wf)
+
+        # 3. 检测窗口可见性 (用于视口外检测)
+        # cimgui_py 的 begin_child 返回对象，需要转换为 bool
+        try:
+            self._is_visible = bool(child_result)
+        except:
+            self._is_visible = True
+
+        # 4. 记录 padding (用于推算自然外高)
+        self._pad_y = imgui.get_style().window_padding.y
+
+        # 5. 计算富余高度（拉伸空间）
+        if cached is not None and cached[0] > 0:
+            # 目标统一高度 - 上一帧本列的自然高度
+            prev_natural = cached[1][idx] if len(cached[1]) > idx else 0.0
+            self._flex_extra = max(0.0, cached[0] - prev_natural)
+        else:
+            self._flex_extra = 0.0
+
+        # 6. Group 包裹内容，用于精确测量
+        # Group 的 bbox 不受 child 显式高度限制，可测量真实内容高度
+        imgui.begin_group()
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        imgui.end_group()
+        content_h = imgui.get_item_rect_size().y  # Group 测量的内容高度
+
+        imgui.end_child()
+
+        if self._active_style is not None:
+            self._active_style.__exit__(None, None, None)
+
+        # 推算自然外高 = 内容高度 + 上下 padding
+        # 即使 child 被显式高度拉伸，Group 仍能测量真实内容
+        inferred_external = content_h + 2.0 * self._pad_y
+        self._row._col_naturals[self._index] = inferred_external  # pyright: ignore[reportPrivateUsage]
+        self._row._col_visible[self._index] = self._is_visible  # pyright: ignore[reportPrivateUsage]
+
+
+class EqualHeightRow:
+    """等高行上下文
+
+    ⚠️ 容器类型: Child (每列一个 begin_child)
+
+    用法:
+        with ly.equal_height_row("##id", cols=2, gap=Sp.S3) as row:
+            with row.col(0, style=card_style):
+                draw_content()
+            with row.col(1, style=card_style):
+                draw_other_content()
+    """
+
+    def __init__(self, row_id: str, num_cols: int, gap: SpacingArg):
+        self._row_id = row_id
+        self._num_cols = num_cols
+        self._gap_px = dp(gap)
+        self._col_w = 0.0
+        self._col_naturals: list[float] = [0.0] * num_cols
+        self._col_visible: list[bool] = [True] * num_cols
+
+    def col(self, index: int, *, style: 'StyleContext | None' = None) -> _EqualHeightCol:
+        """获取指定索引的列上下文
+
+        Args:
+            index: 列索引 (0-based)
+            style: 可选样式. 提供 card_style 则 col IS the card;
+                   不提供则 col 是透明容器 (用于多卡片列).
+        """
+        if index < 0 or index >= self._num_cols:
+            raise IndexError(f"col index {index} out of range [0, {self._num_cols})")
+        return _EqualHeightCol(self, index, style)
+
+
+@contextmanager
+def equal_height_row(
+    row_id: str,
+    cols: int = 2,
+    gap: SpacingArg = Sp.S3,
+):
+    """等高行布局 - 实现 CSS flex align-items: stretch 效果
+
+    ⚠️ 容器类型: Child (每列一个 begin_child)
+
+    【渲染机制】
+    首帧:  AutoResizeY → 测量 → 缓存 max(naturals)
+    后续帧: 所有列 height=cached_max → 强制等高
+
+    【内容响应】
+    使用 Group 测量真实内容高度，即使 child 被拉伸也能准确反映变化：
+      nat_external = content_h + 2 * WindowPadding.y
+    → 内容变化时立即更新缓存，下一帧生效
+
+    【滚动稳定性】
+    三重保护机制确保滚动时无跳动：
+      1. 视口外锁定 (begin_child 返回 False)
+      2. 滚入稳定期 (2 帧延迟)
+      3. 缓存一致性 (同一高度)
+
+    Args:
+        row_id: 唯一标识符 (推荐 "##xxx" 格式避免显示)
+        cols: 列数 (默认 2)
+        gap: 列间距 (Sp 枚举)
+
+    Yields:
+        EqualHeightRow 对象, 通过 row.col(i, style=...) 获取列上下文
+
+    Example:
+        with ly.equal_height_row("##cards", cols=2, gap=Sp.S3) as row:
+            with row.col(0, style=tw.card_default):
+                draw_left_content()
+            with row.col(1, style=tw.card_default):
+                draw_right_content()
+    """
+    row = EqualHeightRow(row_id, cols, gap)
+
+    _tick_equal_height_cache()
+
+    # 计算列宽
+    content_w = imgui.get_content_region_available().x
+    row._col_w = (content_w - row._gap_px * (cols - 1)) / cols  # pyright: ignore[reportPrivateUsage]
+
+    # 记录起始光标 Y, 用于 finally 中的高度补偿检查
+    _start_y = imgui.get_cursor_pos_y()  # noqa: F841  # pyright: ignore[reportUnusedVariable]
+
+    try:
+        yield row
+    finally:
+        naturals = row._col_naturals  # pyright: ignore[reportPrivateUsage]
+        new_target = max(naturals) if naturals else 0.0
+        target_r = float(round(new_target))
+
+        cached = _equal_height_cache.get(row_id)
+
+        # ========== 视口检测 ==========
+        # 使用 begin_child 返回值：False = 窗口在视口外 (ImGui SkipItems)
+        is_in_viewport = all(row._col_visible)  # pyright: ignore[reportPrivateUsage]
+
+        # ========== 稳定期机制 ==========
+        # 滚入视口的前 2 帧可能测量不稳定（窗口重新激活的瞬态噪音）
+        # 使用计数器延迟更新，等待测量收敛
+        prev_in_viewport = cached[4] if (cached and len(cached) >= 5) else True
+        stabilize_counter = cached[5] if (cached and len(cached) >= 6) else 0
+
+        just_entering_viewport = is_in_viewport and not prev_in_viewport
+
+        if just_entering_viewport:
+            stabilize_counter = 2  # 刚滚入，锁定 2 帧
+        elif is_in_viewport and stabilize_counter > 0:
+            stabilize_counter -= 1  # 稳定期递减
+
+        # ========== 最高列索引 ==========
+        if is_in_viewport:
+            tallest_idx = naturals.index(max(naturals)) if naturals else 0
+        else:
+            tallest_idx = cached[2] if (cached and len(cached) >= 3) else 0
+
+        # ========== 缓存更新策略 ==========
+        # 三种模式确保滚动稳定性:
+        #   1. 视口外 → 锁定缓存 (防止异常测量值污染)
+        #   2. 稳定期 → 锁定缓存 (过滤滚入瞬间的噪音)
+        #   3. 视口内 → 即时更新 (响应内容变化)
+
+        if cached is None:
+            # 首次渲染
+            _equal_height_cache[row_id] = (target_r, naturals.copy(), tallest_idx,
+                                          _equal_height_frame, is_in_viewport, 0)
+            actual_cached_height = target_r
+        elif not is_in_viewport:
+            # 视口外：锁定高度，只更新元数据
+            _equal_height_cache[row_id] = (
+                cached[0],  # 保持旧高度
+                cached[1] if len(cached) >= 2 else [],
+                cached[2] if len(cached) >= 3 else 0,
+                _equal_height_frame,
+                is_in_viewport,
+                0  # 重置计数器
+            )
+            actual_cached_height = cached[0]
+        elif stabilize_counter > 0:
+            # 稳定期：锁定高度，递减计数器
+            _equal_height_cache[row_id] = (
+                cached[0],  # 保持旧高度
+                naturals.copy(),  # 更新测量值（用于debug）
+                tallest_idx,
+                _equal_height_frame,
+                is_in_viewport,
+                stabilize_counter
+            )
+            actual_cached_height = cached[0]
+        else:
+            # 正常更新：视口内且稳定
+            _equal_height_cache[row_id] = (target_r, naturals.copy(), tallest_idx,
+                                          _equal_height_frame, is_in_viewport, 0)
+            actual_cached_height = target_r
+
+        # ========== Debug 日志 (去重) ==========
+        if _EQUAL_HEIGHT_DEBUG:
+            state_str = f"in_vp={is_in_viewport} visible={row._col_visible} measured={target_r:.0f} CACHED={actual_cached_height:.0f} stab={stabilize_counter}"  # pyright: ignore[reportPrivateUsage]
+            last_debug = _equal_height_debug_cache.get(row_id)
+            if last_debug is None or last_debug[0] != state_str or (_equal_height_frame - last_debug[1] > 60):
+                print(f"[equal_height_row {row_id}] {state_str}")
+                _equal_height_debug_cache[row_id] = (state_str, _equal_height_frame)
+        # 注: 早期版本使用 dummy 补偿光标位置，但当前方案通过
+        #     视口外锁定 + 稳定期已能完全避免跳动，不再需要补偿。
+
+
 __all__ = [
     # ===== 核心布局 API (推荐使用) =====
     # 间距
@@ -2442,8 +2877,10 @@ __all__ = [
     'icon_label',
     # 容器
     'row', 'col', 'card', 'CardState', 'panel', 'clear_panel_cache',
-    # 尺寸转换
-    'sz', 'sz_raw', 'scaled',
+    # 尺寸转换 (已废弃，使用 ui.scale 中的 dp/Sp/Cn)
+    'sz', 'sz_free', 'sz_raw', 'scaled',
+    # 新尺寸系统 (re-export from ui.scale)
+    'dp', 'Sp', 'Cn', 'SpacingArg', 'SizingArg',
     # 杂项
     'next_line', 'divider', 'hr',
     'window_size', 'content_region', 'clear_layout_cache',
@@ -2496,4 +2933,7 @@ __all__ = [
 
     # ===== 右键菜单 =====
     'context_menu', 'menu_item', 'menu_separator',
+
+    # ===== 等高行 =====
+    'equal_height_row', 'EqualHeightRow', 'clear_equal_height_cache',
 ]

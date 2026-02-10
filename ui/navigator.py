@@ -33,6 +33,7 @@ from ui import imgui_shim as imgui
 from ui.state import state as ui_state, dpi_scale
 from ui import layout as ly
 from ui import tw
+from ui.scale import Sp, dp
 from ui.icons import (
     FA_PLUS, FA_TRASH, FA_COPY, FA_GEM,
     FA_SWORD, FA_SHIELD, FA_FLASK,
@@ -55,22 +56,22 @@ SECTION_GAP = 0              # Section 之间无间距，用分隔线区分
 ITEM_GAP = 0                 # 物品之间无间距
 
 # 内边距
-HEADER_PADDING_X = 3         # 头部水平内边距 (12px)
-HEADER_PADDING_Y = 3         # 头部垂直内边距 (12px)
-SECTION_PADDING_X = 3        # Section 水平内边距
-SECTION_PADDING_Y = 2        # Section 垂直内边距
-ITEM_PADDING_X = 4           # 物品左侧缩进 (16px) - 比 section 多一级
-ITEM_PADDING_Y = 1.5         # 物品垂直内边距
+HEADER_PADDING_X = Sp.S3     # 头部水平内边距 (12px)
+HEADER_PADDING_Y = Sp.S3     # 头部垂直内边距 (12px)
+SECTION_PADDING_X = Sp.S3    # Section 水平内边距
+SECTION_PADDING_Y = Sp.S2    # Section 垂直内边距
+ITEM_PADDING_X = Sp.S4       # 物品左侧缩进 (16px) - 比 section 多一级
+ITEM_PADDING_Y = Sp.S1_5     # 物品垂直内边距
 
 # 圆角 - 不使用圆角，保持锐利
-CARD_ROUNDING = 0
-ROW_ROUNDING = 0
+CARD_ROUNDING = Sp.S0
+ROW_ROUNDING = Sp.S0
 
 # 按钮
-TOOLBAR_BTN_SIZE = 5         # 工具栏按钮尺寸 (20px)
+TOOLBAR_BTN_SIZE = Sp.S5     # 工具栏按钮尺寸 (20px)
 
 # 左侧指示器
-INDICATOR_WIDTH = 0.75       # 选中指示器宽度 (3px)
+INDICATOR_WIDTH = Sp.S1      # 选中指示器宽度 (4px)
 
 
 # =============================================================================
@@ -89,7 +90,7 @@ def _draw_left_indicator(state: ly.ListItemState) -> None:
     item_max = imgui.get_item_rect_max()
 
     # 绘制左侧指示器
-    indicator_width = ly.sz(INDICATOR_WIDTH)
+    indicator_width = dp(INDICATOR_WIDTH)
     draw_list.add_rect_filled(
         item_min.x, item_min.y,
         item_min.x + indicator_width, item_max.y,
@@ -104,7 +105,7 @@ def _draw_separator() -> None:
     avail_width = imgui.get_content_region_available().x
 
     # 分隔线颜色 - 非常微妙
-    color = imgui.get_color_u32_rgba(*tw.ABYSS_600)
+    color = imgui.get_color_u32_rgba(*tw.BORDER_SUBTLE)
 
     y = cursor_screen.y
     draw_list.add_line(
@@ -120,17 +121,17 @@ def _draw_separator() -> None:
 
 def _draw_section_separator() -> None:
     """绘制 section 之间的分隔线"""
-    imgui.dummy(0, ly.sz(0.5))
+    imgui.dummy(0, dp(Sp.S0_5))
     draw_list = imgui.get_window_draw_list()
     cursor_screen = imgui.get_cursor_screen_pos()
     avail_width = imgui.get_content_region_available().x
 
     # 分隔线颜色 - 比普通分隔线更明显
-    color = imgui.get_color_u32_rgba(*tw.ABYSS_600)
+    color = imgui.get_color_u32_rgba(*tw.BORDER_SUBTLE)
 
     y = cursor_screen.y
     # 留一点边距
-    margin = ly.sz(2)
+    margin = dp(Sp.S2)
     draw_list.add_line(
         cursor_screen.x + margin, y,
         cursor_screen.x + avail_width - margin, y,
@@ -138,7 +139,7 @@ def _draw_section_separator() -> None:
         1.0,
     )
 
-    imgui.dummy(0, ly.sz(0.5))
+    imgui.dummy(0, dp(Sp.S0_5))
 
 
 # =============================================================================
@@ -250,13 +251,13 @@ def _draw_project_header() -> None:
         selected=is_active,
         padding_x=HEADER_PADDING_X,
         padding_y=HEADER_PADDING_Y,
-        rounding=0,
-        bg_color=tw.ABYSS_900,           # 比父窗口深
-        selected_color=tw.ABYSS_600,     # 选中时变亮
-        hover_color=tw.ABYSS_700,        # hover 次亮
+        rounding=Sp.S0,
+        bg_color=tw.BG_SURFACE,          # 比父窗口深
+        selected_color=tw.SELECTED_DEFAULT,  # 选中时变亮
+        hover_color=tw.HOVER_DEFAULT,     # hover 次亮
     ) as state:
         # 使用 hstack 布局: 图标 + 文字
-        with ly.hstack(gap=2.5):
+        with ly.hstack(gap=Sp.S2_5):
             # 项目图标
             with ly.slot():
                 with tw.text_accent:
@@ -264,7 +265,7 @@ def _draw_project_header() -> None:
 
             # 项目信息
             with ly.slot():
-                with ly.vstack(gap=0.5):
+                with ly.vstack(gap=Sp.S0_5):
                     # 项目名称
                     ly.item()
                     text_style = tw.text_bright if is_active else tw.text_default
@@ -318,12 +319,12 @@ def _draw_section(
         f"section_{section_id}",
         padding_x=SECTION_PADDING_X,
         padding_y=SECTION_PADDING_Y,
-        hover_color=tw.ABYSS_600,
+        hover_color=tw.HOVER_DEFAULT,
         bg_color=None,  # 透明背景
     ) as row:
         # 左侧内容: chevron + icon + label + count
         with row.left:
-            with ly.hstack(gap=2):
+            with ly.hstack(gap=Sp.S2):
                 # chevron
                 with ly.slot():
                     with tw.text_subtle:
@@ -348,7 +349,7 @@ def _draw_section(
 
         # 右侧添加按钮 - 使用 row.right 自动右对齐
         with row.right:
-            btn_style = tw.button_colors(tw.TRANSPARENT, tw.ABYSS_600, tw.ABYSS_500) | tw.text_accent
+            btn_style = tw.button_colors(tw.TRANSPARENT, tw.HOVER_DEFAULT, tw.BORDER_SUBTLE) | tw.text_accent
             if ly.icon_btn(
                 FA_PLUS, f"{section_id}_add",
                 size=TOOLBAR_BTN_SIZE,
@@ -403,11 +404,11 @@ def _draw_item_list(
     """绘制物品列表"""
     if not items:
         # 空状态提示
-        imgui.set_cursor_pos_x(imgui.get_cursor_pos_x() + ly.sz(ITEM_PADDING_X))
-        ly.gap_y(0.5)
+        imgui.set_cursor_pos_x(imgui.get_cursor_pos_x() + dp(ITEM_PADDING_X))
+        ly.gap_y(Sp.S0_5)
         with tw.text_faint:
             imgui.text("暂无物品，点击 + 添加")
-        ly.gap_y(0.5)
+        ly.gap_y(Sp.S0_5)
         return
 
     for i, item in enumerate(items):
@@ -419,16 +420,16 @@ def _draw_item_list(
             selected=is_selected,
             padding_x=ITEM_PADDING_X,
             padding_y=ITEM_PADDING_Y,
-            rounding=0,
-            bg_color=None,               # 透明 (父窗口背景是 ABYSS_700)
-            selected_color=tw.ABYSS_600, # 选中最亮
-            hover_color=tw.ABYSS_600,    # hover 次亮
+            rounding=Sp.S0,
+            bg_color=None,               # 透明 (父窗口背景)
+            selected_color=tw.SELECTED_DEFAULT,
+            hover_color=tw.HOVER_DEFAULT,
         ) as state:
             # 物品名称 + 可选的类型标签
             display_name = item.localization.get_display_name()
             suffix = get_suffix(item) if get_suffix else ""
 
-            with ly.hstack(gap=1):
+            with ly.hstack(gap=Sp.S1):
                 # 名称
                 with ly.slot():
                     text_style = tw.text_bright if is_selected else tw.text_muted

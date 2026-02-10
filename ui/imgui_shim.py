@@ -30,7 +30,7 @@ from cimgui_py import core as _core
 from cimgui_py import backend as _backend
 
 # Re-export Vec2/Vec4 from binding (namedtuple, is-a tuple, has .x/.y)
-from cimgui_py import Vec2, Vec4
+from cimgui_py import Vec2 as Vec2, Vec4 as Vec4  # explicit re-export
 
 
 # =============================================================================
@@ -176,6 +176,7 @@ INPUT_TEXT_CHARS_DECIMAL = _cimgui.InputTextFlags.CharsDecimal
 INPUT_TEXT_ENTER_RETURNS_TRUE = _cimgui.InputTextFlags.EnterReturnsTrue
 INPUT_TEXT_READ_ONLY = _cimgui.InputTextFlags.ReadOnly
 INPUT_TEXT_ALLOW_TAB_INPUT = _cimgui.InputTextFlags.AllowTabInput
+INPUT_TEXT_NO_HORIZONTAL_SCROLL = _cimgui.InputTextFlags.NoHorizontalScroll
 
 # ── SelectableFlags ──────────────────────────────────────────────────────────
 
@@ -411,6 +412,10 @@ def set_next_window_size_constraints(
     _cimgui.set_next_window_size_constraints((min_width, min_height), (max_width, max_height))
 
 
+def set_next_window_content_size(width: float, height: float) -> None:
+    _cimgui.set_next_window_content_size((width, height))
+
+
 # ── pyimgui 名称差异 ─────────────────────────────────────────────────────────
 
 def get_content_region_available():
@@ -420,9 +425,9 @@ def get_content_region_available():
 
 # ── image_button: pyimgui (tex_id, w, h, **kw) → cimgui_py (str_id, tex_ref, size, ...) ─
 
-def image_button(texture_id, width: float, height: float, *,
-                 uv0=(0, 0), uv1=(1, 1), frame_padding: int = -1,
-                 tint_color=(1, 1, 1, 1), border_color=(0, 0, 0, 0)) -> bool:
+def image_button(texture_id: Any, width: float, height: float, *,
+                 uv0: tuple[float, float] = (0, 0), uv1: tuple[float, float] = (1, 1), frame_padding: int = -1,
+                 tint_color: tuple[float, float, float, float] = (1, 1, 1, 1), border_color: tuple[float, float, float, float] = (0, 0, 0, 0)) -> bool:
     """pyimgui compat: image_button(tex_id, w, h, ...) → ImageButton(str_id, tex_ref, size, ...)
 
     NOTE: frame_padding is ignored in ImGui 1.92+ (use style push instead).
@@ -477,6 +482,7 @@ get_text_line_height = _cimgui.get_text_line_height
 get_text_line_height_with_spacing = _cimgui.get_text_line_height_with_spacing
 get_frame_height = _cimgui.get_frame_height
 get_frame_height_with_spacing = _cimgui.get_frame_height_with_spacing
+get_frame_count = _cimgui.get_frame_count
 
 # Scroll
 set_scroll_here_y = _cimgui.set_scroll_here_y
@@ -492,7 +498,7 @@ set_scroll_x = _cimgui.set_scroll_x
 input_text = _cimgui.input_text
 
 
-def input_text_multiline(label, value, buffer_size=1024, *, width=0.0, height=0.0, size=None, flags=0, callback=None):
+def input_text_multiline(label: str, value: str, buffer_size: int = 1024, *, width: float = 0.0, height: float = 0.0, size: tuple[float, float] | None = None, flags: int = 0, callback: Any = None) -> tuple[bool, str]:
     """pyimgui: separate width/height → cimgui_py: size=(w,h) tuple."""
     if size is None:
         size = (width, height)
@@ -539,7 +545,7 @@ end_tab_item = _cimgui.end_tab_item
 
 def columns(count: int = 1, identifier: str | None = None, border: bool = True) -> None:
     """pyimgui columns(count, id, border=) → cimgui_py columns(count, id_, borders=)."""
-    _cimgui.columns(count, identifier, border)
+    _cimgui.columns(count, identifier or "", border)
 next_column = _cimgui.next_column
 get_column_width = _cimgui.get_column_width
 set_column_width = _cimgui.set_column_width
@@ -619,7 +625,7 @@ push_text_wrap_pos = _cimgui.push_text_wrap_pos
 pop_text_wrap_pos = _cimgui.pop_text_wrap_pos
 push_id = _cimgui.push_id
 pop_id = _cimgui.pop_id
-def push_font(font, font_size_base_unscaled: float = 0.0):
+def push_font(font: Any, font_size_base_unscaled: float = 0.0) -> None:
     """push_font compat — ImGui 1.92 added font_size_base_unscaled param, default 0 = use font's own size."""
     _cimgui.push_font(font, font_size_base_unscaled)
 
@@ -634,70 +640,70 @@ class _DrawListCompat:
     """Wrap cimgui_py _DrawList to accept pyimgui-style separate x,y coordinate args."""
     __slots__ = ("_dl",)
 
-    def __init__(self, dl):
+    def __init__(self, dl: Any) -> None:
         self._dl = dl
 
     # ── add_line(x1, y1, x2, y2, col, thickness=1.0) ────────────────────
-    def add_line(self, x1, y1, x2, y2, col, thickness=1.0):
+    def add_line(self, x1: float, y1: float, x2: float, y2: float, col: int, thickness: float = 1.0) -> None:
         self._dl.add_line((x1, y1), (x2, y2), col, thickness)
 
     # ── add_rect(x1, y1, x2, y2, col, rounding=0, flags=0, thickness=1.0) ──
-    def add_rect(self, x1, y1, x2, y2, col, rounding=0.0, flags=0, thickness=1.0):
+    def add_rect(self, x1: float, y1: float, x2: float, y2: float, col: int, rounding: float = 0.0, flags: int = 0, thickness: float = 1.0) -> None:
         self._dl.add_rect((x1, y1), (x2, y2), col, rounding, flags, thickness)
 
     # ── add_rect_filled(x1, y1, x2, y2, col, rounding=0, flags=0) ───────
-    def add_rect_filled(self, x1, y1, x2, y2, col, rounding=0.0, flags=0):
+    def add_rect_filled(self, x1: float, y1: float, x2: float, y2: float, col: int, rounding: float = 0.0, flags: int = 0) -> None:
         self._dl.add_rect_filled((x1, y1), (x2, y2), col, rounding, flags)
 
     # ── add_text(x, y, col, text) ────────────────────────────────────────
-    def add_text(self, x, y, col, text):
+    def add_text(self, x: float, y: float, col: int, text: str) -> None:
         self._dl.add_text((x, y), col, text)
 
     # ── add_image(tex_id, p_min, p_max, uv_min=(0,0), uv_max=(1,1), col=0xFFFFFFFF) ──
-    def add_image(self, tex_id, p_min, p_max, uv_min=(0, 0), uv_max=(1, 1), col=0xFFFFFFFF):
+    def add_image(self, tex_id: Any, p_min: tuple[float, float], p_max: tuple[float, float], uv_min: tuple[float, float] = (0, 0), uv_max: tuple[float, float] = (1, 1), col: int = 0xFFFFFFFF) -> None:
         # pyimgui passes tex_id as int; cimgui_py expects (owner, tex_id) tuple
         if isinstance(tex_id, (tuple, list)):
-            tex_ref = tex_id
+            tex_ref = tex_id  # type: ignore[assignment]  # pyimgui compat
         else:
             tex_ref = (None, tex_id)
         self._dl.add_image(tex_ref, p_min, p_max, uv_min, uv_max, col)
 
     # ── path methods ─────────────────────────────────────────────────────
-    def path_line_to(self, x, y):
+    def path_line_to(self, x: float, y: float) -> None:
         self._dl.path_line_to((x, y))
 
-    def path_stroke(self, col, closed=False, thickness=1.0):
+    def path_stroke(self, col: int, closed: bool = False, thickness: float = 1.0) -> None:
         self._dl.path_stroke(col, int(closed), thickness)
 
-    def path_clear(self):
+    def path_clear(self) -> None:
         self._dl.path_clear()
 
     # ── channels ─────────────────────────────────────────────────────────
-    def channels_split(self, count):
+    def channels_split(self, count: int) -> None:
         self._dl.channels_split(count)
 
-    def channels_set_current(self, idx):
+    def channels_set_current(self, idx: int) -> None:
         self._dl.channels_set_current(idx)
 
-    def channels_merge(self):
+    def channels_merge(self) -> None:
         self._dl.channels_merge()
 
     # ── clip rect ────────────────────────────────────────────────────────
-    def push_clip_rect(self, x1, y1, x2, y2, intersect=True):
+    def push_clip_rect(self, x1: float, y1: float, x2: float, y2: float, intersect: bool = True) -> None:
         self._dl.push_clip_rect((x1, y1), (x2, y2), intersect)
 
-    def pop_clip_rect(self):
+    def pop_clip_rect(self) -> None:
         self._dl.pop_clip_rect()
 
     # Fallback for any other methods not wrapped
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._dl, name)
 
 
-def get_window_draw_list():
+def get_window_draw_list() -> _DrawListCompat:
     return _DrawListCompat(_cimgui.get_window_draw_list())
 
-def get_foreground_draw_list():
+def get_foreground_draw_list() -> _DrawListCompat:
     return _DrawListCompat(_cimgui.get_foreground_draw_list())
 
 # Color utilities
@@ -710,7 +716,7 @@ set_window_focus = _cimgui.set_window_focus
 # Keyboard
 is_key_down = _cimgui.is_key_down
 is_key_pressed = _cimgui.is_key_pressed
-KEY_SPACE = int(_cimgui.Key.Space)  # 524 in ImGui 1.92+ (was 32 in old pyimgui)
+KEY_SPACE: Any = int(_cimgui.Key.Space)  # 524 in ImGui 1.92+ (was 32 in old pyimgui)
 
 # Cursor (screen-space)
 set_cursor_screen_pos = _cimgui.set_cursor_screen_pos
@@ -784,7 +790,7 @@ class FontConfig:
         glyph_min_advance_x: float = 0.0,
         glyph_max_advance_x: float = float("inf"),
     ):
-        fc = _core._FontConfig.im_font_config()
+        fc: Any = _core._FontConfig.im_font_config()  # type: ignore[arg-type]
         fc.merge_mode = merge_mode
         fc.glyph_offset = (glyph_offset_x, glyph_offset_y)
         fc.pixel_snap_h = pixel_snap_h
@@ -792,7 +798,7 @@ class FontConfig:
             fc.glyph_min_advance_x = glyph_min_advance_x
         if glyph_max_advance_x != float("inf"):
             fc.glyph_max_advance_x = glyph_max_advance_x
-        self.handle = fc
+        self.handle: Any = fc
 
 
 class _CoreCompat:

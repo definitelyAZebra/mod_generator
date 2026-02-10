@@ -25,7 +25,8 @@ from __future__ import annotations
 from ui import imgui_shim as imgui
 from ui import tw
 from ui import layout as ly
-from ui.layout import sz, tooltip
+from ui.layout import tooltip
+from ui.scale import Sp, dp
 from ui.state import dpi_scale
 from ui.fields import field_row, int_field
 
@@ -52,7 +53,7 @@ from specs import (
 # =============================================================================
 
 # 输入框固定宽度 (Tailwind 单位)
-_INPUT_TW = 18  # 72px
+_INPUT_TW = 20  # 80px
 
 # 最大列数上限
 _MAX_COLS = 6
@@ -69,7 +70,7 @@ def _get_label_width() -> float:
     """
     global _label_w_cache
     if _label_w_cache <= 0:
-        _label_w_cache = imgui.calc_text_size("测" * _LABEL_CHARS).x + sz(1)
+        _label_w_cache = imgui.calc_text_size("测" * _LABEL_CHARS).x + dp(Sp.S1)
     return _label_w_cache
 
 
@@ -83,7 +84,7 @@ def _sub_section(text: str) -> None:
     Tailwind: text-goldrim-400 font-medium
     """
     tw.text_goldrim_400(imgui.text)(text)
-    ly.gap_y(1.5)
+    ly.gap_y(Sp.S1_5)
 
 
 # =============================================================================
@@ -113,9 +114,9 @@ def draw_stats_panel(hybrid: HybridItemV2) -> None:
     # 消耗品属性 — 分隔线 + 子标题
     if show_ce:
         if show_eq:
-            ly.gap_y(4)
+            ly.gap_y(Sp.S4)
             imgui.separator()
-            ly.gap_y(3)
+            ly.gap_y(Sp.S3)
         _sub_section("使用效果")
         _draw_consumable_attributes_editor(hybrid)
 
@@ -153,14 +154,14 @@ def _draw_attribute_full_grid(
             continue
 
         if not first:
-            ly.gap_y(2)
+            ly.gap_y(Sp.S2)
         first = False
 
         imgui.push_id(f"{id_prefix}_{group_name}")
         try:
             # 分组标题
             tw.text_accent(imgui.text)(group_name)
-            ly.gap_y(0.5)
+            ly.gap_y(Sp.S0_5)
 
             # 紧凑属性表格
             _draw_attr_table(attrs, target_dict)
@@ -185,9 +186,9 @@ def _draw_attr_table(attrs: list[str], target_dict: dict) -> None:
         return
 
     label_w = _get_label_width()
-    input_w = sz(_INPUT_TW)
-    cell_pad_y = sz(0.5)  # 2px 垂直间距
-    min_pad_x = sz(0.5)  # 2px 最小水平间距
+    input_w = dp(Sp.S20)
+    cell_pad_y = dp(Sp.S0_5)  # 2px 垂直间距
+    min_pad_x = dp(Sp.S0_5)  # 2px 最小水平间距
 
     # 动态列数 + cell_pad_x 计算
     avail_w = imgui.get_content_region_available_width()
@@ -323,7 +324,7 @@ def _draw_consumable_attributes_editor(hybrid: HybridItemV2) -> None:
     # === 1. 基础字段 (Duration / Poisoning) ===
     _draw_consumable_basics(hybrid, consumable_attrs)
 
-    ly.gap_y(3)
+    ly.gap_y(Sp.S3)
 
     # === 2. 全效果属性网格 ===
     all_keys = _build_consumable_attr_keys()
