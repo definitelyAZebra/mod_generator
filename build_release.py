@@ -139,16 +139,51 @@ def main():
 
     # Step 2: 运行 PyInstaller (单文件模式)
     print("\n🔨 运行 PyInstaller...")
-    glfw_dll = r"C:\Users\davie\.pyenv\pyenv-win\versions\3.10.6\Lib\site-packages\glfw\glfw3.dll"
 
+    # 动态获取依赖 DLL 路径
+    binaries = []
+
+    # 1. glfw3.dll (GLFW 窗口库)
+    try:
+        import glfw
+        glfw_module_path = Path(glfw.__file__).parent
+        glfw_dll = glfw_module_path / "glfw3.dll"
+        if not glfw_dll.exists():
+            print(f"⚠️  找不到 glfw3.dll: {glfw_dll}")
+            return 1
+        binaries.append((glfw_dll, "."))
+        print(f"  ✓ glfw3.dll: {glfw_dll}")
+    except ImportError:
+        print("❌ 找不到 glfw 模块，请先安装: pip install glfw")
+        return 1
+
+    # 2. cimgui.dll (cimgui_py 核心库)
+    cimgui_dll = project_dir / "cimgui_py" / "lib" / "cimgui.dll"
+    if cimgui_dll.exists():
+        binaries.append((cimgui_dll, "."))
+        print(f"  ✓ cimgui.dll: {cimgui_dll}")
+    else:
+        print(f"⚠️  找不到 cimgui.dll: {cimgui_dll}")
+        print("     尝试继续打包，但运行时可能出错")
+
+    # 构建 PyInstaller 命令
     cmd = [
-        "pyinstaller",
-        "--add-binary", f"{glfw_dll};.",  # Windows 用分号
+        "python", "-m", "PyInstaller",
         "--onefile",    # 单文件模式
         "--noconfirm",  # 覆盖输出目录
         "--clean",      # 清理缓存
-        "mod_generator.py"
     ]
+
+    # 添加所有二进制文件
+    for dll_path, target_dir in binaries:
+        cmd.extend(["--add-binary", f"{dll_path};{target_dir}"])
+
+    # 添加 cimgui_py 的路径（处理 editable install）
+    cimgui_py_src = project_dir / "cimgui_py" / "src"
+    if cimgui_py_src.exists():
+        cmd.extend(["--paths", str(cimgui_py_src)])
+
+    cmd.append("mod_generator.py")
 
     print(f"  命令: {' '.join(cmd)}")
     result = subprocess.run(cmd, cwd=project_dir)
