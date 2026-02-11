@@ -14,7 +14,7 @@ icons/
 *.ttf
 *.otf
 
-# === codegen 产物 (可重新生成) ===
+# === 自动生成的 UI 文件 (可由 scripts/ 重新生成) ===
 ui/tw.py
 ui/font_config.py
 .font_metrics_cache.json
@@ -40,7 +40,7 @@ dist/
 
 # === 项目配置 (用户本地) ===
 config.json
-codegen/config_local.py
+scripts/config_local.py
 paths.json
 pyrightconfig.json
 
