@@ -15,8 +15,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, TYPE_CHECKING
 
-from specs import ItemTexturesV2, LimitedCharges, WeaponCharTexture, MultiPoseCharTexture
-from localization import ItemLocalization
+from core.specs import ItemTexturesV2, LimitedCharges, WeaponCharTexture, MultiPoseCharTexture
+from core.localization import ItemLocalization
 from serde import (
     unstructure_hybrid_item,
     unstructure_textures,
@@ -24,7 +24,7 @@ from serde import (
     structure_hybrid_item,
 )
 from migrations import CURRENT_SCHEMA_VERSION, migrate
-from hybrid_item_v2 import (
+from core.hybrid_item import (
     WeaponEquip,
     ArmorEquip,
     SkillTrigger,
@@ -32,7 +32,7 @@ from hybrid_item_v2 import (
 )
 
 if TYPE_CHECKING:
-    from hybrid_item_v2 import HybridItemV2
+    from core.hybrid_item import HybridItemV2
 
 from constants import (
     ARMOR_SLOT_TO_HOOK,

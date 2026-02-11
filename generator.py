@@ -35,8 +35,8 @@ from constants import (
     VIEWPORT_CHAR_OFFSET_X,
     VIEWPORT_CHAR_OFFSET_Y,
 )
-from models import Armor, Item, ModProject, Weapon
-from specs import (
+from core.models import Armor, Item, ModProject, Weapon
+from core.specs import (
     ArtifactQuality, UniqueQuality,
     SkillTrigger, NoTrigger,
     LimitedCharges, UnlimitedCharges,
@@ -44,7 +44,7 @@ from specs import (
     Origin, AbsoluteFps, RelativeSpeed,
     WeaponEquip, ArmorEquip,
 )
-from hybrid_item_v2 import HybridItemV2
+from core.hybrid_item import HybridItemV2
 from data.skills import SKILL_OBJECTS  # <- 用于获取技能目标类型
 
 # 武器/护甲属性生成辅助 <- moved to module level

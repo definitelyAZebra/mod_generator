@@ -21,9 +21,9 @@ from ui.fields import (
     readonly_field, field_slot,
 )
 
-from hybrid_item_v2 import HybridItemV2
+from core.hybrid_item import HybridItemV2
 from constants import HYBRID_WEAPON_TYPES, HYBRID_ARMOR_TYPES
-from specs import (
+from core.specs import (
     WeaponEquip, ArmorEquip, CharmEquip, NotEquipable,
     is_weapon_mode, is_armor_mode, is_charm_mode,
     char_texture_for_equipment,

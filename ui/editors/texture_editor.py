@@ -19,9 +19,9 @@ from constants import (
     CHARACTER_MODELS,
     GAME_FPS,
 )
-from models import Armor, Weapon
-from hybrid_item_v2 import HybridItemV2
-from specs import (
+from core.models import Armor, Weapon
+from core.hybrid_item import HybridItemV2
+from core.specs import (
     WeaponCharTexture, MultiPoseCharTexture, NoCharTexture,
     AnimatedSlot, StaticSlot, LootSlot, loot_speed_to_preview_fps,
 )

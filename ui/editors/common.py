@@ -27,7 +27,7 @@ from constants import (
     STRICT_INT_ATTRIBUTES,
     TIER_LABELS,
 )
-from models import Armor, Weapon
+from core.models import Armor, Weapon
 
 
 # =============================================================================

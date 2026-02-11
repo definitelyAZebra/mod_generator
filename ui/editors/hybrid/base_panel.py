@@ -25,7 +25,7 @@ from ui.fields import (
     toggle_field, readonly_field,
 )
 
-from hybrid_item_v2 import HybridItemV2
+from core.hybrid_item import HybridItemV2
 from constants import (
     HYBRID_QUALITY_LABELS,
     HYBRID_WEIGHT_LABELS,
@@ -40,7 +40,7 @@ from data.drop_slots import (
     COUNTRY_TAGS,
     EXTRA_TAGS,
 )
-from specs import (
+from core.specs import (
     quality_to_int, quality_from_int,
     ExcludedFromRandom, RandomSpawn, SpawnRuleType,
     spawn_is_excluded,

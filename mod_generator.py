@@ -37,7 +37,7 @@ from ui.texture_manager import unload_all_textures
 from ui import popups
 from ui.menu import draw_main_menu, get_toolbar_height
 from ui.fonts import load_fonts, update_font_scale
-from models import ModProject
+from core.models import ModProject
 
 
 # ==================== 应用入口 ====================

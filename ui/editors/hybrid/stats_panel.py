@@ -30,7 +30,7 @@ from ui.scale import Sp, dp
 from ui.state import dpi_scale
 from ui.fields import field_row, int_field
 
-from hybrid_item_v2 import HybridItemV2
+from core.hybrid_item import HybridItemV2
 from ui.editors.common import get_attr_display
 from constants import (
     STRICT_INT_ATTRIBUTES,
@@ -41,7 +41,7 @@ from constants import (
     CONSUMABLE_DURATION_ATTRIBUTE,
     CONSUMABLE_INSTANT_ATTRS,
 )
-from specs import (
+from core.specs import (
     is_weapon_mode, is_armor_mode, is_charm_mode,
     EffectTrigger,
     charge_has_charges,

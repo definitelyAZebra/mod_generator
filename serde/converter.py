@@ -14,7 +14,7 @@ from enum import Enum
 
 import cattrs
 
-from specs import (
+from core.specs import (
     # Quality
     QualitySpec, CommonQuality, UniqueQuality, ArtifactQuality,
     # Equipment
@@ -36,7 +36,7 @@ from specs import (
 )
 
 if TYPE_CHECKING:
-    from hybrid_item_v2 import HybridItemV2
+    from core.hybrid_item import HybridItemV2
 
 
 T = TypeVar("T")
@@ -225,7 +225,7 @@ def _register_union(
 def _register_hooks(conv: cattrs.Converter) -> None:
     """注册特殊类型的序列化/反序列化 hooks"""
     # 延迟导入避免循环依赖
-    from localization import ItemLocalization
+    from core.localization import ItemLocalization
 
     # Enum: 序列化为 value
     conv.register_unstructure_hook(SpawnRuleType, lambda e: e.value)
@@ -297,7 +297,7 @@ def unstructure_hybrid_item(item: "HybridItemV2", project_dir: str = "") -> dict
     Returns:
         可 JSON 序列化的 dict
     """
-    from hybrid_item_v2 import HybridItemV2
+    from core.hybrid_item import HybridItemV2
 
     # 先用标准 converter 序列化
     data = _get_converter().unstructure(item)
@@ -319,7 +319,7 @@ def structure_hybrid_item(data: dict[str, Any], project_dir: str = "") -> "Hybri
     Returns:
         HybridItemV2 实例
     """
-    from hybrid_item_v2 import HybridItemV2
+    from core.hybrid_item import HybridItemV2
 
     # 先解析路径为绝对路径
     if project_dir:

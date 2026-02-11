@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from specs import (
+from core.specs import (
     # Literal 类型
     Weight, Material,
     QualitySpec, CommonQuality, quality_to_int, quality_to_rarity, quality_has_durability,
@@ -35,7 +35,7 @@ from specs import (
     # Textures (V2)
     ItemTexturesV2,
 )
-from localization import ItemLocalization
+from core.localization import ItemLocalization
 
 
 # ============================================================================

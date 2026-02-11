@@ -12,7 +12,7 @@ import traceback
 from pathlib import Path
 
 from generator import CodeGenerator, copy_item_textures_v2
-from models import (
+from core.models import (
     Armor,
     ModProject,
     validate_item,
