@@ -4,7 +4,7 @@
 由 generate_translations.py 从 output_json/attributes.json 生成
 
 使用方式:
-    from attribute_data import ATTRIBUTE_TRANSLATIONS, ATTRIBUTE_DESCRIPTIONS
+    from data.attributes import ATTRIBUTE_TRANSLATIONS, ATTRIBUTE_DESCRIPTIONS
 """
 
 # 属性名称翻译

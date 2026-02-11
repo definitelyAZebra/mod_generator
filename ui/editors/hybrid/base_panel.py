@@ -31,7 +31,7 @@ from constants import (
     HYBRID_WEIGHT_LABELS,
     HYBRID_MATERIALS,
 )
-from drop_slot_data import (
+from data.drop_slots import (
     ITEM_CATEGORIES,
     ALL_SUBCATEGORY_OPTIONS,
     CATEGORY_TRANSLATIONS,

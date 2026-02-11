@@ -9,7 +9,7 @@ Drop Slot 匹配数据模块
 from functools import lru_cache
 from typing import Any, Dict, List, Tuple, Set
 
-from drop_slot_index import SLOT_METADATA, TIER_INDEX, EQ_METADATA, EQ_TIER_INDEX
+from data.drop_index import SLOT_METADATA, TIER_INDEX, EQ_METADATA, EQ_TIER_INDEX
 
 # ============== 分类常量 ==============
 

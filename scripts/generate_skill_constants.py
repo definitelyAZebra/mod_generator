@@ -463,7 +463,7 @@ def main():
     # 8. 生成常量文件
     output = generate_skill_constants(enriched, branch_translations)
 
-    output_path = paths.PROJECT_ROOT / "skill_constants.py"
+    output_path = paths.PROJECT_ROOT / "data" / "skills.py"
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(output)
 

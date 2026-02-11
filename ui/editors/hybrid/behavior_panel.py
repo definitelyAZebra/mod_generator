@@ -35,7 +35,7 @@ from specs import (
     recovery_has_recovery,
     ArtifactQuality,
 )
-from skill_constants import (
+from data.skills import (
     SKILL_OBJECTS,
     SKILL_BRANCH_TRANSLATIONS,
     SKILL_BY_BRANCH,

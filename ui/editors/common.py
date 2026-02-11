@@ -17,7 +17,7 @@ from ui.layout import tooltip
 from ui.scale import Sp, dp
 from ui.state import dpi_scale
 
-from attribute_data import ATTRIBUTE_TRANSLATIONS, ATTRIBUTE_DESCRIPTIONS
+from data.attributes import ATTRIBUTE_TRANSLATIONS, ATTRIBUTE_DESCRIPTIONS
 from constants import (
     ARMOR_CLASS_LABELS,
     ARMOR_FRAGMENT_LABELS,

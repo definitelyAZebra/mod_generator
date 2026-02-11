@@ -60,8 +60,8 @@ from hybrid_item_v2 import HybridItemV2
 from specs import EffectTrigger, SpawnRuleType, spawn_is_excluded, WeaponEquip, ArmorEquip
 from models import validate_hybrid_item
 from ui.state import state as ui_state
-from drop_slot_data import find_matching_slots, find_matching_eq_slots
-from shop_configs import NPC_METADATA, SHOP_CONFIGS
+from data.drop_slots import find_matching_slots, find_matching_eq_slots
+from data.shops import NPC_METADATA, SHOP_CONFIGS
 
 
 # =============================================================================

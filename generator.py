@@ -45,7 +45,7 @@ from specs import (
     WeaponEquip, ArmorEquip,
 )
 from hybrid_item_v2 import HybridItemV2
-from skill_constants import SKILL_OBJECTS  # <- 用于获取技能目标类型
+from data.skills import SKILL_OBJECTS  # <- 用于获取技能目标类型
 
 # 武器/护甲属性生成辅助 <- moved to module level
 TIER_TO_ENUM = {1: "Tier1", 2: "Tier2", 3: "Tier3", 4: "Tier4", 5: "Tier5"}
