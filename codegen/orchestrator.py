@@ -11,7 +11,7 @@ import os
 import traceback
 from pathlib import Path
 
-from generator import CodeGenerator, copy_item_textures_v2
+from codegen.generator import CodeGenerator, copy_item_textures_v2
 from core.models import (
     Armor,
     ModProject,
