@@ -28,11 +28,11 @@ from core.specs import (
     # Trigger
     TriggerSpec, NoTrigger, EffectTrigger, SkillTrigger,
     ChargeSpec, NoCharges, LimitedCharges, UnlimitedCharges,
-    charge_has_charges, charge_effective_value, charge_draw_charges,
+    charge_has_charges,
     ChargeRecoverySpec, NoRecovery, IntervalRecovery,
-    recovery_has_recovery, recovery_interval,
+    recovery_has_recovery,
     HasDurability,
-    durability_has_durability, SpawnSpec, SpawnRuleType, ExcludedFromRandom, RandomSpawn,
+    SpawnSpec, SpawnRuleType, ExcludedFromRandom, RandomSpawn,
     spawn_effective_tags, spawn_is_excluded,
     # Textures (V2)
     ItemTexturesV2,
@@ -234,56 +234,26 @@ class HybridItemV2:
                 "Medium": "Medium", "Heavy": "Heavy"}.get(self.weight, "Light")
 
     @property
-    def has_durability(self) -> bool:
-        """是否有耐久系统 (跨 quality × equipment × durability)
+    def durability(self) -> HasDurability | None:
+        """提取耐久规格 (需品质允许 + 装备有 HasDurability)
 
-        耐久系统需要满足:
-        1. 品质允许 (非 ArtifactQuality)
-        2. 是装备 (WeaponEquip 或 ArmorEquip)
-        3. 装备内嵌的 durability 为 HasDurability
+        返回 HasDurability 实例或 None (品质不允许/非装备/无耐久)。
+        消费者应 match 返回值而非假设存在。
         """
         if not self.quality.has_durability:
-            return False
+            return None
         match self.equipment:
-            case WeaponEquip(durability=d):
-                return durability_has_durability(d)
-            case ArmorEquip(durability=d):
-                return durability_has_durability(d)
+            case WeaponEquip(durability=HasDurability() as d):
+                return d
+            case ArmorEquip(durability=HasDurability() as d):
+                return d
             case _:
-                return False
+                return None
 
     @property
-    def duration_max(self) -> int:
-        """最大耐久 (嵌套提取: equipment → durability → duration_max)"""
-        match self.equipment:
-            case WeaponEquip(durability=HasDurability(duration_max=d)):
-                return d
-            case ArmorEquip(durability=HasDurability(duration_max=d)):
-                return d
-            case _:
-                return 0
-
-    @property
-    def wear_per_use(self) -> int:
-        """每次使用磨损百分比 (嵌套提取: equipment → durability → wear_per_use)"""
-        match self.equipment:
-            case WeaponEquip(durability=HasDurability(wear_per_use=w)):
-                return w
-            case ArmorEquip(durability=HasDurability(wear_per_use=w)):
-                return w
-            case _:
-                return 0
-
-    @property
-    def destroy_on_durability_zero(self) -> bool:
-        """耐久耗尽时是否删除物品 (嵌套提取)"""
-        match self.equipment:
-            case WeaponEquip(durability=HasDurability(destroy_on_zero=d)):
-                return d
-            case ArmorEquip(durability=HasDurability(destroy_on_zero=d)):
-                return d
-            case _:
-                return False
+    def has_durability(self) -> bool:
+        """是否有耐久系统 (跨 quality × equipment × durability)"""
+        return self.durability is not None
 
     # ====== Charge 委托属性 ======
 
@@ -292,27 +262,12 @@ class HybridItemV2:
         """是否有使用次数系统"""
         return charge_has_charges(self.charges)
 
-    @property
-    def effective_charge(self) -> int:
-        """实际使用次数值"""
-        return charge_effective_value(self.charges)
-
-    @property
-    def draw_charges(self) -> bool:
-        """是否绘制次数条"""
-        return charge_draw_charges(self.charges)
-
     # ====== ChargeRecovery 委托属性 ======
 
     @property
     def has_charge_recovery(self) -> bool:
         """是否有使用次数恢复"""
         return recovery_has_recovery(self.charge_recovery)
-
-    @property
-    def charge_recovery_interval(self) -> int:
-        """恢复间隔 (回合数)"""
-        return recovery_interval(self.charge_recovery)
 
     # ====== Spawn 委托属性 ======
 
@@ -325,86 +280,6 @@ class HybridItemV2:
     def effective_tags(self) -> str:
         """有效 tags 字符串"""
         return spawn_effective_tags(self.spawn)
-
-    @property
-    def container_spawn(self) -> SpawnRuleType:
-        """容器生成规则"""
-        match self.spawn:
-            case RandomSpawn(container_spawn=r):
-                return r
-            case _:
-                return SpawnRuleType.NONE
-
-    @property
-    def shop_spawn(self) -> SpawnRuleType:
-        """商店生成规则"""
-        match self.spawn:
-            case RandomSpawn(shop_spawn=r):
-                return r
-            case _:
-                return SpawnRuleType.NONE
-
-    # ====== 标签读写属性 (兼容 UI) ======
-
-    @property
-    def quality_tag(self) -> str:
-        """品质标签 (仅 RandomSpawn 时有效)"""
-        match self.spawn:
-            case RandomSpawn(quality_tag=t):
-                return t
-            case _:
-                return ""
-
-    @quality_tag.setter
-    def quality_tag(self, value: str):
-        """设置品质标签"""
-        if isinstance(self.spawn, RandomSpawn):
-            object.__setattr__(self.spawn, "quality_tag", value)
-
-    @property
-    def dungeon_tag(self) -> str:
-        """地牢标签 (仅 RandomSpawn 时有效)"""
-        match self.spawn:
-            case RandomSpawn(dungeon_tag=t):
-                return t
-            case _:
-                return ""
-
-    @dungeon_tag.setter
-    def dungeon_tag(self, value: str):
-        """设置地牢标签"""
-        if isinstance(self.spawn, RandomSpawn):
-            object.__setattr__(self.spawn, "dungeon_tag", value)
-
-    @property
-    def country_tag(self) -> str:
-        """国家/地区标签 (仅 RandomSpawn 时有效)"""
-        match self.spawn:
-            case RandomSpawn(country_tag=t):
-                return t
-            case _:
-                return ""
-
-    @country_tag.setter
-    def country_tag(self, value: str):
-        """设置国家/地区标签"""
-        if isinstance(self.spawn, RandomSpawn):
-            object.__setattr__(self.spawn, "country_tag", value)
-
-    @property
-    def extra_tags(self) -> list[str]:
-        """额外标签列表 (仅 RandomSpawn 时有效)"""
-        match self.spawn:
-            case RandomSpawn(extra_tags=t):
-                return t
-            case _:
-                return []
-
-    @extra_tags.setter
-    def extra_tags(self, value: list[str]):
-        """设置额外标签列表"""
-        if isinstance(self.spawn, RandomSpawn):
-            object.__setattr__(self.spawn, "extra_tags", value)
 
     # ====== 贴图需求方法 ======
 
@@ -434,18 +309,28 @@ class HybridItemV2:
     @property
     def has_equipment_spawn(self) -> bool:
         """是否有任何场景使用装备规则"""
-        return SpawnRuleType.EQUIPMENT in (self.container_spawn, self.shop_spawn)
+        match self.spawn:
+            case RandomSpawn(container_spawn=c, shop_spawn=s):
+                return SpawnRuleType.EQUIPMENT in (c, s)
+            case _:
+                return False
 
     @property
     def has_item_spawn(self) -> bool:
         """是否有任何场景使用道具规则"""
-        return SpawnRuleType.ITEM in (self.container_spawn, self.shop_spawn)
+        match self.spawn:
+            case RandomSpawn(container_spawn=c, shop_spawn=s):
+                return SpawnRuleType.ITEM in (c, s)
+            case _:
+                return False
 
     @property
     def needs_registration(self) -> bool:
         """是否需要注册到混合物品系统"""
-        if self.exclude_from_random:
-            return False
-        if self.has_equipment_spawn:
-            return True
-        return self.shop_spawn != SpawnRuleType.ITEM or self.container_spawn != SpawnRuleType.ITEM
+        match self.spawn:
+            case ExcludedFromRandom():
+                return False
+            case RandomSpawn(container_spawn=c, shop_spawn=s):
+                if SpawnRuleType.EQUIPMENT in (c, s):
+                    return True
+                return s != SpawnRuleType.ITEM or c != SpawnRuleType.ITEM

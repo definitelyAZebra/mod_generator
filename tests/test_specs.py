@@ -34,10 +34,10 @@ from core.specs import (
     NoTrigger, EffectTrigger, SkillTrigger,
     # Charges
     NoCharges, LimitedCharges, UnlimitedCharges,
-    charge_effective_value, charge_has_charges, charge_draw_charges,
+    charge_has_charges,
     # Recovery
     NoRecovery, IntervalRecovery,
-    recovery_has_recovery, recovery_interval,
+    recovery_has_recovery,
     # Spawn
     ExcludedFromRandom, RandomSpawn, SpawnRuleType,
     spawn_effective_tags, spawn_is_excluded,
@@ -258,29 +258,12 @@ class TestTriggerHelpers:
 class TestChargeHelpers:
 
     @pytest.mark.parametrize("spec,expected", [
-        (NoCharges(), 0),
-        (LimitedCharges(max_charges=5), 5),
-        (UnlimitedCharges(), 1),
-    ])
-    def test_charge_effective_value(self, spec, expected):
-        assert charge_effective_value(spec) == expected
-
-    @pytest.mark.parametrize("spec,expected", [
         (NoCharges(), False),
         (LimitedCharges(), True),
         (UnlimitedCharges(), True),
     ])
     def test_charge_has_charges(self, spec, expected):
         assert charge_has_charges(spec) == expected
-
-    @pytest.mark.parametrize("spec,expected", [
-        (NoCharges(), False),
-        (LimitedCharges(draw_charges=True), True),
-        (LimitedCharges(draw_charges=False), False),
-        (UnlimitedCharges(draw_charges=True), True),
-    ])
-    def test_charge_draw_charges(self, spec, expected):
-        assert charge_draw_charges(spec) == expected
 
 
 # ============================================================================
@@ -292,12 +275,10 @@ class TestRecoveryHelpers:
 
     def test_no_recovery(self):
         assert recovery_has_recovery(NoRecovery()) is False
-        assert recovery_interval(NoRecovery()) == 0
 
     def test_interval_recovery(self):
         r = IntervalRecovery(interval=20)
         assert recovery_has_recovery(r) is True
-        assert recovery_interval(r) == 20
 
 
 # ============================================================================

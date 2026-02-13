@@ -317,6 +317,10 @@ def _draw_tags_section(hybrid: HybridItemV2) -> None:
         return
 
     # 正常模式 - wrap 布局自动换行
+    if not isinstance(hybrid.spawn, RandomSpawn):
+        return
+    spawn = hybrid.spawn
+
     with ly.wrap("tags_section", gap_x=Sp.S2, gap_y=Sp.S2) as w:
         # 添加标签按钮 (方形，匹配徽章高度)
         w.next()
@@ -326,51 +330,51 @@ def _draw_tags_section(hybrid: HybridItemV2) -> None:
         tooltip("添加标签")
 
         # 品质标签 (锁定)
-        if hybrid.quality_tag:
+        if spawn.quality_tag:
             w.next()
             _locked_badge(
-                hybrid.quality_tag,
-                QUALITY_TAGS.get(hybrid.quality_tag, hybrid.quality_tag),
+                spawn.quality_tag,
+                QUALITY_TAGS.get(spawn.quality_tag, spawn.quality_tag),
                 "由品质自动设置",
             )
 
         # 地牢标签
-        if hybrid.dungeon_tag:
+        if spawn.dungeon_tag:
             w.next()
-            if _badge(f"dungeon_{hybrid.dungeon_tag}", DUNGEON_TAGS.get(hybrid.dungeon_tag, hybrid.dungeon_tag)):
-                hybrid.dungeon_tag = ""
+            if _badge(f"dungeon_{spawn.dungeon_tag}", DUNGEON_TAGS.get(spawn.dungeon_tag, spawn.dungeon_tag)):
+                spawn.dungeon_tag = ""
 
         # 国家标签
-        if hybrid.country_tag:
+        if spawn.country_tag:
             w.next()
-            if _badge(f"country_{hybrid.country_tag}", COUNTRY_TAGS.get(hybrid.country_tag, hybrid.country_tag)):
-                hybrid.country_tag = ""
+            if _badge(f"country_{spawn.country_tag}", COUNTRY_TAGS.get(spawn.country_tag, spawn.country_tag)):
+                spawn.country_tag = ""
 
         # 其他标签
-        for tag in list(hybrid.extra_tags):
+        for tag in list(spawn.extra_tags):
             w.next()
             if _badge(f"extra_{tag}", EXTRA_TAGS.get(tag, tag)):
-                hybrid.extra_tags.remove(tag)
+                spawn.extra_tags.remove(tag)
                 break  # 避免在迭代时修改列表
 
     # 标签选择 popup
-    _draw_tags_popup(hybrid)
+    _draw_tags_popup(spawn)
 
 
-def _draw_tags_popup(hybrid: HybridItemV2) -> None:
+def _draw_tags_popup(spawn: RandomSpawn) -> None:
     """标签选择弹窗"""
     if imgui.begin_popup("tags_popup"):
         tw.text_muted(imgui.text)("地牢")
         for tag_val, tag_label in DUNGEON_TAGS.items():
-            if imgui.radio_button(f"{tag_label}##dungeon", hybrid.dungeon_tag == tag_val):
-                hybrid.dungeon_tag = tag_val
+            if imgui.radio_button(f"{tag_label}##dungeon", spawn.dungeon_tag == tag_val):
+                spawn.dungeon_tag = tag_val
 
         imgui.separator()
 
         tw.text_muted(imgui.text)("国家/地区")
         for tag_val, tag_label in COUNTRY_TAGS.items():
-            if imgui.radio_button(f"{tag_label}##country", hybrid.country_tag == tag_val):
-                hybrid.country_tag = tag_val
+            if imgui.radio_button(f"{tag_label}##country", spawn.country_tag == tag_val):
+                spawn.country_tag = tag_val
 
         imgui.separator()
 
@@ -378,13 +382,13 @@ def _draw_tags_popup(hybrid: HybridItemV2) -> None:
         for tag_val, tag_label in EXTRA_TAGS.items():
             if tag_val == "special":
                 continue
-            is_selected = tag_val in hybrid.extra_tags
+            is_selected = tag_val in spawn.extra_tags
             changed, new_value = imgui.checkbox(f"{tag_label}##extra_{tag_val}", is_selected)
             if changed:
                 if new_value:
-                    hybrid.extra_tags.append(tag_val)
+                    spawn.extra_tags.append(tag_val)
                 else:
-                    hybrid.extra_tags.remove(tag_val)
+                    spawn.extra_tags.remove(tag_val)
 
         imgui.end_popup()
 
@@ -419,7 +423,7 @@ def _draw_spawn_section(hybrid: HybridItemV2) -> None:
                 if can_use_eq
                 else [SpawnRuleType.ITEM, SpawnRuleType.NONE]
             )
-            current_container = hybrid.container_spawn
+            current_container = spawn.container_spawn
             if current_container not in container_opts:
                 current_container = SpawnRuleType.NONE
 
@@ -443,7 +447,7 @@ def _draw_spawn_section(hybrid: HybridItemV2) -> None:
                 if can_use_eq
                 else [SpawnRuleType.ITEM, SpawnRuleType.NONE]
             )
-            current_shop = hybrid.shop_spawn
+            current_shop = spawn.shop_spawn
             if current_shop not in shop_opts:
                 current_shop = SpawnRuleType.NONE
 

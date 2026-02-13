@@ -57,7 +57,7 @@ from ui.editors.common import (
 from ui.scale import Sp  # noqa: F401  # pyright: ignore[reportUnusedImport]
 from ui.state import dpi_scale
 from core.hybrid_item import HybridItemV2
-from core.specs import EffectTrigger, SpawnRuleType, spawn_is_excluded, WeaponEquip, ArmorEquip
+from core.specs import EffectTrigger, SpawnRuleType, RandomSpawn, spawn_is_excluded, WeaponEquip, ArmorEquip
 from core.models import validate_hybrid_item
 from ui.state import state as ui_state
 from data.drop_slots import find_matching_slots, find_matching_eq_slots
@@ -156,11 +156,14 @@ def _draw_prediction_card(hybrid: HybridItemV2) -> None:
         with ly.card("##card_prediction") as _state:
             card_heading("生成预测")
 
-            has_container = hybrid.container_spawn != SpawnRuleType.NONE
-            has_shop = hybrid.shop_spawn != SpawnRuleType.NONE
+            assert isinstance(hybrid.spawn, RandomSpawn)
+            spawn = hybrid.spawn
+
+            has_container = spawn.container_spawn != SpawnRuleType.NONE
+            has_shop = spawn.shop_spawn != SpawnRuleType.NONE
 
             if has_container:
-                is_eq = hybrid.container_spawn == SpawnRuleType.EQUIPMENT
+                is_eq = spawn.container_spawn == SpawnRuleType.EQUIPMENT
                 tw.text_muted(imgui.text)("容器:")
                 imgui.same_line()
                 _render_container_matches(hybrid, is_eq)
@@ -173,12 +176,11 @@ def _draw_prediction_card(hybrid: HybridItemV2) -> None:
 
 def _has_spawn_prediction(hybrid: HybridItemV2) -> bool:
     """判断是否应显示生成预测卡片"""
-    if spawn_is_excluded(hybrid.spawn):
-        return False
-    return (
-        hybrid.container_spawn != SpawnRuleType.NONE
-        or hybrid.shop_spawn != SpawnRuleType.NONE
-    )
+    match hybrid.spawn:
+        case RandomSpawn(container_spawn=c, shop_spawn=s):
+            return c != SpawnRuleType.NONE or s != SpawnRuleType.NONE
+        case _:
+            return False
 
 
 # =============================================================================
@@ -249,9 +251,10 @@ def _render_truncated_names(names: list[str], max_display: int = 8) -> None:
 
 def _render_shop_matches(hybrid: HybridItemV2) -> None:
     """渲染商店匹配结果"""
+    assert isinstance(hybrid.spawn, RandomSpawn)
     matching: list[str] = []
 
-    if hybrid.shop_spawn == SpawnRuleType.ITEM:
+    if hybrid.spawn.shop_spawn == SpawnRuleType.ITEM:
         if not (hybrid.cat or hybrid.subcats):
             tw.text_faint(imgui.text)("请设置分类")
             return

@@ -27,6 +27,7 @@ from core.specs import (
     ArmorEquip,
     CharmEquip,
     EffectTrigger,
+    IntervalRecovery,
     QualitySpec,
     LimitedCharges,
     NoTrigger,
@@ -363,10 +364,17 @@ def _emit_create_gml(item: HybridItemV2) -> str:
 
     # ===== 使用次数 =====
     if item.has_charges:
+        match item.charges:
+            case LimitedCharges(max_charges=charge_val, draw_charges=draw):
+                pass
+            case UnlimitedCharges(draw_charges=draw):
+                charge_val = 1
+            case _:
+                raise AssertionError("unreachable: has_charges guards NoCharges")
         lines.append("// 使用次数（父类 Alarm_0 会处理持久化）")
-        lines.append(f"charge = {item.effective_charge};")
-        lines.append(f"max_charge = {item.effective_charge};")
-        lines.append(f"draw_charges = {'true' if item.draw_charges else 'false'};")
+        lines.append(f"charge = {charge_val};")
+        lines.append(f"max_charge = {charge_val};")
+        lines.append(f"draw_charges = {'true' if draw else 'false'};")
         lines.append("")
 
         lines.append("// 消耗品属性 (attributes_data)")
@@ -381,12 +389,13 @@ def _emit_create_gml(item: HybridItemV2) -> str:
         lines.append("")
 
     # ===== 耐久 =====
-    if item.has_durability:
+    dur = item.durability
+    if dur is not None:
         lines.append("// 耐久度（父类 Alarm_0 会处理持久化）")
-        lines.append(f"duration = {item.duration_max};")
+        lines.append(f"duration = {dur.duration_max};")
         lines.append("")
 
-    lines.append(f"duration_change = {item.wear_per_use};")
+    lines.append(f"duration_change = {dur.wear_per_use if dur else 0};")
     match item.charges:
         case LimitedCharges(delete_on_zero=True):
             lines.append("delete_after_use = true;")
@@ -431,8 +440,8 @@ def _emit_create_gml(item: HybridItemV2) -> str:
     lines.append('ds_map_replace(data, "key", "");')
     lines.append("ds_map_replace(data, \"identified\", true);")
 
-    if item.has_durability:
-        lines.append(f'ds_map_replace(data, "MaxDuration", {item.duration_max});')
+    if dur is not None:
+        lines.append(f'ds_map_replace(data, "MaxDuration", {dur.duration_max});')
 
     if _is_weapon_equip(item):
         best_type = _compute_damage_type(item.attributes)
@@ -556,7 +565,8 @@ if (_duration > _maxDuration)
     ds_map_replace(data, "Duration", _maxDuration);""")
 
     # 使用次数恢复逻辑
-    if item.has_charge_recovery and isinstance(item.charges, LimitedCharges):
+    if isinstance(item.charge_recovery, IntervalRecovery) and isinstance(item.charges, LimitedCharges):
+        interval = item.charge_recovery.interval
         sections.append(f"""\
 // 使用次数恢复
 var _lastTurn = ds_map_find_value(data, "last_recovery_turn");
@@ -564,15 +574,15 @@ if (!is_undefined(_lastTurn)) {{
     var _totalSec = scr_timeGetTimestamp() * 60 + ds_map_find_value(global.timeDataMap, "seconds");
     var _turnsPassed = floor(_totalSec / 30) - _lastTurn;
 
-    if (_turnsPassed >= {item.charge_recovery_interval}) {{
-        var _recoveries = floor(_turnsPassed / {item.charge_recovery_interval});
+    if (_turnsPassed >= {interval}) {{
+        var _recoveries = floor(_turnsPassed / {interval});
         charge = min(max_charge, charge + _recoveries);
         ds_map_replace(data, "charge", charge);
 
         if (charge >= max_charge)
             ds_map_delete(data, "last_recovery_turn");
         else
-            ds_map_replace(data, "last_recovery_turn", _lastTurn + (_recoveries * {item.charge_recovery_interval}));
+            ds_map_replace(data, "last_recovery_turn", _lastTurn + (_recoveries * {interval}));
     }}
 }}""")
 
@@ -617,12 +627,13 @@ charge--;
             }"""
             success_logic_parts.append(charge_block)
 
-        if item.has_durability and item.wear_per_use > 0:
+        dur = item.durability
+        if dur is not None and dur.wear_per_use > 0:
             durability_block = f"""\
 
             // 耐久扣减
             var _maxd = ds_map_find_value(data, "MaxDuration");
-            var _cost = (_maxd * {item.wear_per_use}) / 100;
+            var _cost = (_maxd * {dur.wear_per_use}) / 100;
             if (_cost <= 0) _cost = 1;
             var _dur = ds_map_find_value(data, "Duration");
             ds_map_replace(data, "Duration", max(0, _dur - _cost));"""
@@ -633,7 +644,7 @@ charge--;
         destruction_parts: list[str] = []
         if isinstance(item.charges, LimitedCharges) and item.charges.delete_on_zero:
             destruction_parts.append("if (charge <= 0) { event_user(12); exit; }")
-        if item.has_durability and item.destroy_on_durability_zero:
+        if dur is not None and dur.destroy_on_zero:
             destruction_parts.append('if (ds_map_find_value(data, "Duration") <= 0) { event_user(12); exit; }')
         destruction_logic = "\n        ".join(destruction_parts) if destruction_parts else ""
 
@@ -799,9 +810,10 @@ def _emit_other24_gml(item: HybridItemV2) -> str:
     lines.append("    exit;")
     lines.append("")
 
-    if item.has_durability and item.wear_per_use > 0:
+    dur = item.durability
+    if dur is not None and dur.wear_per_use > 0:
         lines.append("var _maxd = ds_map_find_value(data, \"MaxDuration\");")
-        lines.append(f"var _cost = (_maxd * {item.wear_per_use}) / 100;")
+        lines.append(f"var _cost = (_maxd * {dur.wear_per_use}) / 100;")
         lines.append("if (_cost <= 0) _cost = 1;")
         lines.append("var _dur = ds_map_find_value(data, \"Duration\");")
         lines.append("")
@@ -921,8 +933,8 @@ def _emit_other24_gml(item: HybridItemV2) -> str:
                 lines.append('    ds_map_set(data, "last_recovery_turn", floor(_totalSec / 30));')
                 lines.append("}")
 
-        if item.has_durability and item.wear_per_use > 0:
-            if item.destroy_on_durability_zero:
+        if dur is not None and dur.wear_per_use > 0:
+            if dur.destroy_on_zero:
                 lines.append("if (_dur <= _cost)")
                 lines.append("    event_user(12);")
                 lines.append("else")

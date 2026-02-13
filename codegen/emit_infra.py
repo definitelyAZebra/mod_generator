@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from core.hybrid_item import HybridItemV2
 from core.models import ModProject
-from core.specs import WeaponEquip, ArmorEquip, CharmEquip
+from core.specs import WeaponEquip, ArmorEquip, CharmEquip, RandomSpawn
 from constants import (
     CONSUMABLE_INSTANT_ATTRS,
     EXTRA_ORDER_ATTRS,
@@ -951,9 +951,10 @@ def emit_hybrid_item_registration(
             case CharmEquip(): eq_mode = "charm"
             case _: eq_mode = "none"
 
+        assert isinstance(h.spawn, RandomSpawn), f"registered hybrid {h.id} must have RandomSpawn"
         item_entries.append(
             f'[\"\"{h.id}\"\", \"\"{slot}\"\", {h.tier}, \"\"{h.material}\"\", '
-            f'\"\"{h.effective_tags}\"\", \"\"{h.container_spawn.value}\"\", \"\"{h.shop_spawn.value}\"\", '
+            f'\"\"{h.effective_tags}\"\", \"\"{h.spawn.container_spawn.value}\"\", \"\"{h.spawn.shop_spawn.value}\"\", '
             f'\"\"{eq_mode}\"\", {h.quality_int}]'
         )
 

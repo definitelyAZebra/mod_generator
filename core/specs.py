@@ -360,31 +360,12 @@ class UnlimitedCharges:
 ChargeSpec = Union[NoCharges, LimitedCharges, UnlimitedCharges]
 
 
-def charge_effective_value(spec: ChargeSpec) -> int:
-    """获取实际使用次数值"""
-    match spec:
-        case NoCharges():
-            return 0
-        case LimitedCharges(max_charges=n):
-            return n
-        case UnlimitedCharges():
-            return 1  # 游戏中无限次数表示为 1
-
-
 def charge_has_charges(spec: ChargeSpec) -> bool:
     """是否有使用次数系统"""
     return not isinstance(spec, NoCharges)
 
 
-def charge_draw_charges(spec: ChargeSpec) -> bool:
-    """是否绘制次数条"""
-    match spec:
-        case NoCharges():
-            return False
-        case LimitedCharges(draw_charges=d):
-            return d
-        case UnlimitedCharges(draw_charges=d):
-            return d
+
 
 # ============================================================================
 # ChargeRecoverySpec - 使用次数恢复规格
@@ -421,13 +402,6 @@ def recovery_has_recovery(spec: ChargeRecoverySpec) -> bool:
     return isinstance(spec, IntervalRecovery)
 
 
-def recovery_interval(spec: ChargeRecoverySpec) -> int:
-    """获取恢复间隔"""
-    match spec:
-        case NoRecovery():
-            return 0
-        case IntervalRecovery(interval=i):
-            return i
 
 
 # ============================================================================
