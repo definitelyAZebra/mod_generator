@@ -65,39 +65,39 @@ from constants import CHAR_MODEL_ORIGIN
 class TestQualityHelpers:
 
     @pytest.mark.parametrize("spec,expected", [
-        (CommonQuality(), 1),
-        (UniqueQuality(), 6),
-        (ArtifactQuality(), 7),
+        (CommonQuality, 1),
+        (UniqueQuality, 6),
+        (ArtifactQuality, 7),
     ])
     def test_quality_to_int(self, spec, expected):
         assert quality_to_int(spec) == expected
 
-    @pytest.mark.parametrize("value,expected_type", [
+    @pytest.mark.parametrize("value,expected", [
         (1, CommonQuality),
         (6, UniqueQuality),
         (7, ArtifactQuality),
         (0, CommonQuality),   # 未知值默认 Common
         (99, CommonQuality),
     ])
-    def test_quality_from_int(self, value, expected_type):
-        assert isinstance(quality_from_int(value), expected_type)
+    def test_quality_from_int(self, value, expected):
+        assert quality_from_int(value) == expected
 
     def test_quality_round_trip(self):
-        for spec in [CommonQuality(), UniqueQuality(), ArtifactQuality()]:
-            assert type(quality_from_int(quality_to_int(spec))) is type(spec)
+        for spec in [CommonQuality, UniqueQuality, ArtifactQuality]:
+            assert quality_from_int(quality_to_int(spec)) == spec
 
     @pytest.mark.parametrize("spec,expected", [
-        (CommonQuality(), True),
-        (UniqueQuality(), True),
-        (ArtifactQuality(), False),
+        (CommonQuality, True),
+        (UniqueQuality, True),
+        (ArtifactQuality, False),
     ])
     def test_quality_has_durability(self, spec, expected):
         assert quality_has_durability(spec) == expected
 
     @pytest.mark.parametrize("spec,expected", [
-        (CommonQuality(), ""),
-        (UniqueQuality(), "Unique"),
-        (ArtifactQuality(), "Unique"),
+        (CommonQuality, ""),
+        (UniqueQuality, "Unique"),
+        (ArtifactQuality, "Unique"),
     ])
     def test_quality_to_rarity(self, spec, expected):
         assert quality_to_rarity(spec) == expected

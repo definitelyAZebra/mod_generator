@@ -332,30 +332,12 @@ def validate_hybrid_item(
                 f"混合物品ID '{item.id}' 与其他物品重复，请确保唯一"
             )
 
-    # 槽位与装备一致性检查
-    if item.equipable and item.slot == "heal":
-        errors.append("可装备物品的槽位不能是 'heal'（背包道具）")
-
-    if not item.equipable and item.slot != "heal":
-        errors.append("WARNING: 不可装备物品的槽位应为 'heal'（背包道具）")
-
     # 武器属性检查 (V2: 检查 equipment 是否为 WeaponEquip)
     if isinstance(item.equipment, WeaponEquip):
-        if not item.equipable:
-            errors.append("WARNING: 武器类型需要物品可装备")
-        if item.slot != "hand":
-            errors.append("WARNING: 武器类型物品的槽位通常应为 'hand'")
         # 检查 attributes 中是否有伤害值
         has_damage = any(item.attributes.get(attr, 0) > 0 for attr in DAMAGE_ATTRIBUTES)
         if not has_damage:
             errors.append("武器应在属性中设置至少一种伤害类型")
-
-    # 护甲属性检查 (V2: 检查 equipment 是否为 ArmorEquip)
-    if isinstance(item.equipment, ArmorEquip):
-        if not item.equipable:
-            errors.append("WARNING: 护甲类型需要物品可装备")
-        if item.slot == "hand" or item.slot == "heal":
-            errors.append("WARNING: 护甲类型物品的槽位不应为 'hand' 或 'heal'")
 
     # 技能触发检查 (V2: 检查 trigger 是否为 SkillTrigger)
     if isinstance(item.trigger, SkillTrigger):
