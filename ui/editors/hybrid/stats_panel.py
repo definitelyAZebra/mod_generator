@@ -25,19 +25,17 @@ from __future__ import annotations
 from ui import imgui_shim as imgui
 from ui import tw
 from ui import layout as ly
-from ui.layout import tooltip
 from ui.scale import Sp, dp
-from ui.state import dpi_scale
 from ui.fields import field_row, int_field
 
 from core.hybrid_item import HybridItemV2
 from ui.editors.common import get_attr_display
+from ui.editors.attr_table import draw_attr_table, draw_attribute_full_grid
 from constants import (
-    STRICT_INT_ATTRIBUTES,
     DEFAULT_GROUP_ORDER,
     get_attribute_groups,
-    get_hybrid_attrs_for_slot,
-    get_consumable_duration_attrs,
+    get_equip_attrs_for_slot,
+    get_consumable_buff_attrs,
     CONSUMABLE_DURATION_ATTRIBUTE,
     CONSUMABLE_INSTANT_ATTRS,
 )
@@ -54,24 +52,6 @@ from core.specs import (
 
 # 输入框固定宽度 (Tailwind 单位)
 _INPUT_TW = 20  # 80px
-
-# 最大列数上限
-_MAX_COLS = 6
-
-# 标签列: 固定 6 个中文字宽 (全局统一)
-_LABEL_CHARS = 6
-_label_w_cache: float = 0.0
-
-
-def _get_label_width() -> float:
-    """获取标签列固定宽度 (6 个中文字 + 余量)
-
-    首次调用时用 calc_text_size 测量 6 个全角字，之后缓存。
-    """
-    global _label_w_cache
-    if _label_w_cache <= 0:
-        _label_w_cache = imgui.calc_text_size("测" * _LABEL_CHARS).x + dp(Sp.S1)
-    return _label_w_cache
 
 
 # =============================================================================
@@ -134,151 +114,8 @@ def _should_show_equipment_attributes(hybrid: HybridItemV2) -> bool:
 # 核心: 属性全网格渲染
 # =============================================================================
 
-def _draw_attribute_full_grid(
-    groups: dict[str, list[str]],
-    target_dict: dict,
-    id_prefix: str = "eq",
-) -> None:
-    """按分组渲染全属性网格
-
-    每组: 标题 + 紧凑 N×3 表格 (label | input) × 3
-
-    Args:
-        groups: {分组名: [属性名列表]}  (有序)
-        target_dict: 属性值字典, key → number
-        id_prefix: ImGui ID 前缀 (区分装备/消耗品)
-    """
-    first = True
-    for group_name, attrs in groups.items():
-        if not attrs:
-            continue
-
-        if not first:
-            ly.gap_y(Sp.S2)
-        first = False
-
-        imgui.push_id(f"{id_prefix}_{group_name}")
-        try:
-            # 分组标题
-            tw.text_accent(imgui.text)(group_name)
-            ly.gap_y(Sp.S0_5)
-
-            # 紧凑属性表格
-            _draw_attr_table(attrs, target_dict)
-        finally:
-            imgui.pop_id()
-
-
-# 左端点缀圆点透明度
-_DOT_ALPHA = 0.25
-
-
-def _draw_attr_table(attrs: list[str], target_dict: dict) -> None:
-    """渲染属性紧凑表格: [·label][input] × N (响应式, 右端齐平)
-
-    布局策略:
-    - label 列: 全局固定 6 中文字宽，文字右对齐 + 左端圆点点缀
-    - input 列: 固定 72px
-    - 列数: floor(avail / logical_col_w)，最大 6
-    - cell_pad_x: 动态计算使最右列右边缘齐平卡片 padding
-    """
-    if not attrs:
-        return
-
-    label_w = _get_label_width()
-    input_w = dp(Sp.S20)
-    cell_pad_y = dp(Sp.S0_5)  # 2px 垂直间距
-    min_pad_x = dp(Sp.S0_5)  # 2px 最小水平间距
-
-    # 动态列数 + cell_pad_x 计算
-    avail_w = imgui.get_content_region_available_width()
-    # 逻辑列最小宽 = label + input + 4*min_pad (近似每列间距)
-    min_col_w = label_w + input_w + min_pad_x * 4
-    num_cols = max(1, min(_MAX_COLS, int(avail_w / min_col_w)))
-    # 反算 cell_pad_x 使总宽 = avail_w
-    # ImGui PadInner 模式 (无边框): CellPaddingX=0, 列间距=2*style.CellPadding.x
-    # 共有 2*num_cols 个 table 列, (2*num_cols - 1) 个间隙, 每间隙 2*pad_x
-    # total = num_cols*(label_w+input_w) + (2*num_cols-1)*2*pad_x = avail_w
-    num_gaps = 2 * num_cols - 1
-    cell_pad_x = max(min_pad_x, (avail_w - num_cols * (label_w + input_w)) / (num_gaps * 2))
-
-    table_cols = num_cols * 2
-
-    imgui.push_style_var(imgui.STYLE_CELL_PADDING, (cell_pad_x, cell_pad_y))
-
-    flags = imgui.TABLE_SIZING_FIXED_FIT | imgui.TABLE_NO_BORDERS_IN_BODY
-
-    try:
-        if not imgui.begin_table("##ag", table_cols, flags):
-            return
-
-        try:
-            for i in range(num_cols):
-                imgui.table_setup_column(
-                    f"##l{i}", imgui.TABLE_COLUMN_WIDTH_FIXED, label_w,
-                )
-                imgui.table_setup_column(
-                    f"##i{i}", imgui.TABLE_COLUMN_WIDTH_FIXED, input_w,
-                )
-
-            draw_list = imgui.get_window_draw_list()
-            dot_r = 1.5 * dpi_scale()  # 圆点半径
-            dot_color = imgui.get_color_u32_rgba(0.5, 0.5, 0.6, _DOT_ALPHA)
-
-            # input 样式: frame_bg + border + rounded
-            with tw.input_default:
-                for i, attr in enumerate(attrs):
-                    if i % num_cols == 0:
-                        imgui.table_next_row()
-
-                    val = target_dict.get(attr, 0)
-                    if val is None:
-                        val = 0
-                    name, desc = get_attr_display(attr)
-                    display_name = name or attr
-
-                    # --- Label column (右对齐 + 左端圆点) ---
-                    imgui.table_next_column()
-                    imgui.align_text_to_frame_padding()
-
-                    # 左端圆点点缀
-                    cx, cy = imgui.get_cursor_screen_pos()
-                    frame_h = imgui.get_frame_height()
-                    draw_list.add_circle_filled(
-                        (cx + dot_r, cy + frame_h * 0.5),
-                        dot_r, dot_color,
-                    )
-
-                    # 右对齐: 计算偏移
-                    text_w = imgui.calc_text_size(display_name).x
-                    offset = label_w - text_w
-                    if offset > 0:
-                        cursor = imgui.get_cursor_pos()
-                        imgui.set_cursor_pos((cursor[0] + offset, cursor[1]))
-
-                    label_style = tw.text_faint if val == 0 else tw.text_muted
-                    label_style(imgui.text)(display_name)
-                    if desc:
-                        tooltip(desc)
-
-                    # --- Input column ---
-                    imgui.table_next_column()
-                    imgui.set_next_item_width(-1)
-
-                    if attr in STRICT_INT_ATTRIBUTES:
-                        ch, nv = imgui.input_int(f"##v_{attr}", int(val), 0, 0)
-                    else:
-                        ch, nv = imgui.input_float(
-                            f"##v_{attr}", float(val), 0, 0, "%.2f",
-                        )
-
-                    if ch:
-                        target_dict[attr] = nv
-
-        finally:
-            imgui.end_table()
-    finally:
-        imgui.pop_style_var()
+_draw_attribute_full_grid = draw_attribute_full_grid
+_draw_attr_table = draw_attr_table
 
 
 # =============================================================================
@@ -288,7 +125,7 @@ def _draw_attr_table(attrs: list[str], target_dict: dict) -> None:
 def _get_attribute_groups_for_hybrid(hybrid: HybridItemV2) -> dict:
     """根据槽位获取可编辑属性分组 (有序 dict)"""
     has_passive = is_charm_mode(hybrid.equipment)
-    attrs = get_hybrid_attrs_for_slot(hybrid.slot, has_passive)
+    attrs = get_equip_attrs_for_slot(hybrid.slot, has_passive)
     result = get_attribute_groups(attrs, DEFAULT_GROUP_ORDER)
 
     # 清理不再允许的属性
@@ -389,7 +226,7 @@ def _build_consumable_attr_keys() -> list[str]:
                 result.append(a)
 
     # 持续效果
-    for a in get_consumable_duration_attrs():
+    for a in get_consumable_buff_attrs():
         if a not in skip and a not in seen:
             seen.add(a)
             result.append(a)

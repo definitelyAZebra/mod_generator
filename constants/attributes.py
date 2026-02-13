@@ -332,10 +332,24 @@ ARMOR_ATTRIBUTES = [
 ]
 
 
-# ============== 混合物品槽位属性 ==============
+# ============== 装备槽位属性分组 ==============
+#
+# 以下列表按 GML 属性读取路径分组。
+# 每组对应一种 scr_atr_calc 中的 SurfaceCall 模式。
+# 详细的 GML 函数调用链文档见 datamine/extract_attr_sources.py。
+#
+# 分组依据 (SlotGroup flag 组合):
+#   COMMON     → INV_ALL: scr_inv_param 遍历所有 o_inv_slot 子类 (所有装备+被动物品)
+#   COMBAT     → HAND_EFF + NOHAND_INV: 武器手(有效率) + 非手装备
+#   DAMAGE     → HAND_EFF only: 仅武器手物品
+#   RESISTANCE → ACC_SLOT + ARMOR_SLOT: 饰品逐槽 + 护甲部位
+#   DEF        → ARMOR_SLOT only: 仅护甲部位 (head/chest/arms/legs)
+#   BUFF_ONLY  → BUFF only: 仅 buff 数据，装备不贡献
 
 # 所有装备共享的通用属性
-HYBRID_COMMON_ATTRS = [
+# SlotGroup: INV_ALL | BUFF
+# GML: scr_inv_buff_atr / scr_FullAtr / standalone scr_inv_param
+EQUIP_COMMON_ATTRS = [
     # 基础属性
     "STR", "AGL", "PRC", "Vitality", "WIL",
     # 防护
@@ -369,8 +383,10 @@ HYBRID_COMMON_ATTRS = [
     "Range",
 ]
 
-# 武器战斗属性（所有装备都有，但武器有效率加成）
-HYBRID_COMBAT_ATTRS = [
+# 武器战斗属性 — 所有装备都有，但武器手有效率 (Efficiency) 加成
+# SlotGroup: HAND_EFF | NOHAND_INV | BUFF
+# GML: scr_inv_param(attr, _mainHandItem) * efficiency + scr_inv_param(attr, 4479, true) + scr_buff_param(attr)
+EQUIP_COMBAT_ATTRS = [
     "Hit_Chance", "CRT", "CRTD", "FMB", "Weapon_Damage",
     "Armor_Damage", "Armor_Piercing", "Bodypart_Damage",
     "Lifesteal", "Manasteal",
@@ -378,15 +394,21 @@ HYBRID_COMBAT_ATTRS = [
     "Knockback_Chance", "Immob_Chance", "Stagger_Chance",
 ]
 
-# 伤害类型属性（仅武器槽位）
-HYBRID_DAMAGE_ATTRS = [
+# 伤害类型属性 — 仅武器手物品 (护甲/饰品不贡献)
+# SlotGroup: HAND_EFF | BUFF
+# GML: scr_inv_param(attr, _mainHandItem) * efficiency + scr_buff_param(attr)
+EQUIP_DAMAGE_ATTRS = [
     "Slashing_Damage", "Piercing_Damage", "Blunt_Damage", "Rending_Damage",
     "Fire_Damage", "Frost_Damage", "Shock_Damage", "Poison_Damage", "Caustic_Damage",
     "Arcane_Damage", "Unholy_Damage", "Sacred_Damage", "Psionic_Damage",
 ]
 
-# 抗性属性
-HYBRID_RESISTANCE_ATTRS = [
+# 抗性属性 — 通过 scr_inv_buff_param_ext / scr_resistance_calc 逐槽位累加
+# SlotGroup: ACC_SLOT | PASSIVE_CONSUM | BUFF (+ ARMOR_SLOT for sub-resistances)
+# GML:
+#   综合抗性/Health_Threshold → scr_inv_buff_param_ext (饰品7槽 + 被动消耗品 + buff)
+#   子类抗性 → scr_resistance_calc = scr_inv_buff_param_ext + scr_inv_param_slot(头/胸/手/腿)
+EQUIP_RESISTANCE_ATTRS = [
     "Physical_Resistance", "Nature_Resistance", "Magic_Resistance",
     "Slashing_Resistance", "Piercing_Resistance", "Blunt_Resistance", "Rending_Resistance",
     "Fire_Resistance", "Frost_Resistance", "Shock_Resistance", "Caustic_Resistance", "Poison_Resistance",
@@ -394,11 +416,16 @@ HYBRID_RESISTANCE_ATTRS = [
     "Bleeding_Resistance", "Health_Threshold",
 ]
 
-# DEF 属性（仅头/胸/手/腿）
-HYBRID_DEF_ATTRS = ["DEF"]
+# DEF 属性 — 仅护甲部位 (head/chest/arms/legs) + buff
+# SlotGroup: ARMOR_SLOT | BUFF
+# GML: scr_def_calc 中 scr_buff_param("DEF") + scr_inv_param_slot("DEF", 4 armor slots)
+EQUIP_DEF_ATTRS = ["DEF"]
 
-# Buff专属属性（仅消耗品持续效果可用，装备无法提供）
-HYBRID_BUFF_ONLY_ATTRS = [
+# Buff 专属属性 — 仅 buff 数据层，装备无法提供
+# SlotGroup: BUFF only
+# GML: 仅通过 scr_buff_param 读取，不经过任何 scr_inv_param* 函数
+# 典型用途: 消耗品持续效果、技能 buff
+EQUIP_BUFF_ONLY_ATTRS = [
     "HP_turn", "MP_turn", "Fatigue_Change",
     "Charge_Distance", "Arcanistic_Distance",
     "Duration_Resistance", "Avoiding_Trap", "Trade_Favorability",
@@ -411,36 +438,50 @@ HYBRID_BUFF_ONLY_ATTRS = [
 ]
 
 
-def get_hybrid_attrs_for_slot(slot: str, has_passive: bool = False) -> list[str]:
-    """根据槽位返回可编辑的装备属性列表
+def get_equip_attrs_for_slot(slot: str, has_passive: bool = False) -> list[str]:
+    """根据装备槽位返回可编辑的属性列表。
+
+    基于 GML 属性计算系统中各槽位的属性读取覆盖范围:
+      - COMMON + COMBAT: 所有装备/消耗品都有
+      - DAMAGE: 仅武器手 (伤害类型)
+      - DEF: 仅护甲部位 (scr_def_calc)
+      - RESISTANCE: 饰品/护甲/被动消耗品 (scr_inv_buff_param_ext / scr_resistance_calc)
 
     Args:
-        slot: 装备槽位 ("hand", "Head", "Chest", "Arms", "Legs", "Ring", "Amulet", "Waist", "Back", "heal")
+        slot: 装备槽位
+            "hand"  → 武器 (DAMAGE + RESISTANCE)
+            "Head"/"Chest"/"Arms"/"Legs" → 护甲 (DEF + RESISTANCE)
+            "Ring"/"Amulet"/"Waist"/"Back" → 饰品 (RESISTANCE)
+            "heal" → 消耗品 (has_passive=True 时加 RESISTANCE)
         has_passive: 是否为被动携带物品 (check_inventory_data=true)
     """
-    result = list(HYBRID_COMMON_ATTRS) + list(HYBRID_COMBAT_ATTRS)
+    result = list(EQUIP_COMMON_ATTRS) + list(EQUIP_COMBAT_ATTRS)
 
     if slot == "hand":
-        result.extend(HYBRID_DAMAGE_ATTRS)
-        result.extend(HYBRID_RESISTANCE_ATTRS)
+        result.extend(EQUIP_DAMAGE_ATTRS)
+        result.extend(EQUIP_RESISTANCE_ATTRS)
     elif slot in ("Head", "Chest", "Arms", "Legs"):
-        result.extend(HYBRID_DEF_ATTRS)
-        result.extend(HYBRID_RESISTANCE_ATTRS)
+        result.extend(EQUIP_DEF_ATTRS)
+        result.extend(EQUIP_RESISTANCE_ATTRS)
     elif slot in ("Ring", "Amulet", "Waist", "Back"):
-        result.extend(HYBRID_RESISTANCE_ATTRS)
+        result.extend(EQUIP_RESISTANCE_ATTRS)
     elif slot == "heal" and has_passive:
-        # 被动携带物品：与普通装备相同，可以使用抗性
-        result.extend(HYBRID_RESISTANCE_ATTRS)
-    # else: 纯消耗品 (slot=heal, has_passive=false): 仅通用 + 战斗，不需要更多装备属性
+        # 被动携带物品: 经过 scr_inv_param 遍历，与普通装备相同
+        result.extend(EQUIP_RESISTANCE_ATTRS)
+    # else: 纯消耗品 (slot=heal, has_passive=false): 仅通用 + 战斗
 
     return result
 
 
-def get_consumable_duration_attrs() -> list[str]:
-    """获取消耗品持续效果属性 = 装备通用 + 战斗 + 伤害 + 抗性 + Buff专属"""
-    return (list(HYBRID_COMMON_ATTRS) + list(HYBRID_COMBAT_ATTRS) +
-            list(HYBRID_DAMAGE_ATTRS) + list(HYBRID_RESISTANCE_ATTRS) +
-            list(HYBRID_BUFF_ONLY_ATTRS))
+def get_consumable_buff_attrs() -> list[str]:
+    """获取消耗品持续效果 (buff) 可用属性。
+
+    消耗品通过 buff 机制生效时可以影响所有类型的属性:
+    通用 + 战斗 + 伤害 + 抗性 + buff 专属 (如 HP_turn, Head_DEF)
+    """
+    return (list(EQUIP_COMMON_ATTRS) + list(EQUIP_COMBAT_ATTRS) +
+            list(EQUIP_DAMAGE_ATTRS) + list(EQUIP_RESISTANCE_ATTRS) +
+            list(EQUIP_BUFF_ONLY_ATTRS))
 
 
 # 即时效果属性（独立case处理，不需要duration）
@@ -508,3 +549,17 @@ EXTRA_ORDER_ATTRS = (
 
 WEAPON_ATTR_GROUPS = get_attribute_groups(WEAPON_ATTRIBUTES, DEFAULT_GROUP_ORDER)
 ARMOR_ATTR_GROUPS = get_attribute_groups(ARMOR_ATTRIBUTES, DEFAULT_GROUP_ORDER)
+
+
+# ============== 向后兼容别名 ==============
+# 旧名: HYBRID_* / get_hybrid_* — 已重命名为 EQUIP_* / get_equip_*
+# 保留别名以避免破坏未更新的调用方
+
+HYBRID_COMMON_ATTRS = EQUIP_COMMON_ATTRS
+HYBRID_COMBAT_ATTRS = EQUIP_COMBAT_ATTRS
+HYBRID_DAMAGE_ATTRS = EQUIP_DAMAGE_ATTRS
+HYBRID_RESISTANCE_ATTRS = EQUIP_RESISTANCE_ATTRS
+HYBRID_DEF_ATTRS = EQUIP_DEF_ATTRS
+HYBRID_BUFF_ONLY_ATTRS = EQUIP_BUFF_ONLY_ATTRS
+get_hybrid_attrs_for_slot = get_equip_attrs_for_slot
+get_consumable_duration_attrs = get_consumable_buff_attrs

@@ -11,7 +11,8 @@ import os
 import traceback
 from pathlib import Path
 
-from codegen.generator import CodeGenerator, copy_item_textures_v2
+from codegen.generator import CodeGenerator
+from codegen.textures import copy_item_textures_v2
 from core.models import (
     Armor,
     ModProject,
@@ -89,10 +90,10 @@ def generate_mod_files_to_disk(project: ModProject) -> list[str]:
         print("生成 hover 辅助脚本...")
 
         with open(codes_dir / "scr_hoversEnsureExtendedOrderLists.gml", "w", encoding="utf-8") as f:
-            f.write(generator._generate_ensure_extended_order_lists_gml())  # pyright: ignore[reportPrivateUsage]
+            f.write(generator.generate_ensure_extended_order_lists_gml())
 
         with open(codes_dir / "scr_hoversDrawHybridConsumAttributes.gml", "w", encoding="utf-8") as f:
-            f.write(generator._generate_draw_hybrid_consum_attrs_gml())  # pyright: ignore[reportPrivateUsage]
+            f.write(generator.generate_draw_hybrid_consum_attrs_gml())
 
     print("复制贴图文件...")
     texture_errors: list[str] = []

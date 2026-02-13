@@ -63,6 +63,15 @@ o_Dead_March.txt
 *.7z
 *.zip
 
+# === Datamine (下载的工具 + 提取产物 + 游戏数据) ===
+datamine/vendor/
+datamine/output/
+datamine/input/
+*.log
+
+# === 测试 fixtures (真实项目数据，体积较大) ===
+tests/fixtures/
+
 # === 废弃/归档 ===
 _archive/
 tools/

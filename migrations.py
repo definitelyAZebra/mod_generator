@@ -111,7 +111,11 @@ def _pass_v1_to_v2(data: dict) -> None:
     - HybridItem: 平铺字段 -> Tagged Union 结构
     - 所有物品: offset_x/y -> origin 对象
     - 所有物品: 贴图结构重组 (char 字段)
+    - weight 字段: "VeryLight" -> "Very Light" (GML → Literal 格式)
     """
+    # 修正 weight 字段: 旧版可能使用无空格的 "VeryLight"
+    _WEIGHT_FIXUP = {"VeryLight": "Very Light"}
+
     # 迁移 Weapon/Armor 的贴图格式
     for weapon in data.get("weapons", []):
         tex = weapon.get("textures", {})
@@ -260,6 +264,10 @@ def _pass_v1_to_v2(data: dict) -> None:
         tex = item.get("textures", {})
         if tex:
             item["textures"] = _migrate_textures_v1_to_v2(tex, item.get("equipment", {}))
+
+        # 修正 weight 字段格式
+        if item.get("weight") in _WEIGHT_FIXUP:
+            item["weight"] = _WEIGHT_FIXUP[item["weight"]]
 
         # 清理已废弃字段
         item.pop("rarity", None)  # 由 quality 推导
