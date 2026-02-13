@@ -23,6 +23,7 @@ from migrations import (
     migrate,
     _offset_to_origin,
     _pass_v1_to_v2,
+    _pass_v2_to_v3,
 )
 from constants import CHAR_MODEL_ORIGIN
 
@@ -76,15 +77,15 @@ class TestMigrateEntry:
         with pytest.raises(MigrationError):
             migrate(data)
 
-    def test_idempotent_on_already_v2(self):
-        """已经是 v2 的数据不应被修改"""
+    def test_idempotent_on_already_v3(self):
+        """已经是 v3 的数据不应被修改"""
         data = {
-            "schema_version": 2,
+            "schema_version": 3,
             "hybrid_items": [
                 {
                     "id": "test",
                     "equipment": {"type": "none"},
-                    "quality": {"type": "common"},
+                    "quality": 1,
                 }
             ],
         }
@@ -531,3 +532,58 @@ class TestV1ToV2ArmorTextures:
         assert char["rest_female"]["path"] == "f_rest.png"
         # 女性版 offset → origin
         assert char["standing0_female"]["origin"]["x"] == CHAR_MODEL_ORIGIN[0] + 2
+
+
+# ============================================================================
+# V2→V3 QualitySpec 迁移
+# ============================================================================
+
+
+class TestV2ToV3Quality:
+    """QualitySpec tagged union → int"""
+
+    @pytest.mark.parametrize("tag,expected_int", [
+        ("common", 1),
+        ("unique", 6),
+        ("artifact", 7),
+    ])
+    def test_quality_dict_to_int(self, tag, expected_int):
+        data = {"hybrid_items": [{"id": "test", "quality": {"type": tag}}]}
+        _pass_v2_to_v3(data)
+        assert data["hybrid_items"][0]["quality"] == expected_int
+
+    def test_unknown_tag_defaults_to_common(self):
+        data = {"hybrid_items": [{"id": "test", "quality": {"type": "unknown"}}]}
+        _pass_v2_to_v3(data)
+        assert data["hybrid_items"][0]["quality"] == 1
+
+    def test_already_int_untouched(self):
+        data = {"hybrid_items": [{"id": "test", "quality": 6}]}
+        _pass_v2_to_v3(data)
+        assert data["hybrid_items"][0]["quality"] == 6
+
+    def test_no_hybrid_items_noop(self):
+        data = {"weapons": []}
+        _pass_v2_to_v3(data)  # 不应报错
+
+    def test_v1_through_v3_end_to_end(self):
+        """V1 数据经过完整 migrate 后 quality 为 int"""
+        data = {
+            "schema_version": 1,
+            "hybrid_items": [{
+                "id": "test",
+                "equipment_mode": "none",
+                "trigger_mode": "none",
+                "charge_mode": "limited",
+                "quality": 7,
+                "charge": 1,
+                "draw_charges": False,
+                "has_charge_recovery": False,
+                "exclude_from_random": True,
+                "textures": {},
+            }],
+        }
+        result, migrated = migrate(data)
+        assert migrated is True
+        assert result["hybrid_items"][0]["quality"] == 7
+        assert result["schema_version"] == CURRENT_SCHEMA_VERSION

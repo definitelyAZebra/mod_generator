@@ -25,12 +25,11 @@ from core.hybrid_item import HybridItemV2
 from core.specs import (
     AbsoluteFps,
     ArmorEquip,
-    ArtifactQuality,
+    QualitySpec,
     LimitedCharges,
     NoTrigger,
     RelativeSpeed,
     SkillTrigger,
-    UniqueQuality,
     UnlimitedCharges,
     WeaponCharTexture,
     WeaponEquip,
@@ -289,13 +288,13 @@ def _emit_create_gml(item: HybridItemV2) -> str:
 
     # ===== 品质 =====
     lines.append(f"quality = {item.quality_int};")
-    if isinstance(item.quality, ArtifactQuality):
+    if item.quality == QualitySpec.ARTIFACT:
         lines.append("// 品质: 文物")
         lines.append("shineDelay = room_speed * 2;")
         lines.append('ds_map_set(data, "quality", 7);')
         lines.append('ds_map_set(data, "Colour", make_colour_rgb(229, 193, 85));')
         lines.append("alarm[11] = shineDelay;")
-    elif isinstance(item.quality, UniqueQuality):
+    elif item.quality == QualitySpec.UNIQUE:
         lines.append("// 品质: 独特")
         lines.append('ds_map_set(data, "quality", 6);')
         lines.append('ds_map_set(data, "Colour", make_colour_rgb(130, 72, 188));')

@@ -27,7 +27,9 @@ from constants import CHAR_MODEL_ORIGIN
 
 # 当前 schema 版本
 # 每次 breaking change 时递增
-CURRENT_SCHEMA_VERSION = 2
+# V2 — 首次发布于 v0.x，已冻结
+# V3 — QualitySpec: tagged union {"type": "common"} → 纯 int (1/6/7)
+CURRENT_SCHEMA_VERSION = 3
 
 # 最低支持版本 (可选，用于日落旧版本)
 # MIN_SUPPORTED_VERSION = 1
@@ -87,14 +89,36 @@ def migrate(data: dict[str, Any]) -> tuple[dict[str, Any], bool]:
     if version < 2:
         _pass_v1_to_v2(data)
 
-    # 未来添加更多:
-    # if version < 3:
-    #     _pass_v2_to_v3(data)
+    if version < 3:
+        _pass_v2_to_v3(data)
 
     # 更新版本号
     data["schema_version"] = CURRENT_SCHEMA_VERSION
 
     return data, migrated
+
+
+# ============================================================================
+# 迁移 Pass: V2 -> V3
+# ============================================================================
+# V3: QualitySpec 从 tagged union {"type": "common"} 转为纯 int (1/6/7)
+
+
+_QUALITY_TAG_TO_INT = {
+    "common": 1,
+    "unique": 6,
+    "artifact": 7,
+}
+
+
+def _pass_v2_to_v3(data: dict) -> None:
+    """V2 -> V3: QualitySpec tagged union -> int"""
+    for item in data.get("hybrid_items", []):
+        q = item.get("quality")
+        if isinstance(q, dict):
+            tag = q.get("type", "common")
+            item["quality"] = _QUALITY_TAG_TO_INT.get(tag, 1)
+        # 已是 int 则不动
 
 
 # ============================================================================

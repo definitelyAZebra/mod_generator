@@ -18,7 +18,7 @@ from typing import Any
 from core.specs import (
     # Literal 类型
     Weight, Material,
-    QualitySpec, CommonQuality, quality_to_int, quality_to_rarity, quality_has_durability,
+    QualitySpec, quality_to_int, quality_to_rarity, quality_has_durability,
     # Equipment
     EquipmentSpec, NotEquipable, WeaponEquip, ArmorEquip, CharmEquip,
     equipment_slot, equipment_is_equipable, equipment_hands,
@@ -67,7 +67,7 @@ class HybridItemV2:
     parent_object: str = "o_inv_consum"
 
     # ====== Tagged Union 规格 ======
-    quality: QualitySpec = field(default_factory=CommonQuality)
+    quality: QualitySpec = QualitySpec.COMMON
     equipment: EquipmentSpec = field(default_factory=NotEquipable)
     trigger: TriggerSpec = field(default_factory=NoTrigger)
     charges: ChargeSpec = field(default_factory=NoCharges)

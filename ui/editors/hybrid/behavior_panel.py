@@ -33,7 +33,7 @@ from core.specs import (
     charge_has_charges,
     NoRecovery, IntervalRecovery,
     recovery_has_recovery,
-    ArtifactQuality,
+    QualitySpec,
 )
 from data.skills import (
     SKILL_OBJECTS,
@@ -380,7 +380,7 @@ def _draw_charges_section(hybrid: HybridItemV2) -> None:
 
 def _draw_recovery_row(hybrid: HybridItemV2) -> None:
     """充能恢复行 - 自动恢复 / 恢复间隔 / 耗尽销毁"""
-    is_artifact = isinstance(hybrid.quality, ArtifactQuality)
+    is_artifact = hybrid.quality == QualitySpec.ARTIFACT
     has_recovery = recovery_has_recovery(hybrid.charge_recovery)
 
     with field_row(3):

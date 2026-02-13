@@ -16,7 +16,7 @@ import cattrs
 
 from core.specs import (
     # Quality
-    QualitySpec, CommonQuality, UniqueQuality, ArtifactQuality,
+    QualitySpec,
     # Equipment
     EquipmentSpec, NotEquipable, WeaponEquip, ArmorEquip, CharmEquip,
     # Durability
@@ -69,13 +69,20 @@ def _register_tagged_unions(conv: cattrs.Converter) -> None:
 
     注意：先注册内层 Union，再注册外层，确保嵌套正确处理。
     """
-    # 先注册没有嵌套的简单类型
-    _register_union(conv, QualitySpec, {
-        "common": CommonQuality,
-        "unique": UniqueQuality,
-        "artifact": ArtifactQuality,
-    }, "common")
+    # QualitySpec 是 IntEnum，直接序列化为 int
+    conv.register_unstructure_hook(QualitySpec, lambda q: q.value)
 
+    def _structure_quality(v: Any, _: type) -> QualitySpec:
+        if isinstance(v, int):
+            try:
+                return QualitySpec(v)
+            except ValueError:
+                return QualitySpec.COMMON
+        return QualitySpec.COMMON
+
+    conv.register_structure_hook(QualitySpec, _structure_quality)
+
+    # 先注册没有嵌套的简单类型
     _register_union(conv, TriggerSpec, {
         "none": NoTrigger,
         "effect": EffectTrigger,

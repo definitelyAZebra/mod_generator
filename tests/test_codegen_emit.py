@@ -24,9 +24,7 @@ from core.specs import (
     AbsoluteFps,
     AnimatedSlot,
     ArmorEquip,
-    ArtifactQuality,
     CharmEquip,
-    CommonQuality,
     EffectTrigger,
     ExcludedFromRandom,
     HasDurability,
@@ -41,11 +39,11 @@ from core.specs import (
     NoTrigger,
     NotEquipable,
     Origin,
+    QualitySpec,
     RandomSpawn,
     RelativeSpeed,
     SpawnRuleType,
     SkillTrigger,
-    UniqueQuality,
     UnlimitedCharges,
     WeaponCharTexture,
     WeaponEquip,
@@ -147,7 +145,7 @@ def _hybrid_consumable(
     charges: LimitedCharges | None = None,
     consumable_attrs: dict | None = None,
     attributes: dict | None = None,
-    quality: CommonQuality | UniqueQuality | ArtifactQuality | None = None,
+    quality: QualitySpec | None = None,
     delete_on_charge_zero: bool = True,
     tier: int = 1,
     base_price: int = 50,
@@ -160,7 +158,7 @@ def _hybrid_consumable(
     return HybridItemV2(
         id=id,
         parent_object="o_inv_consum",
-        quality=quality or CommonQuality(),
+        quality=quality or QualitySpec.COMMON,
         equipment=NotEquipable(),
         trigger=tr,
         charges=charges or LimitedCharges(max_charges=3, draw_charges=True),
@@ -191,7 +189,7 @@ def _hybrid_weapon(
     charges: LimitedCharges | UnlimitedCharges | NoCharges | None = None,
     attributes: dict | None = None,
     consumable_attrs: dict | None = None,
-    quality: CommonQuality | UniqueQuality | ArtifactQuality | None = None,
+    quality: QualitySpec | None = None,
     tier: int = 3,
     localization: ItemLocalization | None = None,
     textures: ItemTexturesV2 | None = None,
@@ -212,7 +210,7 @@ def _hybrid_weapon(
     return HybridItemV2(
         id=id,
         parent_object="o_inv_slot",
-        quality=quality or CommonQuality(),
+        quality=quality or QualitySpec.COMMON,
         equipment=WeaponEquip(
             weapon_type=weapon_type,
             balance=balance,
@@ -239,7 +237,7 @@ def _hybrid_armor_amulet(
     trigger: SkillTrigger | EffectTrigger | NoTrigger | None = None,
     charges: LimitedCharges | UnlimitedCharges | NoCharges | None = None,
     attributes: dict | None = None,
-    quality: CommonQuality | UniqueQuality | ArtifactQuality | None = None,
+    quality: QualitySpec | None = None,
     spawn: ExcludedFromRandom | RandomSpawn | None = None,
     tier: int = 2,
 ) -> HybridItemV2:
@@ -247,7 +245,7 @@ def _hybrid_armor_amulet(
     return HybridItemV2(
         id=id,
         parent_object="o_inv_slot",
-        quality=quality or UniqueQuality(),
+        quality=quality or QualitySpec.UNIQUE,
         equipment=ArmorEquip(armor_type="Amulet"),
         trigger=trigger or NoTrigger(),
         charges=charges or NoCharges(),
@@ -582,13 +580,13 @@ class TestEmitHybridConsumable:
         assert "event_user(12)" in code  # 充能耗尽销毁
 
     def test_quality_unique(self):
-        h = _hybrid_consumable(quality=UniqueQuality())
+        h = _hybrid_consumable(quality=QualitySpec.UNIQUE)
         code = emit_hybrids.emit_hybrid_item_method(h, _escape)
         assert "quality = 6" in code
         assert 'make_colour_rgb(130, 72, 188)' in code
 
     def test_quality_artifact(self):
-        h = _hybrid_consumable(quality=ArtifactQuality())
+        h = _hybrid_consumable(quality=QualitySpec.ARTIFACT)
         code = emit_hybrids.emit_hybrid_item_method(h, _escape)
         assert "quality = 7" in code
         assert "shineDelay" in code

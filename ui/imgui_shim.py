@@ -627,6 +627,9 @@ push_id = _cimgui.push_id
 pop_id = _cimgui.pop_id
 def push_font(font: Any, font_size_base_unscaled: float = 0.0) -> None:
     """push_font compat — ImGui 1.92 added font_size_base_unscaled param, default 0 = use font's own size."""
+    # None means "use default font" — pass 0 so Cython casts to NULL pointer
+    if font is None:
+        font = 0
     _cimgui.push_font(font, font_size_base_unscaled)
 
 pop_font = _cimgui.pop_font

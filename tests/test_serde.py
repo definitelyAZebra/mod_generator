@@ -30,7 +30,7 @@ from serde.converter import (
 )
 from core.specs import (
     # Quality
-    QualitySpec, CommonQuality, UniqueQuality, ArtifactQuality,
+    QualitySpec,
     # Equipment
     EquipmentSpec, NotEquipable, WeaponEquip, ArmorEquip, CharmEquip,
     # Durability
@@ -81,22 +81,24 @@ def assert_round_trip(obj, union_type):
 
 class TestQualitySpecSerde:
 
-    @pytest.mark.parametrize("obj,tag", [
-        (CommonQuality(), "common"),
-        (UniqueQuality(), "unique"),
-        (ArtifactQuality(), "artifact"),
+    @pytest.mark.parametrize("obj,expected_int", [
+        (QualitySpec.COMMON, 1),
+        (QualitySpec.UNIQUE, 6),
+        (QualitySpec.ARTIFACT, 7),
     ])
-    def test_round_trip(self, obj, tag):
-        data, restored = assert_round_trip(obj, QualitySpec)
-        assert data["type"] == tag
+    def test_round_trip(self, obj, expected_int):
+        data = _conv.unstructure(obj, QualitySpec)
+        assert data == expected_int
+        restored = _conv.structure(data, QualitySpec)
+        assert restored is obj
 
-    def test_missing_type_defaults_to_common(self):
-        restored = _conv.structure({}, QualitySpec)
-        assert isinstance(restored, CommonQuality)
+    def test_invalid_int_defaults_to_common(self):
+        restored = _conv.structure(99, QualitySpec)
+        assert restored is QualitySpec.COMMON
 
     def test_none_defaults_to_common(self):
         restored = _conv.structure(None, QualitySpec)
-        assert isinstance(restored, CommonQuality)
+        assert restored is QualitySpec.COMMON
 
 
 # ============================================================================
@@ -382,13 +384,13 @@ class TestHybridItemV2Serde:
         data = unstructure_hybrid_item(item)
         restored = structure_hybrid_item(data)
         assert restored.id == "test_sword"
-        assert type(restored.quality) is type(item.quality)
+        assert restored.quality is item.quality
         assert type(restored.equipment) is type(item.equipment)
 
     def test_full_weapon_round_trip(self):
         item = HybridItemV2(
             id="magic_blade",
-            quality=UniqueQuality(),
+            quality=QualitySpec.UNIQUE,
             equipment=WeaponEquip(
                 weapon_type="sword",
                 balance=3,
@@ -414,7 +416,7 @@ class TestHybridItemV2Serde:
         restored = structure_hybrid_item(data)
 
         assert restored.id == "magic_blade"
-        assert isinstance(restored.quality, UniqueQuality)
+        assert restored.quality is QualitySpec.UNIQUE
         assert isinstance(restored.equipment, WeaponEquip)
         assert restored.equipment.weapon_type == "sword"
         assert restored.equipment.durability.duration_max == 200

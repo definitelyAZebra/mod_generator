@@ -74,74 +74,70 @@ CountryTag = Literal["", "aldor", "nistra", "skadia", "fjall", "elven", "maen"]
 
 
 # ============================================================================
-# QualitySpec - 品质规格
+# QualitySpec - 品质规格 (IntEnum)
 # ============================================================================
 # 品质决定: quality 整数值, 是否有耐久, parent_object 的选择建议
 #
-# 设计说明:
-# - Common: 普通品质，quality=1
-# - Unique: 独特品质，quality=6
-# - Artifact: 文物品质，quality=7，无耐久
+# V3 schema: 序列化为纯 int (1/6/7)
+# V2 schema: 序列化为 {"type": "common"/"unique"/"artifact"} (见 migrations)
 #
 # 注: rarity 字段 (GML 中仅有 "Common"/"Unique" 两值) 在游戏中作用不明确，
 #      暂不处理。当前 quality_to_rarity() 返回的值仅供参考，待后续研究明确后再调整。
 # ============================================================================
 
 
-@dataclass(frozen=True)
-class CommonQuality:
-    """普通品质 - quality=1"""
-    pass
+class QualitySpec(Enum):
+    """品质规格
+
+    值为 GML quality 整数:
+    - COMMON = 1: 普通品质
+    - UNIQUE = 6: 独特品质
+    - ARTIFACT = 7: 文物品质，无耐久
+    """
+    COMMON = 1
+    UNIQUE = 6
+    ARTIFACT = 7
+
+    @property
+    def rarity(self) -> str:
+        """rarity 字符串 (GML 仅 "Common"/"Unique" 两值)"""
+        if self == QualitySpec.COMMON:
+            return ""
+        return "Unique"
+
+    @property
+    def has_durability(self) -> bool:
+        """品质是否允许耐久系统"""
+        return self != QualitySpec.ARTIFACT
 
 
-@dataclass(frozen=True)
-class UniqueQuality:
-    """独特品质 - quality=6"""
-    pass
-
-
-@dataclass(frozen=True)
-class ArtifactQuality:
-    """文物品质 - quality=7, 无耐久"""
-    pass
-
-
-QualitySpec = Union[CommonQuality, UniqueQuality, ArtifactQuality]
+# --- 向后兼容别名 (旧代码使用的名称) ---
+CommonQuality = QualitySpec.COMMON
+UniqueQuality = QualitySpec.UNIQUE
+ArtifactQuality = QualitySpec.ARTIFACT
 
 
 def quality_to_int(spec: QualitySpec) -> int:
     """QualitySpec -> quality 整数值"""
-    match spec:
-        case CommonQuality():
-            return 1
-        case UniqueQuality():
-            return 6
-        case ArtifactQuality():
-            return 7
+    return spec.value
 
 
 def quality_to_rarity(spec: QualitySpec) -> str:
     """QualitySpec -> rarity 字符串"""
-    match spec:
-        case CommonQuality():
-            return ""
-        case UniqueQuality() | ArtifactQuality():
-            return "Unique"
+    return spec.rarity
 
 
 def quality_from_int(value: int) -> QualitySpec:
     """从整数值创建 QualitySpec"""
-    if value == 6:
-        return UniqueQuality()
-    elif value == 7:
-        return ArtifactQuality()
-    else:
-        return CommonQuality()
+    try:
+        return QualitySpec(value)
+    except ValueError:
+        return QualitySpec.COMMON
 
 
 def quality_has_durability(spec: QualitySpec) -> bool:
     """品质是否允许耐久系统"""
-    return not isinstance(spec, ArtifactQuality)
+    return spec.has_durability
 
 
 # ============================================================================
