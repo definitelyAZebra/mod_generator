@@ -19,7 +19,7 @@ from typing import Any
 from core.specs import (
     # Literal 类型
     Weight, Material,
-    QualitySpec,
+    QualitySpec, ARTIFACT_CATEGORY,
     # Equipment
     EquipmentSpec, NotEquipable, WeaponEquip, ArmorEquip, CharmEquip,
     equipment_hands,
@@ -28,12 +28,10 @@ from core.specs import (
     # Trigger
     TriggerSpec, NoTrigger, EffectTrigger, SkillTrigger,
     ChargeSpec, NoCharges, LimitedCharges, UnlimitedCharges,
-    charge_has_charges,
     ChargeRecoverySpec, NoRecovery, IntervalRecovery,
-    recovery_has_recovery,
     HasDurability,
     SpawnSpec, SpawnRuleType, ExcludedFromRandom, RandomSpawn,
-    spawn_effective_tags, spawn_is_excluded,
+    spawn_effective_tags,
     # Textures (V2)
     ItemTexturesV2,
 )
@@ -108,15 +106,23 @@ class HybridItemV2:
         联动规则:
         - 文物 → tier=0, cat="treasure"
         - 文物 + 有限次数 → 强制自动恢复
+        - 从文物切走 → 清除 treasure 分类约束
         - 独特 → quality_tag="unique"
         - 普通 → quality_tag=""
         """
+        old = self.quality
         self.quality = quality
         if quality == QualitySpec.ARTIFACT:
             self.tier = 0
-            self.cat = "treasure"
-            if isinstance(self.charges, LimitedCharges) and not recovery_has_recovery(self.charge_recovery):
+            self.cat = ARTIFACT_CATEGORY
+            if isinstance(self.charges, LimitedCharges) and not isinstance(self.charge_recovery, IntervalRecovery):
                 self.charge_recovery = IntervalRecovery()
+        elif old == QualitySpec.ARTIFACT:
+            # 从文物切走: 清理 treasure 约束
+            if self.cat == ARTIFACT_CATEGORY:
+                self.cat = ""
+            if ARTIFACT_CATEGORY in self.subcats:
+                self.subcats.remove(ARTIFACT_CATEGORY)
         if isinstance(self.spawn, RandomSpawn):
             self.spawn.quality_tag = "unique" if quality == QualitySpec.UNIQUE else ""
 
@@ -140,24 +146,28 @@ class HybridItemV2:
         """
         self.trigger = trigger
         if isinstance(trigger, (EffectTrigger, SkillTrigger)):
-            if not charge_has_charges(self.charges):
+            if isinstance(self.charges, NoCharges):
                 self.charges = LimitedCharges()
         elif isinstance(trigger, NoTrigger):
             self.charges = NoCharges()
             self.charge_recovery = NoRecovery()
 
     def set_charges(self, charges: ChargeSpec) -> None:
-        """设置充能模式，自动处理恢复联动
+        """设置充能模式，自动处理触发和恢复联动
 
         联动规则:
-        - 无限/无充能 → 清除恢复
+        - 无充能 → 清除触发和恢复
+        - 无限充能 → 清除恢复
         - 文物 + 有限次数 → 强制自动恢复
         """
         self.charges = charges
-        if isinstance(charges, (UnlimitedCharges, NoCharges)):
+        if isinstance(charges, NoCharges):
+            self.trigger = NoTrigger()
             self.charge_recovery = NoRecovery()
-        if isinstance(charges, LimitedCharges) and self.quality == QualitySpec.ARTIFACT:
-            if not recovery_has_recovery(self.charge_recovery):
+        elif isinstance(charges, UnlimitedCharges):
+            self.charge_recovery = NoRecovery()
+        elif isinstance(charges, LimitedCharges) and self.quality == QualitySpec.ARTIFACT:
+            if not isinstance(self.charge_recovery, IntervalRecovery):
                 self.charge_recovery = IntervalRecovery()
 
     # ====== 校验：跨字段约束的显式文档 ======
@@ -173,48 +183,41 @@ class HybridItemV2:
             errors.append("文物品质不应有耐久系统")
         if (self.quality == QualitySpec.ARTIFACT
                 and isinstance(self.charges, LimitedCharges)
-                and not recovery_has_recovery(self.charge_recovery)):
+                and not isinstance(self.charge_recovery, IntervalRecovery)):
             errors.append("文物有限次数必须有自动恢复")
         if isinstance(self.trigger, SkillTrigger) and not self.trigger.skill_object:
             errors.append("启用了技能触发但未设置技能对象")
+        if isinstance(self.trigger, (EffectTrigger, SkillTrigger)) and isinstance(self.charges, NoCharges):
+            errors.append("有触发效果但无使用次数")
         return errors
 
-    # ====== 计算属性：跨字段推导 (保留，因为涉及多字段组合) ======
-
-    @property
-    def quality_int(self) -> int:
-        """品质整数值"""
-        return self.quality.value
-
-    @property
-    def rarity(self) -> str:
-        """稀有度字符串"""
-        return self.quality.rarity
+    # ====== 计算属性：跨字段推导 ======
 
     @property
     def slot(self) -> str:
-        """装备槽位"""
+        """装备槽位
+
+        .. deprecated:: 消费者应直接 match equipment 变体获取 slot
+        """
         return self.equipment.slot
 
     @property
     def equipable(self) -> bool:
-        """是否可装备"""
+        """是否可装备到身体槽位 (武器/护甲，不含护符)"""
         return isinstance(self.equipment, (WeaponEquip, ArmorEquip))
 
-    @property
-    def hands(self) -> int:
-        """手数"""
-        return equipment_hands(self.equipment)
+    # ====== 兼容性别名 ======
 
-    # ====== 兼容性别名 (保留：与 Weapon/Armor 接口兼容) ======
     @property
     def name(self) -> str:
-        """别名：返回 id"""
+        """别名：返回 id
+
+        .. deprecated:: 消费者应直接使用 .id
+        """
         return self.id
 
     @name.setter
     def name(self, value: str):
-        """别名：设置 id"""
         self.id = value
 
     # ====== 跨字段计算属性 ======
@@ -255,31 +258,58 @@ class HybridItemV2:
         """是否有耐久系统 (跨 quality × equipment × durability)"""
         return self.durability is not None
 
-    # ====== Charge 委托属性 ======
+    @property
+    def wear_applies(self) -> bool:
+        """磨损率是否生效 (有耐久 + 有充能)"""
+        return self.has_durability and not isinstance(self.charges, NoCharges)
 
     @property
-    def has_charges(self) -> bool:
-        """是否有使用次数系统"""
-        return charge_has_charges(self.charges)
+    def has_fragmentable_armor(self) -> bool:
+        """是否可拆解碎片的护甲 (排除盾牌和饰品)"""
+        return (isinstance(self.equipment, ArmorEquip)
+                and self.equipment.armor_type not in ("shield", "Ring", "Amulet"))
 
-    # ====== ChargeRecovery 委托属性 ======
-
-    @property
-    def has_charge_recovery(self) -> bool:
-        """是否有使用次数恢复"""
-        return recovery_has_recovery(self.charge_recovery)
-
-    # ====== Spawn 委托属性 ======
-
-    @property
-    def exclude_from_random(self) -> bool:
-        """是否排除随机生成"""
-        return spawn_is_excluded(self.spawn)
+    # ====== Spawn 属性 ======
 
     @property
     def effective_tags(self) -> str:
-        """有效 tags 字符串"""
+        """有效 tags 字符串
+
+        TODO: 评估是否可删除，让消费者直接调用 spawn_effective_tags(item.spawn)
+        """
         return spawn_effective_tags(self.spawn)
+
+    # ====== 约束查询 ======
+
+    @property
+    def recovery_locked(self) -> bool:
+        """恢复是否被锁定为开启 (文物品质 + 有限次数 → 强制自动恢复)"""
+        return (self.quality == QualitySpec.ARTIFACT
+                and isinstance(self.charges, LimitedCharges))
+
+    @property
+    def can_delete_on_zero(self) -> bool:
+        """耗尽销毁选项是否可用。
+
+        False when:
+        - 充能非有限 (无限/无充能不存在耗尽)
+        - 有耐久系统 (耐久控制物品生命周期)
+        - 恢复被锁定开启 (文物自动恢复, 不会耗尽)
+        """
+        return (
+            isinstance(self.charges, LimitedCharges)
+            and not self.has_durability
+            and not self.recovery_locked
+        )
+
+    # ====== 值域查询 ======
+
+    @property
+    def available_spawn_rules(self) -> list[SpawnRuleType]:
+        """当前装备形态下可选的生成规则类型"""
+        if isinstance(self.equipment, NotEquipable):
+            return [SpawnRuleType.ITEM, SpawnRuleType.NONE]
+        return [SpawnRuleType.EQUIPMENT, SpawnRuleType.ITEM, SpawnRuleType.NONE]
 
     # ====== 贴图需求方法 ======
 
@@ -295,34 +325,7 @@ class HybridItemV2:
         """是否需要多姿势贴图"""
         return needs_multi_pose(self.equipment)
 
-    # ====== 辅助方法 ======
-
-    def get_quality_label(self) -> str:
-        """获取品质显示文本"""
-        from constants import HYBRID_QUALITY_LABELS
-        return HYBRID_QUALITY_LABELS.get(self.quality_int, "普通")
-
-    def get_loot_parent(self) -> str:
-        """获取 Loot 对象的父类"""
-        return "o_consument_loot"
-
-    @property
-    def has_equipment_spawn(self) -> bool:
-        """是否有任何场景使用装备规则"""
-        match self.spawn:
-            case RandomSpawn(container_spawn=c, shop_spawn=s):
-                return SpawnRuleType.EQUIPMENT in (c, s)
-            case _:
-                return False
-
-    @property
-    def has_item_spawn(self) -> bool:
-        """是否有任何场景使用道具规则"""
-        match self.spawn:
-            case RandomSpawn(container_spawn=c, shop_spawn=s):
-                return SpawnRuleType.ITEM in (c, s)
-            case _:
-                return False
+    # ====== 注册判断 ======
 
     @property
     def needs_registration(self) -> bool:

@@ -57,7 +57,7 @@ from ui.editors.common import (
 from ui.scale import Sp  # noqa: F401  # pyright: ignore[reportUnusedImport]
 from ui.state import dpi_scale
 from core.hybrid_item import HybridItemV2
-from core.specs import EffectTrigger, SpawnRuleType, RandomSpawn, spawn_is_excluded, WeaponEquip, ArmorEquip
+from core.specs import EffectTrigger, SpawnRuleType, RandomSpawn, WeaponEquip, ArmorEquip, CharmEquip, NotEquipable
 from core.models import validate_hybrid_item
 from ui.state import state as ui_state
 from data.drop_slots import find_matching_slots, find_matching_eq_slots
@@ -342,12 +342,7 @@ def _render_shop_matches(hybrid: HybridItemV2) -> None:
 
 def _should_show_attributes(hybrid: HybridItemV2) -> bool:
     """判断是否显示属性加成编辑器"""
-    from core.specs import is_weapon_mode, is_armor_mode, is_charm_mode
-    return (
-        is_weapon_mode(hybrid.equipment)
-        or is_armor_mode(hybrid.equipment)
-        or is_charm_mode(hybrid.equipment)
-    )
+    return not isinstance(hybrid.equipment, NotEquipable)
 
 
 # =============================================================================

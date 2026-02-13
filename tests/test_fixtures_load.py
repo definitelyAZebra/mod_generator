@@ -193,7 +193,7 @@ class TestFixtureRoundTrip:
 
         for h1, h2 in zip(loaded_project.hybrid_items, project2.hybrid_items):
             assert h1.id == h2.id
-            assert h1.quality_int == h2.quality_int
+            assert h1.quality.value == h2.quality.value
             assert h1.slot == h2.slot
             assert h1.weight == h2.weight
             assert h1.tier == h2.tier

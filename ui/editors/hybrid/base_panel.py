@@ -32,8 +32,8 @@ from constants import (
     HYBRID_MATERIALS,
 )
 from data.drop_slots import (
-    ITEM_CATEGORIES,
-    ALL_SUBCATEGORY_OPTIONS,
+    SELECTABLE_CATEGORIES,
+    SELECTABLE_SUBCATEGORY_OPTIONS,
     CATEGORY_TRANSLATIONS,
     QUALITY_TAGS,
     DUNGEON_TAGS,
@@ -41,9 +41,8 @@ from data.drop_slots import (
     EXTRA_TAGS,
 )
 from core.specs import (
-    QualitySpec,
+    QualitySpec, ARTIFACT_CATEGORY,
     ExcludedFromRandom, RandomSpawn, SpawnRuleType,
-    spawn_is_excluded,
     NotEquipable,
 )
 from ui.scale import Sp, dp
@@ -152,7 +151,7 @@ def _draw_identity_flow(hybrid: HybridItemV2) -> None:
             hybrid.set_quality(QualitySpec.from_int(new_q))
 
         # 等级
-        if hybrid.quality.value == 7:
+        if hybrid.quality == QualitySpec.ARTIFACT:
             readonly_field("等级", "T0 (文物固定)",
                            width=Sp.S28,
                            tooltip_text="文物品质固定为等级 0")
@@ -197,25 +196,15 @@ def _draw_category_section(hybrid: HybridItemV2) -> None:
 
     Tailwind: flex flex-wrap gap-2
     """
-    quality_int = hybrid.quality.value
-    is_treasure = quality_int == 7
+    is_artifact = hybrid.quality == QualitySpec.ARTIFACT
+    forced_cat = ARTIFACT_CATEGORY if is_artifact else None
 
-    # 文物强制 treasure 分类
-    if is_treasure:
-        hybrid.cat = "treasure"
-    elif hybrid.cat == "treasure":
-        hybrid.cat = ""
-
-    # 构建选项
-    available_cats = (
-        ["treasure"] if is_treasure
-        else [c for c in ITEM_CATEGORIES if c != "treasure"]
-    )
-    cat_options = (["treasure"] if is_treasure else [""]) + (
-        [] if is_treasure else available_cats
-    )
-    cat_labels = {"": "—"}
-    cat_labels.update({c: CATEGORY_TRANSLATIONS.get(c, c) for c in ITEM_CATEGORIES})
+    # 构建选项: 强制分类时锁定单选, 否则允许 "无" + 全部可选分类
+    if forced_cat is not None:
+        cat_options: list[str] = [forced_cat]
+    else:
+        cat_options = ["", *SELECTABLE_CATEGORIES]
+    cat_labels: dict[str, str] = {"": "—", **CATEGORY_TRANSLATIONS}
 
     tw.text_muted(imgui.text)("分类")
     ly.gap_y(Sp.S1)
@@ -224,7 +213,7 @@ def _draw_category_section(hybrid: HybridItemV2) -> None:
     with ly.wrap("cat_section", gap_x=Sp.S2, gap_y=Sp.S2) as w:
         # 主分类下拉
         w.next()
-        if is_treasure:
+        if forced_cat is not None:
             imgui.push_style_var(imgui.STYLE_ALPHA, 0.6)
 
         imgui.push_item_width(dp(Sp.S24))  # 96px
@@ -235,13 +224,13 @@ def _draw_category_section(hybrid: HybridItemV2) -> None:
                 for opt in cat_options:
                     display = str(cat_labels.get(opt, opt))
                     if imgui.selectable(display, opt == hybrid.cat)[0]:
-                        if not is_treasure:
+                        if forced_cat is None:
                             hybrid.cat = opt
                 imgui.end_combo()
 
         imgui.pop_item_width()
 
-        if is_treasure:
+        if forced_cat is not None:
             imgui.pop_style_var()
 
         tooltip("主分类 (Cat)\n用于掉落表匹配")
@@ -261,22 +250,13 @@ def _draw_category_section(hybrid: HybridItemV2) -> None:
                 break  # 避免在迭代时修改列表
 
     # 子分类 popup
-    _draw_subcats_popup(hybrid, is_treasure)
+    _draw_subcats_popup(hybrid)
 
 
-def _draw_subcats_popup(hybrid: HybridItemV2, is_treasure: bool) -> None:
+def _draw_subcats_popup(hybrid: HybridItemV2) -> None:
     """子分类选择弹窗"""
-    subcat_options = (
-        ALL_SUBCATEGORY_OPTIONS if is_treasure
-        else [s for s in ALL_SUBCATEGORY_OPTIONS if s != "treasure"]
-    )
-
-    # 清理无效子分类
-    if "treasure" in hybrid.subcats and not is_treasure:
-        hybrid.subcats.remove("treasure")
-
     if imgui.begin_popup("subcats_popup"):
-        for subcat in subcat_options:
+        for subcat in SELECTABLE_SUBCATEGORY_OPTIONS:
             is_selected = subcat in hybrid.subcats
             is_disabled = subcat == hybrid.cat
 
@@ -312,7 +292,7 @@ def _draw_tags_section(hybrid: HybridItemV2) -> None:
     ly.gap_y(Sp.S1)
 
     # 特殊情况: 排除随机生成时只显示 special
-    if hybrid.exclude_from_random:
+    if isinstance(hybrid.spawn, ExcludedFromRandom):
         _locked_badge("special_only", EXTRA_TAGS.get("special", "特殊"), "已排除随机生成")
         return
 
@@ -402,34 +382,28 @@ def _draw_spawn_section(hybrid: HybridItemV2) -> None:
 
     Tailwind: flex flex-wrap gap-2
     """
-    can_use_eq = not isinstance(hybrid.equipment, NotEquipable)
-    is_excluded = spawn_is_excluded(hybrid.spawn)
+    spawn_rules = hybrid.available_spawn_rules
 
     with field_flow(gap=Sp.S2, row_gap=Sp.S2, default_width=Sp.S28):
         ch, new_excluded = toggle_field(
-            "排除随机生成", "##exc_random", is_excluded,
+            "排除随机生成", "##exc_random", isinstance(hybrid.spawn, ExcludedFromRandom),
             width=Sp.S28,
             tooltip_text="排除随机生成：物品不会在宝箱/商店随机出现\n启用后其他标签设置不生效",
         )
         if ch:
             hybrid.spawn = ExcludedFromRandom() if new_excluded else RandomSpawn()
 
-        if not spawn_is_excluded(hybrid.spawn) and isinstance(hybrid.spawn, RandomSpawn):
+        if isinstance(hybrid.spawn, RandomSpawn):
             spawn = hybrid.spawn
 
             # 容器生成
-            container_opts = (
-                [SpawnRuleType.EQUIPMENT, SpawnRuleType.ITEM, SpawnRuleType.NONE]
-                if can_use_eq
-                else [SpawnRuleType.ITEM, SpawnRuleType.NONE]
-            )
             current_container = spawn.container_spawn
-            if current_container not in container_opts:
+            if current_container not in spawn_rules:
                 current_container = SpawnRuleType.NONE
 
             ch_c, new_c = enum_field(
                 "容器生成", "##container_spawn",
-                current_container, container_opts, _SPAWN_RULE_LABELS,
+                current_container, spawn_rules, _SPAWN_RULE_LABELS,
                 width=Sp.S28,
                 tooltip_text=(
                     "容器生成规则（宝箱/桶/尸体等）\n\n"
@@ -442,18 +416,13 @@ def _draw_spawn_section(hybrid: HybridItemV2) -> None:
                 spawn.container_spawn = new_c
 
             # 商店生成
-            shop_opts = (
-                [SpawnRuleType.EQUIPMENT, SpawnRuleType.ITEM, SpawnRuleType.NONE]
-                if can_use_eq
-                else [SpawnRuleType.ITEM, SpawnRuleType.NONE]
-            )
             current_shop = spawn.shop_spawn
-            if current_shop not in shop_opts:
+            if current_shop not in spawn_rules:
                 current_shop = SpawnRuleType.NONE
 
             ch_s, new_s = enum_field(
                 "商店生成", "##shop_spawn",
-                current_shop, shop_opts, _SPAWN_RULE_LABELS,
+                current_shop, spawn_rules, _SPAWN_RULE_LABELS,
                 width=Sp.S28,
                 tooltip_text=(
                     "商店生成规则（商人进货时）\n\n"

@@ -40,9 +40,8 @@ from constants import (
     CONSUMABLE_INSTANT_ATTRS,
 )
 from core.specs import (
-    is_weapon_mode, is_armor_mode, is_charm_mode,
+    CharmEquip, NotEquipable, NoCharges,
     EffectTrigger,
-    charge_has_charges,
 )
 
 
@@ -82,7 +81,7 @@ def draw_stats_panel(hybrid: HybridItemV2) -> None:
     show_eq = _should_show_equipment_attributes(hybrid)
     show_ce = (
         isinstance(hybrid.trigger, EffectTrigger)
-        and charge_has_charges(hybrid.charges)
+        and not isinstance(hybrid.charges, NoCharges)
     )
 
     # 装备属性
@@ -103,11 +102,7 @@ def draw_stats_panel(hybrid: HybridItemV2) -> None:
 
 def _should_show_equipment_attributes(hybrid: HybridItemV2) -> bool:
     """武器/护甲/护符显示装备属性编辑器"""
-    return (
-        is_weapon_mode(hybrid.equipment)
-        or is_armor_mode(hybrid.equipment)
-        or is_charm_mode(hybrid.equipment)
-    )
+    return not isinstance(hybrid.equipment, NotEquipable)
 
 
 # =============================================================================
@@ -124,7 +119,7 @@ _draw_attr_table = draw_attr_table
 
 def _get_attribute_groups_for_hybrid(hybrid: HybridItemV2) -> dict:
     """根据槽位获取可编辑属性分组 (有序 dict)"""
-    has_passive = is_charm_mode(hybrid.equipment)
+    has_passive = isinstance(hybrid.equipment, CharmEquip)
     attrs = get_equip_attrs_for_slot(hybrid.slot, has_passive)
     result = get_attribute_groups(attrs, DEFAULT_GROUP_ORDER)
 
@@ -151,7 +146,7 @@ def _draw_equipment_attributes_editor(hybrid: HybridItemV2) -> None:
 
 def _draw_consumable_attributes_editor(hybrid: HybridItemV2) -> None:
     """绘制消耗品属性编辑器 — 基础字段 + 全效果网格"""
-    if not charge_has_charges(hybrid.charges):
+    if isinstance(hybrid.charges, NoCharges):
         return
     if not isinstance(hybrid.trigger, EffectTrigger):
         return
@@ -205,9 +200,11 @@ def _draw_consumable_basics(
                 vmin=0,
             )
             if ch:
-            hybrid.trigger.poison_duration = nv
-        有序属性 key 列表
-    """
+                hybrid.trigger.poison_duration = nv
+
+
+def _build_consumable_attr_keys() -> list[str]:
+    """有序属性 key 列表"""
     skip = {CONSUMABLE_DURATION_ATTRIBUTE, "Poisoning_Chance"}
     seen: set[str] = set()
     result: list[str] = []

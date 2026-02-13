@@ -86,6 +86,12 @@ CountryTag = Literal["", "aldor", "nistra", "skadia", "fjall", "elven", "maen"]
 # ============================================================================
 
 
+from data.drop_slots import TREASURE_CATEGORY
+
+# 文物品质的专属分类 (映射: ARTIFACT → treasure)
+ARTIFACT_CATEGORY = TREASURE_CATEGORY
+
+
 class QualitySpec(Enum):
     """品质规格
 
@@ -137,11 +143,6 @@ class QualitySpec(Enum):
 class NoDurability:
     """无耐久系统"""
     pass
-
-
-def durability_has_durability(spec: "DurabilitySpec") -> bool:
-    """是否有耐久系统"""
-    return isinstance(spec, HasDurability)
 
 
 @dataclass
@@ -261,7 +262,11 @@ EquipmentSpec = Union[NotEquipable, WeaponEquip, ArmorEquip, CharmEquip]
 
 
 def equipment_hands(spec: EquipmentSpec) -> int:
-    """获取手数"""
+    """获取手数
+
+    TODO: 盾牌也是单手但走了 default 分支; NotEquipable/CharmEquip
+    返回哑值 1 是语义错误。考虑改为 int | None (None = 概念不适用)。
+    """
     match spec:
         case WeaponEquip() as w:
             return w.hands
@@ -360,11 +365,6 @@ class UnlimitedCharges:
 ChargeSpec = Union[NoCharges, LimitedCharges, UnlimitedCharges]
 
 
-def charge_has_charges(spec: ChargeSpec) -> bool:
-    """是否有使用次数系统"""
-    return not isinstance(spec, NoCharges)
-
-
 
 
 # ============================================================================
@@ -395,11 +395,6 @@ class IntervalRecovery:
 
 
 ChargeRecoverySpec = Union[NoRecovery, IntervalRecovery]
-
-
-def recovery_has_recovery(spec: ChargeRecoverySpec) -> bool:
-    """是否有恢复"""
-    return isinstance(spec, IntervalRecovery)
 
 
 
@@ -477,31 +472,6 @@ def spawn_effective_tags(spec: SpawnSpec) -> str:
             return "special"
         case RandomSpawn() as s:
             return s.build_tags()
-
-
-def spawn_is_excluded(spec: SpawnSpec) -> bool:
-    """是否排除随机生成"""
-    return isinstance(spec, ExcludedFromRandom)
-
-
-# ============================================================================
-# 辅助函数: Spec 类型判断
-# ============================================================================
-
-
-def is_weapon_mode(equipment: EquipmentSpec) -> bool:
-    """是否为武器模式"""
-    return isinstance(equipment, WeaponEquip)
-
-
-def is_armor_mode(equipment: EquipmentSpec) -> bool:
-    """是否为护甲模式"""
-    return isinstance(equipment, ArmorEquip)
-
-
-def is_charm_mode(equipment: EquipmentSpec) -> bool:
-    """是否为护符模式"""
-    return isinstance(equipment, CharmEquip)
 
 
 def needs_char_texture(equipment: EquipmentSpec) -> bool:

@@ -25,14 +25,9 @@ from core.hybrid_item import HybridItemV2
 from constants import HYBRID_WEAPON_TYPES, HYBRID_ARMOR_TYPES
 from core.specs import (
     WeaponEquip, ArmorEquip, CharmEquip, NotEquipable,
-    is_weapon_mode, is_armor_mode, is_charm_mode,
-    HasDurability,
     NoTrigger, EffectTrigger, SkillTrigger,
     NoCharges, LimitedCharges, UnlimitedCharges,
-    charge_has_charges,
     NoRecovery, IntervalRecovery,
-    recovery_has_recovery,
-    QualitySpec,
 )
 from data.skills import (
     SKILL_OBJECTS,
@@ -72,11 +67,11 @@ _BALANCE_LABELS = {"0": "0", "1": "1", "2": "2", "3": "3", "4": "4"}
 # =============================================================================
 
 def _get_eq_mode(hybrid: HybridItemV2) -> str:
-    if is_weapon_mode(hybrid.equipment):
+    if isinstance(hybrid.equipment, WeaponEquip):
         return "weapon"
-    if is_armor_mode(hybrid.equipment):
+    if isinstance(hybrid.equipment, ArmorEquip):
         return "armor"
-    if is_charm_mode(hybrid.equipment):
+    if isinstance(hybrid.equipment, CharmEquip):
         return "charm"
     return "none"
 
@@ -87,15 +82,6 @@ def _get_trigger_mode(hybrid: HybridItemV2) -> str:
     if isinstance(hybrid.trigger, SkillTrigger):
         return "skill"
     return "none"
-
-
-def _get_durability(hybrid: HybridItemV2) -> HasDurability | None:
-    match hybrid.equipment:
-        case WeaponEquip(durability=d) if isinstance(d, HasDurability):
-            return d
-        case ArmorEquip(durability=d) if isinstance(d, HasDurability):
-            return d
-    return None
 
 
 # 技能搜索框缓存
@@ -123,7 +109,7 @@ def draw_behavior_panel(hybrid: HybridItemV2, *, flex_extra: float = 0) -> None:
         ly.gap_y(Sp.S4)
         _draw_durability_section(hybrid)
 
-    if charge_has_charges(hybrid.charges):
+    if not isinstance(hybrid.charges, NoCharges):
         ly.gap_y(Sp.S4)
         _draw_charges_section(hybrid)
 
@@ -154,7 +140,7 @@ def _draw_equipment_section(hybrid: HybridItemV2) -> None:
                 case _:
                     hybrid.set_equipment(NotEquipable())
 
-        if is_weapon_mode(hybrid.equipment):
+        if isinstance(hybrid.equipment, WeaponEquip):
             assert isinstance(hybrid.equipment, WeaponEquip)
             eq = hybrid.equipment
 
@@ -170,7 +156,7 @@ def _draw_equipment_section(hybrid: HybridItemV2) -> None:
             if ch:
                 eq.balance = int(new_bal)
 
-        elif is_armor_mode(hybrid.equipment):
+        elif isinstance(hybrid.equipment, ArmorEquip):
             assert isinstance(hybrid.equipment, ArmorEquip)
             eq = hybrid.equipment
 
@@ -184,11 +170,8 @@ def _draw_equipment_section(hybrid: HybridItemV2) -> None:
 
             readonly_field("护甲分类", hybrid.armor_class)
 
-            if hybrid.slot not in ["hand", "Ring", "Amulet"]:
-                pass  # fragments now drawn below
-
-    # 碎片内联网格 (仅护甲非饰品)
-    if is_armor_mode(hybrid.equipment) and hybrid.slot not in ["hand", "Ring", "Amulet"]:
+    # 碎片内联网格 (仅护甲非饰品/盾牌)
+    if hybrid.has_fragmentable_armor:
         ly.gap_y(Sp.S2)
         _draw_fragments_inline(hybrid)
 
@@ -284,18 +267,16 @@ def _draw_skill_picker(trigger: SkillTrigger) -> None:
 # =============================================================================
 
 def _draw_durability_section(hybrid: HybridItemV2) -> None:
-    durability = _get_durability(hybrid)
+    durability = hybrid.durability
     if not durability:
         return
-
-    has_charges = charge_has_charges(hybrid.charges)
 
     with field_row(3):
         ch, new_val = int_field("耐久上限", "##dur_max", durability.duration_max, vmin=1)
         if ch:
             durability.duration_max = new_val
 
-        if has_charges:
+        if hybrid.wear_applies:
             ch, new_wear = int_field(
                 "磨损%", "##wear", durability.wear_per_use,
                 vmin=0, vmax=100,
@@ -367,20 +348,18 @@ def _draw_charges_section(hybrid: HybridItemV2) -> None:
 
 def _draw_recovery_row(hybrid: HybridItemV2) -> None:
     """充能恢复行 - 自动恢复 / 恢复间隔 / 耗尽销毁"""
-    is_artifact = hybrid.quality == QualitySpec.ARTIFACT
-    has_recovery = recovery_has_recovery(hybrid.charge_recovery)
 
     with field_row(3):
         # 自动恢复
-        if is_artifact:
-            # 文物强制自动恢复 (锁定 UI，约束由 set_quality/set_charges 维护)
+        if hybrid.recovery_locked:
+            # 强制自动恢复 (锁定 UI，约束由 set_quality/set_charges 维护)
             with field_slot("自动恢复") as _w:
                 imgui.push_style_var(imgui.STYLE_ALPHA, 0.5)
                 imgui.checkbox("##recovery_locked", True)
                 imgui.pop_style_var()
-                tooltip("文物自动恢复")
+                tooltip("强制自动恢复")
         else:
-            ch, new_recovery = toggle_field("自动恢复", "##recovery", has_recovery)
+            ch, new_recovery = toggle_field("自动恢复", "##recovery", isinstance(hybrid.charge_recovery, IntervalRecovery))
             if ch:
                 if new_recovery:
                     hybrid.charge_recovery = IntervalRecovery()
@@ -388,7 +367,7 @@ def _draw_recovery_row(hybrid: HybridItemV2) -> None:
                     hybrid.charge_recovery = NoRecovery()
 
         # 恢复间隔
-        if recovery_has_recovery(hybrid.charge_recovery):
+        if isinstance(hybrid.charge_recovery, IntervalRecovery):
             assert isinstance(hybrid.charge_recovery, IntervalRecovery)
             ch, new_interval = int_field(
                 "恢复间隔", "##interval",
@@ -398,7 +377,8 @@ def _draw_recovery_row(hybrid: HybridItemV2) -> None:
                 hybrid.charge_recovery.interval = new_interval
 
         # 耗尽销毁
-        if isinstance(hybrid.charges, LimitedCharges) and not hybrid.has_durability and not is_artifact:
+        if hybrid.can_delete_on_zero:
+            assert isinstance(hybrid.charges, LimitedCharges)
             ch, new_val = toggle_field(
                 "耗尽销毁", "##charge_del", hybrid.charges.delete_on_zero,
             )

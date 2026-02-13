@@ -955,7 +955,7 @@ def emit_hybrid_item_registration(
         item_entries.append(
             f'[\"\"{h.id}\"\", \"\"{slot}\"\", {h.tier}, \"\"{h.material}\"\", '
             f'\"\"{h.effective_tags}\"\", \"\"{h.spawn.container_spawn.value}\"\", \"\"{h.spawn.shop_spawn.value}\"\", '
-            f'\"\"{eq_mode}\"\", {h.quality_int}]'
+            f'\"\"{eq_mode}\"\", {h.quality.value}]'
         )
 
     items_array = ", ".join(item_entries)

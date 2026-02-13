@@ -30,12 +30,14 @@ from core.specs import (
     IntervalRecovery,
     QualitySpec,
     LimitedCharges,
+    NoCharges,
     NoTrigger,
     RelativeSpeed,
     SkillTrigger,
     UnlimitedCharges,
     WeaponCharTexture,
     WeaponEquip,
+    equipment_hands,
 )
 from codegen.textures import calculate_clamped_origin, format_description
 from codegen.emit_items import emit_anchor_gml_block
@@ -125,7 +127,7 @@ def _emit_objects(item: HybridItemV2) -> str:
     loot_obj_name = f"o_loot_{item.id}"
     inv_sprite = f"s_inv_{item.id}"
     loot_sprite = f"s_loot_{item.id}"
-    loot_parent = item.get_loot_parent()
+    loot_parent = "o_consument_loot"
 
     # 确定材质枚举值（首字母大写）
     if _is_weapon_equip(item) or _is_armor_equip(item):
@@ -291,7 +293,7 @@ def _emit_create_gml(item: HybridItemV2) -> str:
     lines.append("")
 
     # ===== 品质 =====
-    lines.append(f"quality = {item.quality_int};")
+    lines.append(f"quality = {item.quality.value};")
     if item.quality == QualitySpec.ARTIFACT:
         lines.append("// 品质: 文物")
         lines.append("shineDelay = room_speed * 2;")
@@ -312,8 +314,9 @@ def _emit_create_gml(item: HybridItemV2) -> str:
         lines.append(f'slot = "{item.slot}";')
         lines.append("can_equip = true;")
         if item.slot == "hand":
-            lines.append(f"hands = {item.hands};")
-            lines.append(f"character_sprite_hands = {item.hands};")
+            _hands = equipment_hands(item.equipment)
+            lines.append(f"hands = {_hands};")
+            lines.append(f"character_sprite_hands = {_hands};")
     else:
         lines.append('slot = "heal";')
         lines.append("can_equip = false;")
@@ -363,14 +366,14 @@ def _emit_create_gml(item: HybridItemV2) -> str:
         lines.append("")
 
     # ===== 使用次数 =====
-    if item.has_charges:
+    if not isinstance(item.charges, NoCharges):
         match item.charges:
             case LimitedCharges(max_charges=charge_val, draw_charges=draw):
                 pass
             case UnlimitedCharges(draw_charges=draw):
                 charge_val = 1
             case _:
-                raise AssertionError("unreachable: has_charges guards NoCharges")
+                raise AssertionError("unreachable")
         lines.append("// 使用次数（父类 Alarm_0 会处理持久化）")
         lines.append(f"charge = {charge_val};")
         lines.append(f"max_charge = {charge_val};")
@@ -436,7 +439,7 @@ def _emit_create_gml(item: HybridItemV2) -> str:
     # ===== data map =====
     lines.append("// data map 元数据")
     lines.append(f'ds_map_replace(data, "tags", "{item.effective_tags}");')
-    lines.append(f'ds_map_replace(data, "rarity", "{item.rarity}");')
+    lines.append(f'ds_map_replace(data, "rarity", "{item.quality.rarity}");')
     lines.append('ds_map_replace(data, "key", "");')
     lines.append("ds_map_replace(data, \"identified\", true);")
 
@@ -453,7 +456,7 @@ def _emit_create_gml(item: HybridItemV2) -> str:
         lines.append("ds_map_replace(data, \"Armor_Type\", Weight);")
 
     if _is_weapon_equip(item) or _is_armor_equip(item):
-        lines.append(f'ds_map_replace(data, "Suffix", string({item.quality_int}) + " " + type);')
+        lines.append(f'ds_map_replace(data, "Suffix", string({item.quality.value}) + " " + type);')
 
         lines.append("")
         lines.append("// 生成 type_text")
@@ -616,7 +619,7 @@ if (!is_undefined(_lastTurn)) {{
             charge_block = """\
 charge--;
             ds_map_replace(data, "charge", charge);"""
-            if item.has_charge_recovery:
+            if isinstance(item.charge_recovery, IntervalRecovery):
                 charge_block += """
 
             // 记录恢复起始回合
@@ -800,7 +803,7 @@ def _emit_other16_gml(item: HybridItemV2) -> str:
 
 def _emit_other24_gml(item: HybridItemV2) -> str:
     """生成混合物品的 Other_24 (使用效果) GML 代码"""
-    if not item.has_charges or isinstance(item.trigger, NoTrigger):
+    if isinstance(item.charges, NoCharges) or isinstance(item.trigger, NoTrigger):
         return "// 空白 Other_24（未启用主动效果）"
 
     lines: list[str] = []
@@ -924,7 +927,7 @@ def _emit_other24_gml(item: HybridItemV2) -> str:
             lines.append("charge--;")
             lines.append("ds_map_replace(data, \"charge\", charge);")
 
-            if item.has_charge_recovery:
+            if isinstance(item.charge_recovery, IntervalRecovery):
                 lines.append("")
                 lines.append("// 记录恢复起始回合")
                 lines.append('var _lastTurn = ds_map_find_value(data, "last_recovery_turn");')

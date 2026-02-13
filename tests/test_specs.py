@@ -25,22 +25,18 @@ from core.specs import (
     # Equipment
     NotEquipable, WeaponEquip, ArmorEquip, CharmEquip,
     equipment_hands,
-    is_weapon_mode, is_armor_mode, is_charm_mode,
     needs_char_texture, needs_left_texture, needs_multi_pose,
     # Durability
     NoDurability, HasDurability,
-    durability_has_durability,
     # Trigger
     NoTrigger, EffectTrigger, SkillTrigger,
     # Charges
     NoCharges, LimitedCharges, UnlimitedCharges,
-    charge_has_charges,
     # Recovery
     NoRecovery, IntervalRecovery,
-    recovery_has_recovery,
     # Spawn
     ExcludedFromRandom, RandomSpawn, SpawnRuleType,
-    spawn_effective_tags, spawn_is_excluded,
+    spawn_effective_tags,
     # Origin
     Origin,
     # CharTexture
@@ -155,9 +151,9 @@ class TestEquipmentHelpers:
         (NotEquipable(), False, False, False),
     ])
     def test_mode_predicates(self, spec, is_w, is_a, is_c):
-        assert is_weapon_mode(spec) == is_w
-        assert is_armor_mode(spec) == is_a
-        assert is_charm_mode(spec) == is_c
+        assert isinstance(spec, WeaponEquip) == is_w
+        assert isinstance(spec, ArmorEquip) == is_a
+        assert isinstance(spec, CharmEquip) == is_c
 
 
 # ============================================================================
@@ -225,11 +221,11 @@ class TestNeedsMultiPose:
 class TestDurabilityHelpers:
 
     def test_no_durability(self):
-        assert durability_has_durability(NoDurability()) is False
+        assert not isinstance(NoDurability(), HasDurability)
 
     def test_has_durability(self):
         d = HasDurability(duration_max=250)
-        assert durability_has_durability(d) is True
+        assert isinstance(d, HasDurability)
         assert d.duration_max == 250
 
 
@@ -263,7 +259,7 @@ class TestChargeHelpers:
         (UnlimitedCharges(), True),
     ])
     def test_charge_has_charges(self, spec, expected):
-        assert charge_has_charges(spec) == expected
+        assert (not isinstance(spec, NoCharges)) == expected
 
 
 # ============================================================================
@@ -274,11 +270,11 @@ class TestChargeHelpers:
 class TestRecoveryHelpers:
 
     def test_no_recovery(self):
-        assert recovery_has_recovery(NoRecovery()) is False
+        assert not isinstance(NoRecovery(), IntervalRecovery)
 
     def test_interval_recovery(self):
         r = IntervalRecovery(interval=20)
-        assert recovery_has_recovery(r) is True
+        assert isinstance(r, IntervalRecovery)
 
 
 # ============================================================================
@@ -292,8 +288,8 @@ class TestSpawnHelpers:
         assert spawn_effective_tags(ExcludedFromRandom()) == "special"
 
     def test_excluded_predicate(self):
-        assert spawn_is_excluded(ExcludedFromRandom()) is True
-        assert spawn_is_excluded(RandomSpawn()) is False
+        assert isinstance(ExcludedFromRandom(), ExcludedFromRandom)
+        assert not isinstance(RandomSpawn(), ExcludedFromRandom)
 
     def test_random_empty_tags(self):
         assert spawn_effective_tags(RandomSpawn()) == ""
