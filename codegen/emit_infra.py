@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from core.hybrid_item import HybridItemV2
 from core.models import ModProject
-from core.specs import WeaponEquip, ArmorEquip
+from core.specs import WeaponEquip, ArmorEquip, CharmEquip
 from constants import (
     CONSUMABLE_INSTANT_ATTRS,
     EXTRA_ORDER_ATTRS,
@@ -939,16 +939,22 @@ def emit_hybrid_item_registration(
     item_entries: list[str] = []
     for h in registered_hybrids:
         if isinstance(h.equipment, WeaponEquip):
-            slot = h.weapon_type
+            slot = h.equipment.weapon_type
         elif isinstance(h.equipment, ArmorEquip):
-            slot = h.armor_type
+            slot = h.equipment.armor_type
         else:
             slot = h.slot
+
+        match h.equipment:
+            case WeaponEquip(): eq_mode = "weapon"
+            case ArmorEquip(): eq_mode = "armor"
+            case CharmEquip(): eq_mode = "charm"
+            case _: eq_mode = "none"
 
         item_entries.append(
             f'[\"\"{h.id}\"\", \"\"{slot}\"\", {h.tier}, \"\"{h.material}\"\", '
             f'\"\"{h.effective_tags}\"\", \"\"{h.container_spawn.value}\"\", \"\"{h.shop_spawn.value}\"\", '
-            f'\"\"{h.equipment_mode_value}\"\", {h.quality_int}]'
+            f'\"\"{eq_mode}\"\", {h.quality_int}]'
         )
 
     items_array = ", ".join(item_entries)

@@ -4,8 +4,9 @@ HybridItem V2 - 使用 Tagged Union 重构的混合物品类
 
 设计原则：
 - 使用 specs 模块的 Tagged Union 类型替代平铺字段
-- 模型层保证自身一致性
-- 计算属性由 Spec 类型直接推导，无需 UI 维护
+- 模型层保证自身一致性，mutation 方法封装约束联动
+- 消费者应 match equipment/trigger/charges 变体，不使用投影属性
+- 计算属性仅限跨字段推导 (has_durability 等)
 
 序列化由 serde 模块处理，本模块只定义数据结构。
 """
@@ -23,11 +24,12 @@ from core.specs import (
     EquipmentSpec, NotEquipable, WeaponEquip, ArmorEquip, CharmEquip,
     equipment_slot, equipment_is_equipable, equipment_hands,
     needs_char_texture, needs_left_texture, needs_multi_pose,
+    char_texture_for_equipment,
     # Trigger
     TriggerSpec, NoTrigger, EffectTrigger, SkillTrigger,
-    ChargeSpec, NoCharges,
+    ChargeSpec, NoCharges, LimitedCharges, UnlimitedCharges,
     charge_has_charges, charge_effective_value, charge_draw_charges,
-    ChargeRecoverySpec, NoRecovery,
+    ChargeRecoverySpec, NoRecovery, IntervalRecovery,
     recovery_has_recovery, recovery_interval,
     HasDurability,
     durability_has_durability, SpawnSpec, SpawnRuleType, ExcludedFromRandom, RandomSpawn,
@@ -95,13 +97,89 @@ class HybridItemV2:
     drop_sound: int = 911
     pickup_sound: int = 907
 
-    # ====== 使用次数耗尽删除 ======
-    delete_on_charge_zero: bool = False
-
     # ====== 贴图 (V2 Tagged Union) ======
     textures: ItemTexturesV2 = field(default_factory=ItemTexturesV2)
 
-    # ====== 计算属性：从 Spec 类型直接推导 ======
+    # ====== Mutation 方法：约束联动集中在模型层 ======
+
+    def set_quality(self, quality: QualitySpec) -> None:
+        """设置品质，自动处理约束联动
+
+        联动规则:
+        - 文物 → tier=0, cat="treasure"
+        - 文物 + 有限次数 → 强制自动恢复
+        - 独特 → quality_tag="unique"
+        - 普通 → quality_tag=""
+        """
+        self.quality = quality
+        if quality == QualitySpec.ARTIFACT:
+            self.tier = 0
+            self.cat = "treasure"
+            if isinstance(self.charges, LimitedCharges) and not recovery_has_recovery(self.charge_recovery):
+                self.charge_recovery = IntervalRecovery()
+        if isinstance(self.spawn, RandomSpawn):
+            self.spawn.quality_tag = "unique" if quality == QualitySpec.UNIQUE else ""
+
+    def set_equipment(self, equipment: EquipmentSpec) -> None:
+        """设置装备形态，自动同步贴图类型
+
+        联动规则:
+        - textures.char 类型与 equipment 匹配
+        """
+        self.equipment = equipment
+        expected = char_texture_for_equipment(equipment)
+        if type(self.textures.char) is not type(expected):
+            self.textures.char = expected
+
+    def set_trigger(self, trigger: TriggerSpec) -> None:
+        """设置触发模式，自动处理充能联动
+
+        联动规则:
+        - 效果/技能触发 + 无充能 → 自动设 LimitedCharges
+        - 无触发 → 清除充能和恢复
+        """
+        self.trigger = trigger
+        if isinstance(trigger, (EffectTrigger, SkillTrigger)):
+            if not charge_has_charges(self.charges):
+                self.charges = LimitedCharges()
+        elif isinstance(trigger, NoTrigger):
+            self.charges = NoCharges()
+            self.charge_recovery = NoRecovery()
+
+    def set_charges(self, charges: ChargeSpec) -> None:
+        """设置充能模式，自动处理恢复联动
+
+        联动规则:
+        - 无限/无充能 → 清除恢复
+        - 文物 + 有限次数 → 强制自动恢复
+        """
+        self.charges = charges
+        if isinstance(charges, (UnlimitedCharges, NoCharges)):
+            self.charge_recovery = NoRecovery()
+        if isinstance(charges, LimitedCharges) and self.quality == QualitySpec.ARTIFACT:
+            if not recovery_has_recovery(self.charge_recovery):
+                self.charge_recovery = IntervalRecovery()
+
+    # ====== 校验：跨字段约束的显式文档 ======
+
+    def validate(self) -> list[str]:
+        """校验跨字段不变式，返回违规描述列表
+
+        用于保存时检查数据一致性。mutation 方法在交互时维护不变式，
+        validate 在持久化边界提供最终保障。
+        """
+        errors: list[str] = []
+        if self.quality == QualitySpec.ARTIFACT and self.has_durability:
+            errors.append("文物品质不应有耐久系统")
+        if (self.quality == QualitySpec.ARTIFACT
+                and isinstance(self.charges, LimitedCharges)
+                and not recovery_has_recovery(self.charge_recovery)):
+            errors.append("文物有限次数必须有自动恢复")
+        if isinstance(self.trigger, SkillTrigger) and not self.trigger.skill_object:
+            errors.append("启用了技能触发但未设置技能对象")
+        return errors
+
+    # ====== 计算属性：跨字段推导 (保留，因为涉及多字段组合) ======
 
     @property
     def quality_int(self) -> int:
@@ -128,43 +206,6 @@ class HybridItemV2:
         """手数"""
         return equipment_hands(self.equipment)
 
-    @property
-    def is_weapon(self) -> bool:
-        """是否为武器装备"""
-        return isinstance(self.equipment, WeaponEquip)
-
-    @property
-    def weapon_type(self) -> str:
-        """武器类型 (仅武器装备有效)"""
-        if isinstance(self.equipment, WeaponEquip):
-            return self.equipment.weapon_type
-        return ""
-
-    @property
-    def armor_type(self) -> str:
-        """护甲类型 (仅护甲装备有效)"""
-        if isinstance(self.equipment, ArmorEquip):
-            return self.equipment.armor_type
-        return ""
-
-    @property
-    def balance(self) -> int:
-        """平衡性 (仅武器装备有效)"""
-        if isinstance(self.equipment, WeaponEquip):
-            return self.equipment.balance
-        return 0
-
-    @property
-    def duration_max(self) -> int:
-        """最大耐久 (从装备内嵌的 durability 规格中获取)"""
-        match self.equipment:
-            case WeaponEquip(durability=HasDurability(duration_max=d)):
-                return d
-            case ArmorEquip(durability=HasDurability(duration_max=d)):
-                return d
-            case _:
-                return 0
-
     # ====== 兼容性别名 (保留：与 Weapon/Armor 接口兼容) ======
     @property
     def name(self) -> str:
@@ -176,7 +217,7 @@ class HybridItemV2:
         """别名：设置 id"""
         object.__setattr__(self, "id", value)
 
-    # ====== 计算属性 ======
+    # ====== 跨字段计算属性 ======
 
     @property
     def armor_class(self) -> str:
@@ -194,7 +235,7 @@ class HybridItemV2:
 
     @property
     def has_durability(self) -> bool:
-        """是否有耐久系统
+        """是否有耐久系统 (跨 quality × equipment × durability)
 
         耐久系统需要满足:
         1. 品质允许 (非 ArtifactQuality)
@@ -212,8 +253,19 @@ class HybridItemV2:
                 return False
 
     @property
+    def duration_max(self) -> int:
+        """最大耐久 (嵌套提取: equipment → durability → duration_max)"""
+        match self.equipment:
+            case WeaponEquip(durability=HasDurability(duration_max=d)):
+                return d
+            case ArmorEquip(durability=HasDurability(duration_max=d)):
+                return d
+            case _:
+                return 0
+
+    @property
     def wear_per_use(self) -> int:
-        """每次使用磨损百分比 (从装备内嵌的 durability 规格中获取)"""
+        """每次使用磨损百分比 (嵌套提取: equipment → durability → wear_per_use)"""
         match self.equipment:
             case WeaponEquip(durability=HasDurability(wear_per_use=w)):
                 return w
@@ -224,7 +276,7 @@ class HybridItemV2:
 
     @property
     def destroy_on_durability_zero(self) -> bool:
-        """耐久耗尽时是否删除物品"""
+        """耐久耗尽时是否删除物品 (嵌套提取)"""
         match self.equipment:
             case WeaponEquip(durability=HasDurability(destroy_on_zero=d)):
                 return d
@@ -233,36 +285,7 @@ class HybridItemV2:
             case _:
                 return False
 
-    # ====== Trigger 投影属性 ======
-
-    @property
-    def consumable_attributes(self) -> dict[str, Any]:
-        """消耗品效果属性 (仅 EffectTrigger 时有效)"""
-        match self.trigger:
-            case EffectTrigger(consumable_attributes=a):
-                return a
-            case _:
-                return {}
-
-    @property
-    def poison_duration(self) -> int:
-        """中毒持续时间 (仅 EffectTrigger 时有效)"""
-        match self.trigger:
-            case EffectTrigger(poison_duration=d):
-                return d
-            case _:
-                return 0
-
-    @property
-    def skill_object(self) -> str:
-        """技能对象名称 (仅 SkillTrigger 时有效)"""
-        match self.trigger:
-            case SkillTrigger(skill_object=s):
-                return s
-            case _:
-                return ""
-
-    # ====== Charge 投影属性 ======
+    # ====== Charge 委托属性 ======
 
     @property
     def has_charges(self) -> bool:
@@ -279,7 +302,7 @@ class HybridItemV2:
         """是否绘制次数条"""
         return charge_draw_charges(self.charges)
 
-    # ====== ChargeRecovery 投影属性 ======
+    # ====== ChargeRecovery 委托属性 ======
 
     @property
     def has_charge_recovery(self) -> bool:
@@ -291,25 +314,7 @@ class HybridItemV2:
         """恢复间隔 (回合数)"""
         return recovery_interval(self.charge_recovery)
 
-    # ====== Equipment 投影属性 ======
-
-    @property
-    def has_passive(self) -> bool:
-        """是否为被动效果物品 (CharmEquip)"""
-        return isinstance(self.equipment, CharmEquip)
-
-    @property
-    def equipment_mode_value(self) -> str:
-        """装备形态字符串 (用于 GML 生成): weapon/armor/charm/none"""
-        match self.equipment:
-            case WeaponEquip():
-                return "weapon"
-            case ArmorEquip():
-                return "armor"
-            case CharmEquip():
-                return "charm"
-            case _:
-                return "none"
+    # ====== Spawn 委托属性 ======
 
     @property
     def exclude_from_random(self) -> bool:
@@ -444,12 +449,3 @@ class HybridItemV2:
         if self.has_equipment_spawn:
             return True
         return self.shop_spawn != SpawnRuleType.ITEM or self.container_spawn != SpawnRuleType.ITEM
-
-    @classmethod
-    def get_type_key(cls) -> str:
-        return "hybrid"
-
-    @classmethod
-    def get_config(cls) -> dict[str, Any]:
-        from constants import ITEM_TYPE_CONFIG
-        return ITEM_TYPE_CONFIG[cls.get_type_key()]

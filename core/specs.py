@@ -389,9 +389,11 @@ class LimitedCharges:
     Attributes:
         max_charges: 最大使用次数
         draw_charges: 是否绘制次数条
+        delete_on_zero: 耗尽时是否删除物品
     """
     max_charges: int = 1
     draw_charges: bool = False
+    delete_on_zero: bool = False
 
 
 @dataclass
@@ -432,7 +434,6 @@ def charge_draw_charges(spec: ChargeSpec) -> bool:
             return d
         case UnlimitedCharges(draw_charges=d):
             return d
-
 
 # ============================================================================
 # ChargeRecoverySpec - 使用次数恢复规格

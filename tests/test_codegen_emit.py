@@ -155,13 +155,14 @@ def _hybrid_consumable(
     tr = trigger or EffectTrigger(
         consumable_attributes=consumable_attrs or {"Hunger": 10, "Thirsty": 5},
     )
+    ch = charges or LimitedCharges(max_charges=3, draw_charges=True, delete_on_zero=delete_on_charge_zero)
     return HybridItemV2(
         id=id,
         parent_object="o_inv_consum",
         quality=quality or QualitySpec.COMMON,
         equipment=NotEquipable(),
         trigger=tr,
-        charges=charges or LimitedCharges(max_charges=3, draw_charges=True),
+        charges=ch,
         charge_recovery=NoRecovery(),
         spawn=ExcludedFromRandom(),
         cat="food",
@@ -171,7 +172,6 @@ def _hybrid_consumable(
         tier=tier,
         material="organic",
         base_price=base_price,
-        delete_on_charge_zero=delete_on_charge_zero,
         localization=localization or _loc(id, f"Desc of {id}"),
         textures=ItemTexturesV2(
             inventory=["inv.png"],

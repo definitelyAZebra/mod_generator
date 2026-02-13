@@ -149,8 +149,7 @@ def _draw_identity_flow(hybrid: HybridItemV2) -> None:
             width=Sp.S28,
         )
         if ch:
-            hybrid.quality = quality_from_int(new_q)
-            _on_quality_changed(hybrid)
+            hybrid.set_quality(quality_from_int(new_q))
 
         # 等级
         if quality_to_int(hybrid.quality) == 7:
@@ -309,10 +308,6 @@ def _draw_tags_section(hybrid: HybridItemV2) -> None:
 
     Tailwind: flex flex-wrap gap-2
     """
-    # 品质标签自动更新
-    quality_int = quality_to_int(hybrid.quality)
-    hybrid.quality_tag = "unique" if quality_int == 6 else ""
-
     tw.text_muted(imgui.text)("标签")
     ly.gap_y(Sp.S1)
 
@@ -465,26 +460,6 @@ def _draw_spawn_section(hybrid: HybridItemV2) -> None:
             )
             if ch_s:
                 object.__setattr__(spawn, "shop_spawn", new_s)
-
-
-# =============================================================================
-# 业务逻辑
-# =============================================================================
-
-def _on_quality_changed(hybrid: HybridItemV2) -> None:
-    """品质变化时的副作用
-
-    - 文物 (quality=7) 自动设置 tier=0, cat="treasure"
-    - quality=6 (独特) 自动设置 quality_tag="unique"
-    """
-    quality_int = quality_to_int(hybrid.quality)
-    if quality_int == 7:
-        hybrid.tier = 0
-        hybrid.cat = "treasure"
-    elif quality_int == 6:
-        hybrid.quality_tag = "unique"
-    else:
-        hybrid.quality_tag = ""
 
 
 # =============================================================================

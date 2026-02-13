@@ -25,6 +25,8 @@ from core.hybrid_item import HybridItemV2
 from core.specs import (
     AbsoluteFps,
     ArmorEquip,
+    CharmEquip,
+    EffectTrigger,
     QualitySpec,
     LimitedCharges,
     NoTrigger,
@@ -277,10 +279,11 @@ def _emit_create_gml(item: HybridItemV2) -> str:
     lines.append("")
 
     # poison_duration
-    poisoning_chance = item.consumable_attributes.get("Poisoning_Chance", 0)
-    if poisoning_chance > 0 and item.poison_duration > 0:
-        lines.append(f"poison_duration = {item.poison_duration};")
-        lines.append("")
+    if isinstance(item.trigger, EffectTrigger):
+        poisoning_chance = item.trigger.consumable_attributes.get("Poisoning_Chance", 0)
+        if poisoning_chance > 0 and item.trigger.poison_duration > 0:
+            lines.append(f"poison_duration = {item.trigger.poison_duration};")
+            lines.append("")
 
     lines.append("empty = false;")
     lines.append("is_hybrid_item = true;")
@@ -320,29 +323,31 @@ def _emit_create_gml(item: HybridItemV2) -> str:
     lines.append("")
 
     # ===== 武器/护甲标记 =====
-    if item.is_weapon:
-        lines.append("is_weapon = true;")
-
     if _is_weapon_equip(item):
+        lines.append("is_weapon = true;")
         lines.append("// 武器数值")
-        lines.append(f'type = "{item.weapon_type}";')
-        lines.append(f"Balance = {item.balance};")
+        eq = item.equipment
+        assert isinstance(eq, WeaponEquip)
+        lines.append(f'type = "{eq.weapon_type}";')
+        lines.append(f"Balance = {eq.balance};")
 
         best_type = _compute_damage_type(item.attributes)
         lines.append(f'DamageType = "{best_type}";')
 
-        if item.weapon_type == "crossbow":
+        if eq.weapon_type == "crossbow":
             lines.append("haveAmmunitionSlot = true;")
             lines.append('ammunitionType = "bolt";')
             lines.append("isCrossbow = true;")
-        elif item.weapon_type == "bow":
+        elif eq.weapon_type == "bow":
             lines.append("haveAmmunitionSlot = true;")
             lines.append('ammunitionType = "arrow";')
         lines.append("")
 
     if _is_armor_equip(item):
         lines.append("// 护甲数值")
-        lines.append(f'type = "{item.armor_type}";')
+        eq_a = item.equipment
+        assert isinstance(eq_a, ArmorEquip)
+        lines.append(f'type = "{eq_a.armor_type}";')
         lines.append(f'armor_type = "{item.armor_class}";')
 
         if item.slot not in ["hand", "Ring", "Amulet"]:
@@ -366,7 +371,8 @@ def _emit_create_gml(item: HybridItemV2) -> str:
 
         lines.append("// 消耗品属性 (attributes_data)")
         has_consum_attr = False
-        for attr, value in item.consumable_attributes.items():
+        consum_attrs = item.trigger.consumable_attributes if isinstance(item.trigger, EffectTrigger) else {}
+        for attr, value in consum_attrs.items():
             if value != 0:
                 lines.append(f'ds_map_add(attributes_data, "{attr}", {value});')
                 has_consum_attr = True
@@ -381,11 +387,15 @@ def _emit_create_gml(item: HybridItemV2) -> str:
         lines.append("")
 
     lines.append(f"duration_change = {item.wear_per_use};")
-    lines.append(f"delete_after_use = {'true' if item.delete_on_charge_zero else 'false'};")
+    match item.charges:
+        case LimitedCharges(delete_on_zero=True):
+            lines.append("delete_after_use = true;")
+        case _:
+            lines.append("delete_after_use = false;")
     lines.append("")
 
     # ===== 被动效果 =====
-    if item.has_passive:
+    if isinstance(item.equipment, CharmEquip):
         lines.append("check_inventory_data = true;")
         lines.append("")
 
@@ -443,7 +453,7 @@ def _emit_create_gml(item: HybridItemV2) -> str:
         lines.append('var _rar = (quality == 7)')
         lines.append('    ? ds_map_find_value_ext(global.consum_type, "treasure", "")')
         lines.append("    : scr_string_get_part(ds_list_find_value(global.rar_text, quality), 1);")
-        if _is_armor_equip(item) and item.armor_type not in ("Ring", "Amulet", "Waist"):
+        if isinstance(item.equipment, ArmorEquip) and item.equipment.armor_type not in ("Ring", "Amulet", "Waist"):
             lines.append("var _class = ds_map_find_value(global.armor_class, Weight);")
             lines.append('var _armor = !__is_undefined(_class) ? scr_string_get_part(_class, 1) + _space : "";')
         else:
@@ -568,7 +578,7 @@ if (!is_undefined(_lastTurn)) {{
 
     # 技能释放状态跟踪
     if isinstance(item.trigger, SkillTrigger):
-        skill_info = SKILL_OBJECTS[item.skill_object]
+        skill_info = SKILL_OBJECTS[item.trigger.skill_object]
         is_no_target = skill_info.get("target", "") == "No Target"
 
         if is_no_target:
@@ -621,7 +631,7 @@ charge--;
         success_logic = "".join(success_logic_parts) if success_logic_parts else "// 无限模式：不扣减"
 
         destruction_parts: list[str] = []
-        if item.delete_on_charge_zero and isinstance(item.charges, LimitedCharges):
+        if isinstance(item.charges, LimitedCharges) and item.charges.delete_on_zero:
             destruction_parts.append("if (charge <= 0) { event_user(12); exit; }")
         if item.has_durability and item.destroy_on_durability_zero:
             destruction_parts.append('if (ds_map_find_value(data, "Duration") <= 0) { event_user(12); exit; }')
@@ -798,8 +808,8 @@ def _emit_other24_gml(item: HybridItemV2) -> str:
 
     if isinstance(item.trigger, SkillTrigger):
         lines.append("// 技能释放模式")
-        if item.skill_object:
-            ico_object = f"{item.skill_object}_ico"
+        if item.trigger.skill_object:
+            ico_object = f"{item.trigger.skill_object}_ico"
             lines.append(f"// 创建对应的技能图标对象作为 owner_skill")
             lines.append(f"var _owner_skill = instance_create_depth(-10000, -10000, 0, {ico_object});")
             lines.append("with (_owner_skill) {")
@@ -808,7 +818,7 @@ def _emit_other24_gml(item: HybridItemV2) -> str:
             lines.append("    persistent = false;  // 不跨房间持久化")
             lines.append("}")
             lines.append("")
-            lines.append(f"var _skill = instance_create_depth(o_player.x, o_player.y, 0, {item.skill_object});")
+            lines.append(f"var _skill = instance_create_depth(o_player.x, o_player.y, 0, {item.trigger.skill_object});")
             lines.append("with (_skill) {")
             lines.append("    owner = o_player;")
             lines.append("    aoe_target = o_player;")
@@ -927,7 +937,7 @@ def _emit_other24_gml(item: HybridItemV2) -> str:
         lines.append("    scr_noise_produce(scr_noise_food(), grid_x, grid_y);")
         lines.append("")
 
-        if item.delete_on_charge_zero:
+        if isinstance(item.charges, LimitedCharges) and item.charges.delete_on_zero:
             lines.append("// 充能耗尽后的处理")
             lines.append("if (charge <= 0)")
             lines.append("    event_user(12);")

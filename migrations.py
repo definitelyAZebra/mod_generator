@@ -112,13 +112,19 @@ _QUALITY_TAG_TO_INT = {
 
 
 def _pass_v2_to_v3(data: dict) -> None:
-    """V2 -> V3: QualitySpec tagged union -> int"""
+    """V2 -> V3: QualitySpec tagged union -> int, delete_on_charge_zero 下沉到 charges"""
     for item in data.get("hybrid_items", []):
         q = item.get("quality")
         if isinstance(q, dict):
             tag = q.get("type", "common")
             item["quality"] = _QUALITY_TAG_TO_INT.get(tag, 1)
         # 已是 int 则不动
+
+        # delete_on_charge_zero: 顶层字段 → charges.delete_on_zero
+        delete_on_zero = item.pop("delete_on_charge_zero", False)
+        charges = item.get("charges")
+        if isinstance(charges, dict) and charges.get("type") == "limited":
+            charges.setdefault("delete_on_zero", delete_on_zero)
 
 
 # ============================================================================
