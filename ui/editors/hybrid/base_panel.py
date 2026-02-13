@@ -439,7 +439,7 @@ def _draw_spawn_section(hybrid: HybridItemV2) -> None:
                 ),
             )
             if ch_c:
-                object.__setattr__(spawn, "container_spawn", new_c)
+                spawn.container_spawn = new_c
 
             # 商店生成
             shop_opts = (
@@ -463,7 +463,7 @@ def _draw_spawn_section(hybrid: HybridItemV2) -> None:
                 ),
             )
             if ch_s:
-                object.__setattr__(spawn, "shop_spawn", new_s)
+                spawn.shop_spawn = new_s
 
 
 # =============================================================================

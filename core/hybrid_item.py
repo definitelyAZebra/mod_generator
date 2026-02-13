@@ -215,7 +215,7 @@ class HybridItemV2:
     @name.setter
     def name(self, value: str):
         """别名：设置 id"""
-        object.__setattr__(self, "id", value)
+        self.id = value
 
     # ====== 跨字段计算属性 ======
 

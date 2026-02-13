@@ -162,13 +162,13 @@ def _draw_equipment_section(hybrid: HybridItemV2) -> None:
                 "武器类型", "##wep_type", eq.weapon_type, HYBRID_WEAPON_TYPES,
             )
             if ch:
-                object.__setattr__(eq, "weapon_type", new_wt)
+                eq.weapon_type = new_wt
 
             ch, new_bal = enum_field(
                 "平衡", "##wep_balance", str(eq.balance), _BALANCE_LABELS,
             )
             if ch:
-                object.__setattr__(eq, "balance", int(new_bal))
+                eq.balance = int(new_bal)
 
         elif is_armor_mode(hybrid.equipment):
             assert isinstance(hybrid.equipment, ArmorEquip)
@@ -178,7 +178,7 @@ def _draw_equipment_section(hybrid: HybridItemV2) -> None:
                 "护甲类型", "##armor_type", eq.armor_type, HYBRID_ARMOR_TYPES,
             )
             if ch:
-                object.__setattr__(eq, "armor_type", new_at)
+                eq.armor_type = new_at
                 # 护甲类型变更可能影响贴图类型
                 hybrid.set_equipment(eq)
 
@@ -232,7 +232,7 @@ def _draw_skill_picker(trigger: SkillTrigger) -> None:
         if imgui.begin_combo("##skill_object", label):
             # 清除选项
             if imgui.selectable("-- 无 --", current == "")[0]:
-                object.__setattr__(trigger, "skill_object", "")
+                trigger.skill_object = ""
 
             # 搜索框
             imgui.separator()
@@ -273,7 +273,7 @@ def _draw_skill_picker(trigger: SkillTrigger) -> None:
                 # 技能列表
                 for skill_obj, name in visible:
                     if imgui.selectable(f"  {name}##{skill_obj}", current == skill_obj)[0]:
-                        object.__setattr__(trigger, "skill_object", skill_obj)
+                        trigger.skill_object = skill_obj
                         _skill_search_buf = ""
 
             imgui.end_combo()
@@ -293,7 +293,7 @@ def _draw_durability_section(hybrid: HybridItemV2) -> None:
     with field_row(3):
         ch, new_val = int_field("耐久上限", "##dur_max", durability.duration_max, vmin=1)
         if ch:
-            object.__setattr__(durability, "duration_max", new_val)
+            durability.duration_max = new_val
 
         if has_charges:
             ch, new_wear = int_field(
@@ -302,13 +302,13 @@ def _draw_durability_section(hybrid: HybridItemV2) -> None:
                 tooltip_text="每次使用消耗的耐久百分比",
             )
             if ch:
-                object.__setattr__(durability, "wear_per_use", new_wear)
+                durability.wear_per_use = new_wear
 
         ch, new_destroy = toggle_field(
             "耐久归零销毁", "##dur_del", durability.destroy_on_zero,
         )
         if ch:
-            object.__setattr__(durability, "destroy_on_zero", new_destroy)
+            durability.destroy_on_zero = new_destroy
 
 
 # =============================================================================
@@ -338,7 +338,7 @@ def _draw_charges_section(hybrid: HybridItemV2) -> None:
                 "次数值", "##charge", hybrid.charges.max_charges, vmin=1,
             )
             if ch:
-                object.__setattr__(hybrid.charges, "max_charges", new_max)
+                hybrid.charges.max_charges = new_max
 
         # 显次数点
         current_draw = False
@@ -353,7 +353,11 @@ def _draw_charges_section(hybrid: HybridItemV2) -> None:
             tooltip_text="在物品贴图左下角绘制小点表示剩余次数",
         )
         if ch:
-            object.__setattr__(hybrid.charges, "draw_charges", new_draw)
+            match hybrid.charges:
+                case LimitedCharges():
+                    hybrid.charges.draw_charges = new_draw
+                case UnlimitedCharges():
+                    hybrid.charges.draw_charges = new_draw
 
     # --- 第二行: 恢复/终止 (仅有限次数) ---
     if isinstance(hybrid.charges, LimitedCharges):
@@ -391,7 +395,7 @@ def _draw_recovery_row(hybrid: HybridItemV2) -> None:
                 hybrid.charge_recovery.interval, vmin=1,
             )
             if ch:
-                object.__setattr__(hybrid.charge_recovery, "interval", new_interval)
+                hybrid.charge_recovery.interval = new_interval
 
         # 耗尽销毁
         if isinstance(hybrid.charges, LimitedCharges) and not hybrid.has_durability and not is_artifact:
@@ -399,7 +403,7 @@ def _draw_recovery_row(hybrid: HybridItemV2) -> None:
                 "耗尽销毁", "##charge_del", hybrid.charges.delete_on_zero,
             )
             if ch:
-                object.__setattr__(hybrid.charges, "delete_on_zero", new_val)
+                hybrid.charges.delete_on_zero = new_val
 
 
 # =============================================================================

@@ -205,13 +205,7 @@ def _draw_consumable_basics(
                 vmin=0,
             )
             if ch:
-                object.__setattr__(hybrid.trigger, "poison_duration", nv)
-
-
-def _build_consumable_attr_keys() -> list[str]:
-    """构建消耗品全效果属性列表 (即时 + 持续, 去重, 排除基础字段)
-
-    Returns:
+            hybrid.trigger.poison_duration = nv
         有序属性 key 列表
     """
     skip = {CONSUMABLE_DURATION_ATTRIBUTE, "Poisoning_Chance"}
