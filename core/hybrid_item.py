@@ -19,10 +19,10 @@ from typing import Any
 from core.specs import (
     # Literal 类型
     Weight, Material,
-    QualitySpec, quality_to_int, quality_to_rarity, quality_has_durability,
+    QualitySpec,
     # Equipment
     EquipmentSpec, NotEquipable, WeaponEquip, ArmorEquip, CharmEquip,
-    equipment_slot, equipment_is_equipable, equipment_hands,
+    equipment_hands,
     needs_char_texture, needs_left_texture, needs_multi_pose,
     char_texture_for_equipment,
     # Trigger
@@ -184,22 +184,22 @@ class HybridItemV2:
     @property
     def quality_int(self) -> int:
         """品质整数值"""
-        return quality_to_int(self.quality)
+        return self.quality.value
 
     @property
     def rarity(self) -> str:
         """稀有度字符串"""
-        return quality_to_rarity(self.quality)
+        return self.quality.rarity
 
     @property
     def slot(self) -> str:
         """装备槽位"""
-        return equipment_slot(self.equipment)
+        return self.equipment.slot
 
     @property
     def equipable(self) -> bool:
         """是否可装备"""
-        return equipment_is_equipable(self.equipment)
+        return isinstance(self.equipment, (WeaponEquip, ArmorEquip))
 
     @property
     def hands(self) -> int:
@@ -242,7 +242,7 @@ class HybridItemV2:
         2. 是装备 (WeaponEquip 或 ArmorEquip)
         3. 装备内嵌的 durability 为 HasDurability
         """
-        if not quality_has_durability(self.quality):
+        if not self.quality.has_durability:
             return False
         match self.equipment:
             case WeaponEquip(durability=d):

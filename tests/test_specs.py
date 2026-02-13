@@ -21,19 +21,17 @@ import pytest
 
 from core.specs import (
     # Quality
-    CommonQuality, UniqueQuality, ArtifactQuality,
-    quality_to_int, quality_from_int, quality_has_durability, quality_to_rarity,
+    QualitySpec,
     # Equipment
     NotEquipable, WeaponEquip, ArmorEquip, CharmEquip,
-    equipment_slot, equipment_is_equipable, equipment_hands,
+    equipment_hands,
     is_weapon_mode, is_armor_mode, is_charm_mode,
     needs_char_texture, needs_left_texture, needs_multi_pose,
     # Durability
     NoDurability, HasDurability,
-    durability_has_durability, durability_max,
+    durability_has_durability,
     # Trigger
     NoTrigger, EffectTrigger, SkillTrigger,
-    trigger_has_effect,
     # Charges
     NoCharges, LimitedCharges, UnlimitedCharges,
     charge_effective_value, charge_has_charges, charge_draw_charges,
@@ -65,42 +63,42 @@ from constants import CHAR_MODEL_ORIGIN
 class TestQualityHelpers:
 
     @pytest.mark.parametrize("spec,expected", [
-        (CommonQuality, 1),
-        (UniqueQuality, 6),
-        (ArtifactQuality, 7),
+        (QualitySpec.COMMON, 1),
+        (QualitySpec.UNIQUE, 6),
+        (QualitySpec.ARTIFACT, 7),
     ])
-    def test_quality_to_int(self, spec, expected):
-        assert quality_to_int(spec) == expected
+    def test_quality_value(self, spec, expected):
+        assert spec.value == expected
 
     @pytest.mark.parametrize("value,expected", [
-        (1, CommonQuality),
-        (6, UniqueQuality),
-        (7, ArtifactQuality),
-        (0, CommonQuality),   # 未知值默认 Common
-        (99, CommonQuality),
+        (1, QualitySpec.COMMON),
+        (6, QualitySpec.UNIQUE),
+        (7, QualitySpec.ARTIFACT),
+        (0, QualitySpec.COMMON),   # 未知值默认 Common
+        (99, QualitySpec.COMMON),
     ])
     def test_quality_from_int(self, value, expected):
-        assert quality_from_int(value) == expected
+        assert QualitySpec.from_int(value) == expected
 
     def test_quality_round_trip(self):
-        for spec in [CommonQuality, UniqueQuality, ArtifactQuality]:
-            assert quality_from_int(quality_to_int(spec)) == spec
+        for spec in [QualitySpec.COMMON, QualitySpec.UNIQUE, QualitySpec.ARTIFACT]:
+            assert QualitySpec.from_int(spec.value) == spec
 
     @pytest.mark.parametrize("spec,expected", [
-        (CommonQuality, True),
-        (UniqueQuality, True),
-        (ArtifactQuality, False),
+        (QualitySpec.COMMON, True),
+        (QualitySpec.UNIQUE, True),
+        (QualitySpec.ARTIFACT, False),
     ])
     def test_quality_has_durability(self, spec, expected):
-        assert quality_has_durability(spec) == expected
+        assert spec.has_durability == expected
 
     @pytest.mark.parametrize("spec,expected", [
-        (CommonQuality, ""),
-        (UniqueQuality, "Unique"),
-        (ArtifactQuality, "Unique"),
+        (QualitySpec.COMMON, ""),
+        (QualitySpec.UNIQUE, "Unique"),
+        (QualitySpec.ARTIFACT, "Unique"),
     ])
-    def test_quality_to_rarity(self, spec, expected):
-        assert quality_to_rarity(spec) == expected
+    def test_quality_rarity(self, spec, expected):
+        assert spec.rarity == expected
 
 
 # ============================================================================
@@ -111,20 +109,20 @@ class TestQualityHelpers:
 class TestEquipmentHelpers:
 
     def test_not_equipable_slot(self):
-        assert equipment_slot(NotEquipable()) == "heal"
+        assert NotEquipable().slot == "heal"
 
     def test_weapon_slot(self):
-        assert equipment_slot(WeaponEquip()) == "hand"
+        assert WeaponEquip().slot == "hand"
 
     @pytest.mark.parametrize("armor_type", [
         "Head", "Chest", "Arms", "Legs", "Back",
         "Waist", "Ring", "Amulet", "shield",
     ])
     def test_armor_slot_equals_type(self, armor_type):
-        assert equipment_slot(ArmorEquip(armor_type=armor_type)) == armor_type
+        assert ArmorEquip(armor_type=armor_type).slot == armor_type
 
     def test_charm_slot(self):
-        assert equipment_slot(CharmEquip()) == "heal"
+        assert CharmEquip().slot == "heal"
 
     @pytest.mark.parametrize("spec,expected", [
         (NotEquipable(), False),
@@ -133,7 +131,7 @@ class TestEquipmentHelpers:
         (CharmEquip(), False),
     ])
     def test_equipment_is_equipable(self, spec, expected):
-        assert equipment_is_equipable(spec) == expected
+        assert isinstance(spec, (WeaponEquip, ArmorEquip)) == expected
 
     @pytest.mark.parametrize("weapon_type,expected_hands", [
         ("sword", 1), ("dagger", 1), ("axe", 1), ("mace", 1),
@@ -228,12 +226,11 @@ class TestDurabilityHelpers:
 
     def test_no_durability(self):
         assert durability_has_durability(NoDurability()) is False
-        assert durability_max(NoDurability()) == 0
 
     def test_has_durability(self):
         d = HasDurability(duration_max=250)
         assert durability_has_durability(d) is True
-        assert durability_max(d) == 250
+        assert d.duration_max == 250
 
 
 # ============================================================================
@@ -244,13 +241,13 @@ class TestDurabilityHelpers:
 class TestTriggerHelpers:
 
     def test_no_trigger(self):
-        assert trigger_has_effect(NoTrigger()) is False
+        assert isinstance(NoTrigger(), NoTrigger)
 
     def test_effect_trigger(self):
-        assert trigger_has_effect(EffectTrigger()) is True
+        assert not isinstance(EffectTrigger(), NoTrigger)
 
     def test_skill_trigger(self):
-        assert trigger_has_effect(SkillTrigger()) is True
+        assert not isinstance(SkillTrigger(), NoTrigger)
 
 
 # ============================================================================

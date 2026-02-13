@@ -110,34 +110,13 @@ class QualitySpec(Enum):
         """品质是否允许耐久系统"""
         return self != QualitySpec.ARTIFACT
 
-
-# --- 向后兼容别名 (旧代码使用的名称) ---
-CommonQuality = QualitySpec.COMMON
-UniqueQuality = QualitySpec.UNIQUE
-ArtifactQuality = QualitySpec.ARTIFACT
-
-
-def quality_to_int(spec: QualitySpec) -> int:
-    """QualitySpec -> quality 整数值"""
-    return spec.value
-
-
-def quality_to_rarity(spec: QualitySpec) -> str:
-    """QualitySpec -> rarity 字符串"""
-    return spec.rarity
-
-
-def quality_from_int(value: int) -> QualitySpec:
-    """从整数值创建 QualitySpec"""
-    try:
-        return QualitySpec(value)
-    except ValueError:
-        return QualitySpec.COMMON
-
-
-def quality_has_durability(spec: QualitySpec) -> bool:
-    """品质是否允许耐久系统"""
-    return spec.has_durability
+    @classmethod
+    def from_int(cls, value: int) -> "QualitySpec":
+        """从整数值创建 QualitySpec，未知值默认 COMMON"""
+        try:
+            return cls(value)
+        except ValueError:
+            return cls.COMMON
 
 
 # ============================================================================
@@ -160,6 +139,11 @@ class NoDurability:
     pass
 
 
+def durability_has_durability(spec: "DurabilitySpec") -> bool:
+    """是否有耐久系统"""
+    return isinstance(spec, HasDurability)
+
+
 @dataclass
 class HasDurability:
     """有耐久系统
@@ -179,20 +163,6 @@ class HasDurability:
 DurabilitySpec = Union[NoDurability, HasDurability]
 
 
-def durability_has_durability(spec: DurabilitySpec) -> bool:
-    """是否有耐久系统"""
-    return isinstance(spec, HasDurability)
-
-
-def durability_max(spec: DurabilitySpec) -> int:
-    """获取最大耐久"""
-    match spec:
-        case NoDurability():
-            return 0
-        case HasDurability(duration_max=d):
-            return d
-
-
 # ============================================================================
 # EquipmentSpec - 装备形态规格
 # ============================================================================
@@ -209,7 +179,11 @@ def durability_max(spec: DurabilitySpec) -> int:
 @dataclass
 class NotEquipable:
     """不可装备 - 普通背包物品"""
-    pass
+
+    @property
+    def slot(self) -> str:
+        """装备槽位 - 背包物品为 heal"""
+        return "heal"
 
 
 @dataclass
@@ -286,24 +260,6 @@ class CharmEquip:
 EquipmentSpec = Union[NotEquipable, WeaponEquip, ArmorEquip, CharmEquip]
 
 
-def equipment_slot(spec: EquipmentSpec) -> str:
-    """获取装备槽位"""
-    match spec:
-        case NotEquipable():
-            return "heal"
-        case WeaponEquip() as w:
-            return w.slot
-        case ArmorEquip() as a:
-            return a.slot
-        case CharmEquip():
-            return "heal"
-
-
-def equipment_is_equipable(spec: EquipmentSpec) -> bool:
-    """是否可装备"""
-    return isinstance(spec, (WeaponEquip, ArmorEquip))
-
-
 def equipment_hands(spec: EquipmentSpec) -> int:
     """获取手数"""
     match spec:
@@ -357,11 +313,6 @@ class SkillTrigger:
 
 
 TriggerSpec = Union[NoTrigger, EffectTrigger, SkillTrigger]
-
-
-def trigger_has_effect(spec: TriggerSpec) -> bool:
-    """是否有触发效果"""
-    return not isinstance(spec, NoTrigger)
 
 
 # ============================================================================

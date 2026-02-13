@@ -41,7 +41,7 @@ from data.drop_slots import (
     EXTRA_TAGS,
 )
 from core.specs import (
-    quality_to_int, quality_from_int,
+    QualitySpec,
     ExcludedFromRandom, RandomSpawn, SpawnRuleType,
     spawn_is_excluded,
     NotEquipable,
@@ -131,7 +131,7 @@ def _draw_identity_flow(hybrid: HybridItemV2) -> None:
     Tailwind: flex flex-wrap gap-2
     ID 较宽 (40tw=160px), 其他字段自然宽度 (25~35tw)
     """
-    quality_int = quality_to_int(hybrid.quality)
+    quality_int = hybrid.quality.value
 
     with field_flow(gap=Sp.S2, row_gap=Sp.S2, default_width=Sp.S28):
         # ID (较宽)
@@ -149,10 +149,10 @@ def _draw_identity_flow(hybrid: HybridItemV2) -> None:
             width=Sp.S28,
         )
         if ch:
-            hybrid.set_quality(quality_from_int(new_q))
+            hybrid.set_quality(QualitySpec.from_int(new_q))
 
         # 等级
-        if quality_to_int(hybrid.quality) == 7:
+        if hybrid.quality.value == 7:
             readonly_field("等级", "T0 (文物固定)",
                            width=Sp.S28,
                            tooltip_text="文物品质固定为等级 0")
@@ -197,7 +197,7 @@ def _draw_category_section(hybrid: HybridItemV2) -> None:
 
     Tailwind: flex flex-wrap gap-2
     """
-    quality_int = quality_to_int(hybrid.quality)
+    quality_int = hybrid.quality.value
     is_treasure = quality_int == 7
 
     # 文物强制 treasure 分类
