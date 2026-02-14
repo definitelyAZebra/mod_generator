@@ -172,7 +172,7 @@ DurabilitySpec = Union[NoDurability, HasDurability]
 # 变体:
 # - NotEquipable: 普通背包物品 (slot="heal")
 # - WeaponEquip: 武器装备 (slot="hand")
-# - ArmorEquip: 护甲装备 (slot=Head/Chest/Arms/Legs/Back/Waist/Ring/Amulet/shield)
+# - ArmorEquip: 护甲装备 (slot=hand[盾牌]/Head/Chest/Arms/Legs/Back/Waist/Ring/Amulet)
 # - CharmEquip: 护符装备 (slot="heal", 但有被动效果)
 # ============================================================================
 
@@ -240,7 +240,13 @@ class ArmorEquip:
 
     @property
     def slot(self) -> str:
-        """装备槽位 - 等于 armor_type"""
+        """装备槽位 - 盾牌为 hand，其他等于 armor_type
+
+        来源: gml_GlobalScript_scr_inventory_weapon_get_params.gml L90-96
+        if (type == "shield") { slot = "hand"; } else { slot = type; }
+        """
+        if self.armor_type == "shield":
+            return "hand"
         return self.armor_type
 
 

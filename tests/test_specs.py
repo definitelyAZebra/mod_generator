@@ -110,11 +110,16 @@ class TestEquipmentHelpers:
     def test_weapon_slot(self):
         assert WeaponEquip().slot == "hand"
 
+    def test_shield_slot(self):
+        """盾牌的 slot 是 hand（与武器共用槽位）"""
+        assert ArmorEquip(armor_type="shield").slot == "hand"
+
     @pytest.mark.parametrize("armor_type", [
         "Head", "Chest", "Arms", "Legs", "Back",
-        "Waist", "Ring", "Amulet", "shield",
+        "Waist", "Ring", "Amulet",
     ])
     def test_armor_slot_equals_type(self, armor_type):
+        """非盾牌护甲的 slot 等于 armor_type"""
         assert ArmorEquip(armor_type=armor_type).slot == armor_type
 
     def test_charm_slot(self):
