@@ -3,6 +3,12 @@
 混合物品 (Hybrid) 相关枚举、标签、音效配置
 """
 
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from core.specs import WeaponType, ArmorType
+
 # 混合物品 Weight 选项
 HYBRID_WEIGHT_LABELS = {
     "Light": "轻",
@@ -49,7 +55,11 @@ TRIGGER_MODES = {
 }
 
 # 混合物品武器类型
-HYBRID_WEAPON_TYPES = {
+# TODO: 类型检查失败 - "shield", "tool", "pick" 不在 WeaponType Literal 中
+#       需验证游戏中这些物品的实际类型划分：
+#       - shield: 应为 ArmorType 或 WeaponType？
+#       - tool/pick: 工具类武器是否应纳入 WeaponType？
+HYBRID_WEAPON_TYPES: dict[WeaponType, str] = {  # type: ignore[dict-item]
     "sword": "单手剑",
     "axe": "单手斧",
     "mace": "单手锤",
@@ -61,9 +71,9 @@ HYBRID_WEAPON_TYPES = {
     "2haxe": "双手斧",
     "2hmace": "双手锤",
     "2hStaff": "双手杖",
-    "shield": "盾牌",
-    "tool": "工具",
-    "pick": "镐",
+    "shield": "盾牌",  # type: ignore[dict-item]
+    "tool": "工具",  # type: ignore[dict-item]
+    "pick": "镐",  # type: ignore[dict-item]
     "chain": "锁链",
     "lute": "鲁特琴",
 }
@@ -102,7 +112,7 @@ HYBRID_MATERIALS = {
 }
 
 # 混合物品护甲类型 (Slot 字段)
-HYBRID_ARMOR_TYPES = {
+HYBRID_ARMOR_TYPES: dict[ArmorType, str] = {
     "Chest": "胸甲",
     "Head": "头盔",
     "Arms": "手套",

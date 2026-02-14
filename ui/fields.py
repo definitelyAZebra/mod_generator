@@ -47,11 +47,14 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, TypeVar
+from typing import Any, TypeVar, overload
 
 from ui import imgui_shim as imgui
 from ui.layout import gap_y, tooltip
 from ui.scale import Sp, SpacingArg, SizingArg, dp
+
+# TypeVar for generic enum_field
+T = TypeVar("T")
 
 
 # =============================================================================
@@ -303,6 +306,32 @@ def _end_field():
 # 标准字段函数
 # =============================================================================
 
+@overload
+def enum_field(
+    label: str,
+    id: str,
+    value: T,
+    options: dict[T, str],
+    labels: dict[T, str] | None = None,
+    *,
+    width: SizingArg | None = None,
+    tooltip_text: str | None = None,
+) -> tuple[bool, T]: ...
+
+
+@overload
+def enum_field(
+    label: str,
+    id: str,
+    value: T,
+    options: list[T],
+    labels: dict[T, str] | None = None,
+    *,
+    width: SizingArg | None = None,
+    tooltip_text: str | None = None,
+) -> tuple[bool, T]: ...
+
+
 def enum_field(
     label: str,
     id: str,
@@ -313,7 +342,11 @@ def enum_field(
     width: SizingArg | None = None,
     tooltip_text: str | None = None,
 ) -> tuple[bool, Any]:
-    """枚举下拉框字段
+    """枚举下拉框字段 (类型安全)
+
+    通过 @overload 重载，根据 options 类型推断返回值类型：
+    - options 是 dict[T, str] → 返回 T
+    - options 是 list[T] → 返回 T
 
     Args:
         label: 上方标签文字
@@ -324,7 +357,7 @@ def enum_field(
         tooltip_text: 悬停提示
 
     Returns:
-        (changed, new_value)
+        (changed, new_value): new_value 的类型取决于 options 的键类型
     """
     _begin_field(label, width=width)
 

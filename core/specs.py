@@ -28,6 +28,8 @@ from typing import Any, ClassVar, Union, Literal
 # 武器类型 (weapon_type)
 # 来源: references/gml/gml_GlobalScript_table_weapons.gml 的 Slot 列
 # ⚠️ GML 命名，与 C# API 不同 (如 GML "2hsword" vs C# "twohandedsword")
+# TODO: HYBRID_WEAPON_TYPES 包含 "shield", "tool", "pick" 但此处未定义
+#       需验证游戏原始数据中武器/护甲的类型划分
 WeaponType = Literal[
     "sword", "dagger", "axe", "mace",           # 单手武器
     "bow", "crossbow",                           # 远程武器
