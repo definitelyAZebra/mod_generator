@@ -2,8 +2,72 @@
 """
 属性分组、属性列表和属性相关常量
 """
+from __future__ import annotations
 
-# 严格整数属性 (必须为整数的属性，如回合数、格子数)
+import json
+from pathlib import Path
+
+# =============================================================================
+# 属性精度数据 (来自游戏 o_textLoader 加载的 ds_map)
+# =============================================================================
+
+_DATAMINE_ATTR_DIR = (
+    Path(__file__).resolve().parent.parent
+    / "datamine" / "output" / "textloader" / "attributes"
+)
+
+
+def _load_json(name: str) -> dict | list:
+    with open(_DATAMINE_ATTR_DIR / name, encoding="utf-8") as f:
+        return json.load(f)
+
+
+# {attr_name: decimals} — 游戏 tooltip 显示使用的小数位数
+# 不在此 dict 中的属性 → 游戏用 math_round() 取整
+ATTRIBUTE_DECIMALS: dict[str, int] = _load_json("attribute_decimals.json")
+
+# 百分比归一化属性 — 游戏 tooltip 会先 ×100 再四舍五入
+# 影响编辑器中 raw 值需要的小数精度
+PERCENT_NORMALIZED_ATTRIBUTES: frozenset[str] = frozenset(
+    _load_json("attribute_percent_normalized.json")
+)
+
+
+def get_attr_format(attr: str) -> tuple[bool, str]:
+    """根据游戏数据决定属性编辑器输入精度。
+
+    对应 GML: scr_hoversGetAttributeValue(attr, value)
+        decimals = attribute_decimals[attr]  // -1 if missing
+        if attr in attribute_percent_normalized:
+            value *= 100
+        return decimals == -1 ? round(value) : math_precision(value, decimals)
+
+    Returns:
+        (is_int, format_str):
+        - is_int=True, format_str=""  → 使用 input_int
+        - is_int=False, format_str="%.Nf" → 使用 input_float
+
+    编辑器中 raw 值精度计算:
+        - 不在 decimals → int
+        - 在 decimals, 不在 pct_norm → %.{d}f
+        - 不在 decimals, 在 pct_norm → %.2f  (整数%显示, raw 需 2 位)
+        - 在 decimals, 在 pct_norm → %.{d+2}f  (raw 多 2 位补偿 ×100)
+    """
+    decimals = ATTRIBUTE_DECIMALS.get(attr)
+    is_pct = attr in PERCENT_NORMALIZED_ATTRIBUTES
+
+    if decimals is None:
+        if is_pct:
+            return False, "%.2f"
+        return True, ""
+
+    raw_decimals = decimals + 2 if is_pct else decimals
+    return False, f"%.{raw_decimals}f"
+
+
+# ============== 已废弃 — 由 ATTRIBUTE_DECIMALS 数据驱动替代 ==============
+
+# DEPRECATED: 使用 get_attr_format() 代替
 STRICT_INT_ATTRIBUTES = {
     "Duration",
     "Poison_Duration",
@@ -12,8 +76,6 @@ STRICT_INT_ATTRIBUTES = {
     "VSN",
     "Charge_Distance",
     "Arcanistic_Distance",
-
-    # 伤害与防御类 (通常为整数)
     "DEF",
     "Block_Power",
     "Slashing_Damage",
@@ -31,9 +93,7 @@ STRICT_INT_ATTRIBUTES = {
     "Psionic_Damage",
 }
 
-# 特殊步进属性配置
-# Key: 属性名
-# Value: (float) 编辑器微调步进值 (默认为 0.1)
+# DEPRECATED: 不再需要手动配置步进值, 精度已由 get_attr_format() 数据驱动
 SPECIAL_STEP_ATTRIBUTES = {
     "hear_value": 0.01,
     "Duration_Resistance": 0.01,

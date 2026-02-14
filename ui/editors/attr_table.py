@@ -21,7 +21,7 @@ from ui.scale import Sp, dp
 from ui.state import dpi_scale
 
 from data.attributes import ATTRIBUTE_TRANSLATIONS, ATTRIBUTE_DESCRIPTIONS
-from constants import STRICT_INT_ATTRIBUTES
+from constants.attributes import get_attr_format
 
 # =============================================================================
 # 常量 (single source of truth)
@@ -150,11 +150,12 @@ def draw_attr_table(attrs: list[str], target_dict: dict[str, Any]) -> None:
                     imgui.table_next_column()
                     imgui.set_next_item_width(-1)
 
-                    if attr in STRICT_INT_ATTRIBUTES:
+                    is_int, fmt = get_attr_format(attr)
+                    if is_int:
                         ch, nv = imgui.input_int(f"##v_{attr}", int(val), 0, 0)
                     else:
                         ch, nv = imgui.input_float(
-                            f"##v_{attr}", float(val), 0, 0, "%.2f",
+                            f"##v_{attr}", float(val), 0, 0, fmt,
                         )
 
                     if ch:
