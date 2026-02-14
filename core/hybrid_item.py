@@ -29,7 +29,7 @@ from core.specs import (
     TriggerSpec, NoTrigger, EffectTrigger, SkillTrigger,
     ChargeSpec, NoCharges, LimitedCharges, UnlimitedCharges,
     ChargeRecoverySpec, NoRecovery, IntervalRecovery,
-    HasDurability,
+    HasDurability, NoDurability,
     SpawnSpec, SpawnRuleType, ExcludedFromRandom, RandomSpawn,
     spawn_effective_tags,
     # Textures (V2)
@@ -112,7 +112,9 @@ class HybridItemV2:
         联动规则:
         - 文物 → tier=0, cat="treasure"
         - 文物 + 有限次数 → 强制自动恢复
+        - 文物 + 武器/护甲 → 强制无耐久
         - 从文物切走 → 清除 treasure 分类约束
+        - 从文物切走 + 武器/护甲(无耐久) → 恢复耐久
         - 独特 → quality_tag="unique"
         - 普通 → quality_tag=""
         """
@@ -123,20 +125,27 @@ class HybridItemV2:
             self.cat = ARTIFACT_CATEGORY
             if isinstance(self.charges, LimitedCharges) and not isinstance(self.charge_recovery, IntervalRecovery):
                 self.charge_recovery = IntervalRecovery()
+            # 文物不能有耐久
+            if isinstance(self.equipment, (WeaponEquip, ArmorEquip)):
+                self.equipment.durability = NoDurability()
         elif old == QualitySpec.ARTIFACT:
             # 从文物切走: 清理 treasure 约束
             if self.cat == ARTIFACT_CATEGORY:
                 self.cat = ""
             if ARTIFACT_CATEGORY in self.subcats:
                 self.subcats.remove(ARTIFACT_CATEGORY)
+            # 恢复耐久
+            if isinstance(self.equipment, (WeaponEquip, ArmorEquip)) and isinstance(self.equipment.durability, NoDurability):
+                self.equipment.durability = HasDurability()
         if isinstance(self.spawn, RandomSpawn):
             self.spawn.quality_tag = "unique" if quality == QualitySpec.UNIQUE else ""
 
     def set_equipment(self, equipment: EquipmentSpec) -> None:
-        """设置装备形态，自动同步贴图类型、生成规则和属性
+        """设置装备形态，自动同步贴图类型、生成规则、耐久和属性
 
         联动规则:
         - textures.char 类型与 equipment 匹配
+        - 文物品质 + 武器/护甲 → 强制无耐久
         - spawn rules 不能超出 available_spawn_rules
         - 装备属性清理不再适用的 key
         """
@@ -144,6 +153,12 @@ class HybridItemV2:
         expected = char_texture_for_equipment(equipment)
         if type(self.textures.char) is not type(expected):
             self.textures.char = expected
+        # 耐久与品质联动
+        if isinstance(equipment, (WeaponEquip, ArmorEquip)):
+            if self.quality == QualitySpec.ARTIFACT:
+                equipment.durability = NoDurability()
+            elif isinstance(equipment.durability, NoDurability):
+                equipment.durability = HasDurability()
         # 归一化 spawn rules: 装备形态变更可能缩小合法规则集
         if isinstance(self.spawn, RandomSpawn):
             valid = self.available_spawn_rules

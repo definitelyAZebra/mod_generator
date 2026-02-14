@@ -200,7 +200,7 @@ class WeaponEquip:
     """
     weapon_type: WeaponType = "sword"
     balance: int = 2
-    durability: DurabilitySpec = field(default_factory=NoDurability)
+    durability: DurabilitySpec = field(default_factory=HasDurability)
 
     # 双手武器类型集合 (GML 命名)
     TWO_HAND_WEAPONS: frozenset[str] = frozenset({
@@ -233,7 +233,7 @@ class ArmorEquip:
     注意: material 已移至 HybridItemV2 顶层，因为 InjectItemStats 对所有物品都需要该字段
     """
     armor_type: ArmorType = "Head"
-    durability: DurabilitySpec = field(default_factory=NoDurability)
+    durability: DurabilitySpec = field(default_factory=HasDurability)
 
     # 需要多姿势贴图的护甲槽位
     MULTI_POSE_SLOTS: frozenset[str] = frozenset({"Head", "Chest", "Arms", "Legs", "Back"})
