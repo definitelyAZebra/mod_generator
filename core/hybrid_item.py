@@ -36,6 +36,7 @@ from core.specs import (
     ItemTexturesV2,
 )
 from core.localization import ItemLocalization
+from constants.attributes import get_equip_attrs_for_slot
 
 
 # ============================================================================
@@ -59,6 +60,11 @@ class HybridItemV2:
 
     # ====== 基础信息 ======
     id: str = ""
+
+    def __setattr__(self, name: str, value: object) -> None:
+        if name == "id" and isinstance(value, str):
+            value = value.lower()
+        super().__setattr__(name, value)
 
     # 本地化
     localization: ItemLocalization = field(default_factory=ItemLocalization)
@@ -127,15 +133,33 @@ class HybridItemV2:
             self.spawn.quality_tag = "unique" if quality == QualitySpec.UNIQUE else ""
 
     def set_equipment(self, equipment: EquipmentSpec) -> None:
-        """设置装备形态，自动同步贴图类型
+        """设置装备形态，自动同步贴图类型、生成规则和属性
 
         联动规则:
         - textures.char 类型与 equipment 匹配
+        - spawn rules 不能超出 available_spawn_rules
+        - 装备属性清理不再适用的 key
         """
         self.equipment = equipment
         expected = char_texture_for_equipment(equipment)
         if type(self.textures.char) is not type(expected):
             self.textures.char = expected
+        # 归一化 spawn rules: 装备形态变更可能缩小合法规则集
+        if isinstance(self.spawn, RandomSpawn):
+            valid = self.available_spawn_rules
+            if self.spawn.container_spawn not in valid:
+                self.spawn.container_spawn = SpawnRuleType.NONE
+            if self.spawn.shop_spawn not in valid:
+                self.spawn.shop_spawn = SpawnRuleType.NONE
+        # 清理不再适用的装备属性
+        self._cleanup_equipment_attributes()
+
+    def _cleanup_equipment_attributes(self) -> None:
+        """清理当前槽位不再允许的装备属性 key"""
+        has_passive = isinstance(self.equipment, CharmEquip)
+        allowed = set(get_equip_attrs_for_slot(self.equipment.slot, has_passive))
+        for k in [k for k in self.attributes if k not in allowed]:
+            del self.attributes[k]
 
     def set_trigger(self, trigger: TriggerSpec) -> None:
         """设置触发模式，自动处理充能联动

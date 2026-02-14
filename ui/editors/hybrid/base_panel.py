@@ -43,7 +43,6 @@ from data.drop_slots import (
 from core.specs import (
     QualitySpec, ARTIFACT_CATEGORY,
     ExcludedFromRandom, RandomSpawn, SpawnRuleType,
-    NotEquipable,
 )
 from ui.scale import Sp, dp
 
@@ -98,9 +97,6 @@ def draw_base_panel(hybrid: HybridItemV2) -> None:
     Args:
         hybrid: 混合物品数据对象
     """
-    # 固定 parent_object
-    hybrid.parent_object = "o_inv_consum"
-
     # 1. 身份属性: ID / 品质 / 等级 / 价格 / 重量 / 材质 (field_flow)
     _draw_identity_flow(hybrid)
 
@@ -138,7 +134,7 @@ def _draw_identity_flow(hybrid: HybridItemV2) -> None:
                                 width=Sp.S40,
                                 tooltip_text="物品唯一标识符")
         if ch:
-            hybrid.id = new_id.lower()
+            hybrid.id = new_id
 
         # 品质
         ch, new_q = enum_field(
@@ -397,13 +393,9 @@ def _draw_spawn_section(hybrid: HybridItemV2) -> None:
             spawn = hybrid.spawn
 
             # 容器生成
-            current_container = spawn.container_spawn
-            if current_container not in spawn_rules:
-                current_container = SpawnRuleType.NONE
-
             ch_c, new_c = enum_field(
                 "容器生成", "##container_spawn",
-                current_container, spawn_rules, _SPAWN_RULE_LABELS,
+                spawn.container_spawn, spawn_rules, _SPAWN_RULE_LABELS,
                 width=Sp.S28,
                 tooltip_text=(
                     "容器生成规则（宝箱/桶/尸体等）\n\n"
@@ -416,13 +408,9 @@ def _draw_spawn_section(hybrid: HybridItemV2) -> None:
                 spawn.container_spawn = new_c
 
             # 商店生成
-            current_shop = spawn.shop_spawn
-            if current_shop not in spawn_rules:
-                current_shop = SpawnRuleType.NONE
-
             ch_s, new_s = enum_field(
                 "商店生成", "##shop_spawn",
-                current_shop, spawn_rules, _SPAWN_RULE_LABELS,
+                spawn.shop_spawn, spawn_rules, _SPAWN_RULE_LABELS,
                 width=Sp.S28,
                 tooltip_text=(
                     "商店生成规则（商人进货时）\n\n"

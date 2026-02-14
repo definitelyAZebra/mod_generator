@@ -121,15 +121,7 @@ def _get_attribute_groups_for_hybrid(hybrid: HybridItemV2) -> dict:
     """根据槽位获取可编辑属性分组 (有序 dict)"""
     has_passive = isinstance(hybrid.equipment, CharmEquip)
     attrs = get_equip_attrs_for_slot(hybrid.slot, has_passive)
-    result = get_attribute_groups(attrs, DEFAULT_GROUP_ORDER)
-
-    # 清理不再允许的属性
-    if result:
-        allowed = {a for attr_list in result.values() for a in attr_list}
-        for k in [k for k in hybrid.attributes if k not in allowed]:
-            del hybrid.attributes[k]
-
-    return result
+    return get_attribute_groups(attrs, DEFAULT_GROUP_ORDER)
 
 
 def _draw_equipment_attributes_editor(hybrid: HybridItemV2) -> None:

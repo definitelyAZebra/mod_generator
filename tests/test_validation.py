@@ -72,9 +72,11 @@ class TestHybridItemId:
         assert any("不能为空" in e for e in errs)
 
     def test_uppercase_id(self):
+        """ID 自动归一化为小写，不再触发格式错误"""
         item = _make_valid_hybrid(id="TestItem")
+        assert item.id == "testitem"
         errs = _errors(item)
-        assert any("格式错误" in e for e in errs)
+        assert not any("格式错误" in e for e in errs)
 
     def test_starts_with_number(self):
         item = _make_valid_hybrid(id="1bad")
