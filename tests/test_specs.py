@@ -24,7 +24,7 @@ from core.specs import (
     QualitySpec,
     # Equipment
     NotEquipable, WeaponEquip, ArmorEquip, CharmEquip,
-    equipment_hands,
+    equipment_hands, equipment_sprite_hands, equipment_pose_index,
     needs_char_texture, needs_left_texture, needs_multi_pose,
     # Durability
     NoDurability, HasDurability,
@@ -149,6 +149,26 @@ class TestEquipmentHelpers:
         assert equipment_hands(ArmorEquip()) == 1
         assert equipment_hands(CharmEquip()) == 1
 
+    def test_shield_hands_is_one(self):
+        assert equipment_hands(ArmorEquip(armor_type="shield")) == 1
+
+    @pytest.mark.parametrize("weapon_type,expected_sprite", [
+        ("sword", 1), ("dagger", 1), ("axe", 1), ("mace", 1),
+        ("2hsword", 2), ("2haxe", 2), ("2hmace", 2), ("2hStaff", 2),
+        ("bow", 1), ("crossbow", 2), ("spear", 1),  # bow/spear: hands≠2 but sprite=1
+    ])
+    def test_weapon_sprite_hands(self, weapon_type, expected_sprite):
+        w = WeaponEquip(weapon_type=weapon_type)
+        assert w.sprite_hands == expected_sprite
+        assert equipment_sprite_hands(w) == expected_sprite
+        assert w.pose_index == expected_sprite - 1
+        assert equipment_pose_index(w) == expected_sprite - 1
+
+    def test_shield_sprite_hands(self):
+        shield = ArmorEquip(armor_type="shield")
+        assert equipment_sprite_hands(shield) == 1
+        assert equipment_pose_index(shield) == 0
+
     @pytest.mark.parametrize("spec,is_w,is_a,is_c", [
         (WeaponEquip(), True, False, False),
         (ArmorEquip(), False, True, False),
@@ -202,6 +222,9 @@ class TestNeedsLeftTexture:
     def test_non_weapon_no_left(self):
         assert needs_left_texture(ArmorEquip()) is False
         assert needs_left_texture(NotEquipable()) is False
+
+    def test_shield_needs_left(self):
+        assert needs_left_texture(ArmorEquip(armor_type="shield")) is True
 
 
 class TestNeedsMultiPose:

@@ -24,6 +24,8 @@ from core.hybrid_item import HybridItemV2
 from core.specs import (
     WeaponCharTexture, MultiPoseCharTexture, NoCharTexture,
     AnimatedSlot, StaticSlot, LootSlot, loot_speed_to_preview_fps,
+    equipment_pose_index,
+    WeaponEquip, ArmorEquip,
 )
 from ui import tw
 from ui import layout as ly
@@ -33,9 +35,6 @@ from ui.scale import Sp
 # 任何拥有 textures: ItemTexturesV2 属性的物品
 AnyItemWithTextures = Union[Weapon, Armor, HybridItemV2]
 
-# 单手武器槽位集合（使用姿势0）
-SINGLE_HAND_SLOTS = frozenset({"dagger", "mace", "sword", "axe", "spear", "bow", "shield"})
-
 # 2 列布局的列间距
 _COL_GAP = Sp.S3
 
@@ -43,6 +42,23 @@ _COL_GAP = Sp.S3
 # 抵抗瞳孔收缩导致的明暗适应边界“消失”问题
 _canvas_frame = tw.border_abyss_600 | tw.child_border_size(1) | tw.child_rounded_sm
 
+def _get_pose_index(item: AnyItemWithTextures) -> int:
+    """获取贴图编辑器姿势索引 (0=单手, 1=双手)
+
+    统一处理旧 model (Weapon/Armor) 和新 model (HybridItemV2):
+    - Weapon: 按 weapon_type 从 weapon_hands.json 查询
+    - Armor:  仅 shield 有 WeaponCharTexture, 固定 pose 0
+    - HybridItemV2: 按 equipment 变体查询
+    """
+    from constants.game import get_weapon_hands
+
+    match item:
+        case Weapon():
+            return get_weapon_hands(item.slot).pose_index
+        case Armor():
+            return 0  # shield (唯一有 WeaponCharTexture 的护甲)
+        case _:  # HybridItemV2
+            return equipment_pose_index(item.equipment)
 
 # ============================================================================
 # 内部函数 - 物品栏/战利品 贴图
@@ -430,8 +446,8 @@ def draw_textures_editor(
             ly.gap_y(Sp.S3)
 
         case WeaponCharTexture() as char:
-            # 确定姿势索引：单手武器用 0，双手武器用 1
-            pose_index = 0 if item.slot in SINGLE_HAND_SLOTS else 1
+            # 确定姿势索引：数据驱动，解决 hands ≠ sprite_hands 的武器类型
+            pose_index = _get_pose_index(item)
             draw_weapon_char_textures(
                 char,
                 id_suffix,

@@ -139,7 +139,8 @@ def _register_equipment_spec(conv: cattrs.Converter) -> None:
     class_to_tag = {v: k for k, v in tag_to_class.items()}
 
     # 需要排除的类变量（不是实例字段）
-    excluded_fields = {"TWO_HAND_WEAPONS", "LEFT_HAND_WEAPONS", "MULTI_POSE_SLOTS"}
+    # TWO_HAND_WEAPONS / LEFT_HAND_WEAPONS 已移除 (数据驱动化)
+    excluded_fields = {"MULTI_POSE_SLOTS"}
 
     def unstructure_equipment(obj: Any) -> dict:
         tag = class_to_tag.get(type(obj), "none")

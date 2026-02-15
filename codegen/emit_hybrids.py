@@ -38,6 +38,7 @@ from core.specs import (
     WeaponCharTexture,
     WeaponEquip,
     equipment_hands,
+    equipment_sprite_hands,
 )
 from codegen.textures import calculate_clamped_origin, format_description
 from codegen.emit_items import emit_anchor_gml_block
@@ -315,8 +316,9 @@ def _emit_create_gml(item: HybridItemV2) -> str:
         lines.append("can_equip = true;")
         if item.slot == "hand":
             _hands = equipment_hands(item.equipment)
+            _sprite_hands = equipment_sprite_hands(item.equipment)
             lines.append(f"hands = {_hands};")
-            lines.append(f"character_sprite_hands = {_hands};")
+            lines.append(f"character_sprite_hands = {_sprite_hands};")
     else:
         lines.append('slot = "heal";')
         lines.append("can_equip = false;")

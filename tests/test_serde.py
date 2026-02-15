@@ -161,10 +161,11 @@ class TestEquipmentSpecSerde:
         assert isinstance(restored, NotEquipable)
 
     def test_class_vars_not_serialized(self):
-        """WeaponEquip 的 ClassVar (TWO_HAND_WEAPONS 等) 不应出现在序列化结果中"""
+        """ArmorEquip 的 ClassVar (MULTI_POSE_SLOTS) 不应出现在序列化结果中"""
         data = _conv.unstructure(WeaponEquip(), EquipmentSpec)
-        assert "TWO_HAND_WEAPONS" not in data
-        assert "LEFT_HAND_WEAPONS" not in data
+        assert "MULTI_POSE_SLOTS" not in data
+        data_armor = _conv.unstructure(ArmorEquip(), EquipmentSpec)
+        assert "MULTI_POSE_SLOTS" not in data_armor
 
 
 # ============================================================================

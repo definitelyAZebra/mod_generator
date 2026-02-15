@@ -204,19 +204,30 @@ class WeaponEquip:
     balance: int = 2
     durability: DurabilitySpec = field(default_factory=HasDurability)
 
-    # 双手武器类型集合 (GML 命名)
-    TWO_HAND_WEAPONS: frozenset[str] = frozenset({
-        "2hsword", "2haxe", "2hmace", "2hStaff",  # 双手近战/法杖
-        "bow", "crossbow", "spear"                 # 远程和长杆
-    })
-
-    # 支持左手贴图的武器 (单手武器)
-    LEFT_HAND_WEAPONS: frozenset[str] = frozenset({"sword", "dagger", "axe", "mace"})
+    @property
+    def _wh(self) -> "WeaponHandsEntry":
+        """从 datamine 数据查询手数 & 贴图配置 (内部用)"""
+        from constants.game import get_weapon_hands
+        return get_weapon_hands(self.weapon_type)
 
     @property
     def hands(self) -> int:
-        """手数 (1=单手, 2=双手)"""
-        return 2 if self.weapon_type in self.TWO_HAND_WEAPONS else 1
+        """游戏机制手数 (1=单手, 2=双手)"""
+        return self._wh.hands
+
+    @property
+    def sprite_hands(self) -> int:
+        """角色贴图姿势 (1=单手握持, 2=双手握持)
+
+        与 hands 不同！bow/spear 等武器 hands=2 但 sprite_hands=1。
+        来源: gml_GlobalScript_scr_inv_weapon_get_hands.gml
+        """
+        return self._wh.sprite_hands
+
+    @property
+    def pose_index(self) -> int:
+        """贴图编辑器姿势索引 (0=单手, 1=双手)"""
+        return self._wh.pose_index
 
     @property
     def slot(self) -> str:
@@ -270,16 +281,39 @@ EquipmentSpec = Union[NotEquipable, WeaponEquip, ArmorEquip, CharmEquip]
 
 
 def equipment_hands(spec: EquipmentSpec) -> int:
-    """获取手数
+    """获取游戏机制手数 (1=单手, 2=双手)
 
-    TODO: 盾牌也是单手但走了 default 分支; NotEquipable/CharmEquip
-    返回哑值 1 是语义错误。考虑改为 int | None (None = 概念不适用)。
+    武器: 从 weapon_hands.json 查询
+    盾牌: 固定单手
+    其他: 返回哑值 1
     """
     match spec:
         case WeaponEquip() as w:
             return w.hands
+        case ArmorEquip(armor_type="shield"):
+            return 1
         case _:
             return 1
+
+
+def equipment_sprite_hands(spec: EquipmentSpec) -> int:
+    """获取角色贴图姿势 (1=单手, 2=双手)
+
+    与 equipment_hands 不同！bow/spear 等 hands=2 但 sprite_hands=1。
+    来源: gml_GlobalScript_scr_inv_weapon_get_hands.gml
+    """
+    match spec:
+        case WeaponEquip() as w:
+            return w.sprite_hands
+        case ArmorEquip(armor_type="shield"):
+            return 1  # 盾牌: 单手姿势
+        case _:
+            return 1
+
+
+def equipment_pose_index(spec: EquipmentSpec) -> int:
+    """获取贴图编辑器姿势索引 (0=单手, 1=双手)"""
+    return equipment_sprite_hands(spec) - 1
 
 
 # equipment_material 已删除 - material 现在是 HybridItemV2 的顶层字段
@@ -496,9 +530,15 @@ def needs_char_texture(equipment: EquipmentSpec) -> bool:
 
 
 def needs_left_texture(equipment: EquipmentSpec) -> bool:
-    """是否需要左手贴图"""
+    """是否需要左手角色贴图 (数据驱动)
+
+    武器: 从 weapon_hands.json 查询 (仅单手武器 hands==1 需要)。
+    盾牌: 始终需要左手贴图 (盾牌持于副手)。
+    """
     match equipment:
-        case WeaponEquip(weapon_type=t) if t in WeaponEquip.LEFT_HAND_WEAPONS:
+        case WeaponEquip() as w:
+            return w._wh.needs_char_left
+        case ArmorEquip(armor_type="shield"):
             return True
         case _:
             return False

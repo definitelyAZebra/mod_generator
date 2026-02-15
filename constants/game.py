@@ -3,6 +3,12 @@
 游戏引擎/渲染/精灵/角色模型相关常量
 """
 
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import NamedTuple
+
 # ============== 渲染与动画常量 ==============
 
 # 游戏实际帧率 (Stoneshard 运行在约 40fps)
@@ -87,3 +93,55 @@ def get_model_key(race: str, is_female: bool) -> str:
     """根据人种和性别获取角色模型键名"""
     gender = "Female" if is_female else "Male"
     return f"{race} {gender}"
+
+
+# ============== 武器单双手 & 角色贴图姿势 (datamined) ==============
+#
+# 数据来源: datamine/output/weapon_hands.json
+# 提取自: gml_GlobalScript_scr_inv_weapon_get_hands.gml
+#
+# 游戏中武器有两个独立的"手数"概念:
+#   hands:        游戏机制手数 (占几个手槽)
+#   sprite_hands: 角色贴图姿势 (1=单手握持, 2=双手握持)
+# 它们通常一致，但 bow/spear/chain/lute 等武器 hands=2 而 sprite_hands=1
+
+
+class WeaponHandsEntry(NamedTuple):
+    """单个武器类型的手数 & 贴图配置"""
+    hands: int            # 游戏机制手数 (1 或 2)
+    sprite_hands: int     # 角色贴图姿势 (1=单手, 2=双手)
+    needs_char_left: bool # 是否需要左手角色贴图
+    pose_index: int       # 贴图编辑器姿势索引 (sprite_hands - 1)
+
+
+def _load_weapon_hands() -> tuple[
+    WeaponHandsEntry,                    # default
+    dict[str, WeaponHandsEntry],         # type_rules
+]:
+    """从 weapon_hands.json 加载武器手数数据。"""
+    data_path = Path(__file__).resolve().parent.parent / "datamine" / "output" / "weapon_hands.json"
+    with open(data_path, encoding="utf-8") as f:
+        data = json.load(f)
+
+    def _parse(d: dict) -> WeaponHandsEntry:
+        return WeaponHandsEntry(
+            hands=d["hands"],
+            sprite_hands=d["sprite_hands"],
+            needs_char_left=d["needs_char_left"],
+            pose_index=d["pose_index"],
+        )
+
+    default = _parse(data["default"])
+    type_rules = {k: _parse(v) for k, v in data["type_rules"].items()}
+    return default, type_rules
+
+
+_WEAPON_HANDS_DEFAULT, _WEAPON_HANDS_RULES = _load_weapon_hands()
+
+
+def get_weapon_hands(weapon_type: str) -> WeaponHandsEntry:
+    """查询武器类型的手数 & 贴图配置。
+
+    未知类型回落到 default (单手, 姿势1)。
+    """
+    return _WEAPON_HANDS_RULES.get(weapon_type, _WEAPON_HANDS_DEFAULT)
