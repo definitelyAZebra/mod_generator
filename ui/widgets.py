@@ -46,7 +46,7 @@ from constants import (
     CHARACTER_RACES,
     GAME_FPS,
 )
-from specs import Origin, AbsoluteFps, RelativeSpeed
+from core.specs import Origin, AbsoluteFps, RelativeSpeed
 from ui.dialogs import file_dialog
 from ui import layout as ly
 from ui.layout import tooltip

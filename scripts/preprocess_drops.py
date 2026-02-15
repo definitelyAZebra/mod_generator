@@ -310,7 +310,7 @@ def generate_python_file(slot_metadata: Dict, tier_index: Dict,
 
 def main():
     drops_path = paths.DATA_TABLES / "drops.json"
-    output_path = paths.PROJECT_ROOT / "drop_slot_index.py"
+    output_path = paths.PROJECT_ROOT / "data" / "drop_index.py"
 
     if not drops_path.exists():
         print(f"Error: {drops_path} not found")

@@ -26,7 +26,7 @@ from ui import imgui_shim as imgui
 from constants import CHAR_MODEL_ORIGIN
 
 if TYPE_CHECKING:
-    from specs import Origin
+    from core.specs import Origin
 
 
 # ============================================================================

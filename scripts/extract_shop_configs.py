@@ -21,7 +21,7 @@ GML_DIR = paths.SRC_GML
 INHERITANCE_FILE = paths.DATA_META / "object_tree.json"
 LOCATIONS_FILE = paths.DATA_TABLES / "locations.json"
 NAMES_FILE = paths.DATA_TABLES / "names.json"
-OUTPUT_FILE = paths.PROJECT_ROOT / "shop_configs.py"
+OUTPUT_FILE = paths.PROJECT_ROOT / "data" / "shops.py"
 
 # 城镇声望 Perk 对应的装备等级加成
 TOWN_MAX_TIER_BONUS = {

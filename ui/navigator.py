@@ -40,8 +40,8 @@ from ui.icons import (
     FA_CHEVRON_DOWN, FA_CHEVRON_RIGHT,
 )
 from constants import ARMOR_SLOT_LABELS, PRIMARY_LANGUAGE
-from models import Armor, Weapon
-from hybrid_item_v2 import HybridItemV2
+from core.models import Armor, Weapon
+from core.hybrid_item import HybridItemV2
 
 if TYPE_CHECKING:
     pass

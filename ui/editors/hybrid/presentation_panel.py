@@ -27,7 +27,7 @@ from ui import tw
 from ui import layout as ly
 from ui.scale import Sp
 
-from hybrid_item_v2 import HybridItemV2
+from core.hybrid_item import HybridItemV2
 from constants import (
     HYBRID_DROP_SOUNDS,
     HYBRID_PICKUP_SOUNDS,

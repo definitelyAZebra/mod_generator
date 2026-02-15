@@ -28,6 +28,8 @@ from typing import Any, ClassVar, Union, Literal
 # 武器类型 (weapon_type)
 # 来源: references/gml/gml_GlobalScript_table_weapons.gml 的 Slot 列
 # ⚠️ GML 命名，与 C# API 不同 (如 GML "2hsword" vs C# "twohandedsword")
+# TODO: HYBRID_WEAPON_TYPES 包含 "shield", "tool", "pick" 但此处未定义
+#       需验证游戏原始数据中武器/护甲的类型划分
 WeaponType = Literal[
     "sword", "dagger", "axe", "mace",           # 单手武器
     "bow", "crossbow",                           # 远程武器
@@ -74,74 +76,55 @@ CountryTag = Literal["", "aldor", "nistra", "skadia", "fjall", "elven", "maen"]
 
 
 # ============================================================================
-# QualitySpec - 品质规格
+# QualitySpec - 品质规格 (IntEnum)
 # ============================================================================
 # 品质决定: quality 整数值, 是否有耐久, parent_object 的选择建议
 #
-# 设计说明:
-# - Common: 普通品质，quality=1
-# - Unique: 独特品质，quality=6
-# - Artifact: 文物品质，quality=7，无耐久
+# V3 schema: 序列化为纯 int (1/6/7)
+# V2 schema: 序列化为 {"type": "common"/"unique"/"artifact"} (见 migrations)
 #
 # 注: rarity 字段 (GML 中仅有 "Common"/"Unique" 两值) 在游戏中作用不明确，
 #      暂不处理。当前 quality_to_rarity() 返回的值仅供参考，待后续研究明确后再调整。
 # ============================================================================
 
 
-@dataclass(frozen=True)
-class CommonQuality:
-    """普通品质 - quality=1"""
-    pass
+from data.drop_slots import TREASURE_CATEGORY
+
+# 文物品质的专属分类 (映射: ARTIFACT → treasure)
+ARTIFACT_CATEGORY = TREASURE_CATEGORY
 
 
-@dataclass(frozen=True)
-class UniqueQuality:
-    """独特品质 - quality=6"""
-    pass
+class QualitySpec(Enum):
+    """品质规格
 
+    值为 GML quality 整数:
+    - COMMON = 1: 普通品质
+    - UNIQUE = 6: 独特品质
+    - ARTIFACT = 7: 文物品质，无耐久
+    """
+    COMMON = 1
+    UNIQUE = 6
+    ARTIFACT = 7
 
-@dataclass(frozen=True)
-class ArtifactQuality:
-    """文物品质 - quality=7, 无耐久"""
-    pass
-
-
-QualitySpec = Union[CommonQuality, UniqueQuality, ArtifactQuality]
-
-
-def quality_to_int(spec: QualitySpec) -> int:
-    """QualitySpec -> quality 整数值"""
-    match spec:
-        case CommonQuality():
-            return 1
-        case UniqueQuality():
-            return 6
-        case ArtifactQuality():
-            return 7
-
-
-def quality_to_rarity(spec: QualitySpec) -> str:
-    """QualitySpec -> rarity 字符串"""
-    match spec:
-        case CommonQuality():
+    @property
+    def rarity(self) -> str:
+        """rarity 字符串 (GML 仅 "Common"/"Unique" 两值)"""
+        if self == QualitySpec.COMMON:
             return ""
-        case UniqueQuality() | ArtifactQuality():
-            return "Unique"
+        return "Unique"
 
+    @property
+    def has_durability(self) -> bool:
+        """品质是否允许耐久系统"""
+        return self != QualitySpec.ARTIFACT
 
-def quality_from_int(value: int) -> QualitySpec:
-    """从整数值创建 QualitySpec"""
-    if value == 6:
-        return UniqueQuality()
-    elif value == 7:
-        return ArtifactQuality()
-    else:
-        return CommonQuality()
-
-
-def quality_has_durability(spec: QualitySpec) -> bool:
-    """品质是否允许耐久系统"""
-    return not isinstance(spec, ArtifactQuality)
+    @classmethod
+    def from_int(cls, value: int) -> "QualitySpec":
+        """从整数值创建 QualitySpec，未知值默认 COMMON"""
+        try:
+            return cls(value)
+        except ValueError:
+            return cls.COMMON
 
 
 # ============================================================================
@@ -183,20 +166,6 @@ class HasDurability:
 DurabilitySpec = Union[NoDurability, HasDurability]
 
 
-def durability_has_durability(spec: DurabilitySpec) -> bool:
-    """是否有耐久系统"""
-    return isinstance(spec, HasDurability)
-
-
-def durability_max(spec: DurabilitySpec) -> int:
-    """获取最大耐久"""
-    match spec:
-        case NoDurability():
-            return 0
-        case HasDurability(duration_max=d):
-            return d
-
-
 # ============================================================================
 # EquipmentSpec - 装备形态规格
 # ============================================================================
@@ -205,7 +174,7 @@ def durability_max(spec: DurabilitySpec) -> int:
 # 变体:
 # - NotEquipable: 普通背包物品 (slot="heal")
 # - WeaponEquip: 武器装备 (slot="hand")
-# - ArmorEquip: 护甲装备 (slot=Head/Chest/Arms/Legs/Back/Waist/Ring/Amulet/shield)
+# - ArmorEquip: 护甲装备 (slot=hand[盾牌]/Head/Chest/Arms/Legs/Back/Waist/Ring/Amulet)
 # - CharmEquip: 护符装备 (slot="heal", 但有被动效果)
 # ============================================================================
 
@@ -213,7 +182,11 @@ def durability_max(spec: DurabilitySpec) -> int:
 @dataclass
 class NotEquipable:
     """不可装备 - 普通背包物品"""
-    pass
+
+    @property
+    def slot(self) -> str:
+        """装备槽位 - 背包物品为 heal"""
+        return "heal"
 
 
 @dataclass
@@ -229,21 +202,32 @@ class WeaponEquip:
     """
     weapon_type: WeaponType = "sword"
     balance: int = 2
-    durability: DurabilitySpec = field(default_factory=NoDurability)
+    durability: DurabilitySpec = field(default_factory=HasDurability)
 
-    # 双手武器类型集合 (GML 命名)
-    TWO_HAND_WEAPONS: frozenset[str] = frozenset({
-        "2hsword", "2haxe", "2hmace", "2hStaff",  # 双手近战/法杖
-        "bow", "crossbow", "spear"                 # 远程和长杆
-    })
-
-    # 支持左手贴图的武器 (单手武器)
-    LEFT_HAND_WEAPONS: frozenset[str] = frozenset({"sword", "dagger", "axe", "mace"})
+    @property
+    def _wh(self) -> "WeaponHandsEntry":
+        """从 datamine 数据查询手数 & 贴图配置 (内部用)"""
+        from constants.game import get_weapon_hands
+        return get_weapon_hands(self.weapon_type)
 
     @property
     def hands(self) -> int:
-        """手数 (1=单手, 2=双手)"""
-        return 2 if self.weapon_type in self.TWO_HAND_WEAPONS else 1
+        """游戏机制手数 (1=单手, 2=双手)"""
+        return self._wh.hands
+
+    @property
+    def sprite_hands(self) -> int:
+        """角色贴图姿势 (1=单手握持, 2=双手握持)
+
+        与 hands 不同！bow/spear 等武器 hands=2 但 sprite_hands=1。
+        来源: gml_GlobalScript_scr_inv_weapon_get_hands.gml
+        """
+        return self._wh.sprite_hands
+
+    @property
+    def pose_index(self) -> int:
+        """贴图编辑器姿势索引 (0=单手, 1=双手)"""
+        return self._wh.pose_index
 
     @property
     def slot(self) -> str:
@@ -262,14 +246,20 @@ class ArmorEquip:
     注意: material 已移至 HybridItemV2 顶层，因为 InjectItemStats 对所有物品都需要该字段
     """
     armor_type: ArmorType = "Head"
-    durability: DurabilitySpec = field(default_factory=NoDurability)
+    durability: DurabilitySpec = field(default_factory=HasDurability)
 
     # 需要多姿势贴图的护甲槽位
     MULTI_POSE_SLOTS: frozenset[str] = frozenset({"Head", "Chest", "Arms", "Legs", "Back"})
 
     @property
     def slot(self) -> str:
-        """装备槽位 - 等于 armor_type"""
+        """装备槽位 - 盾牌为 hand，其他等于 armor_type
+
+        来源: gml_GlobalScript_scr_inventory_weapon_get_params.gml L90-96
+        if (type == "shield") { slot = "hand"; } else { slot = type; }
+        """
+        if self.armor_type == "shield":
+            return "hand"
         return self.armor_type
 
 
@@ -290,31 +280,40 @@ class CharmEquip:
 EquipmentSpec = Union[NotEquipable, WeaponEquip, ArmorEquip, CharmEquip]
 
 
-def equipment_slot(spec: EquipmentSpec) -> str:
-    """获取装备槽位"""
-    match spec:
-        case NotEquipable():
-            return "heal"
-        case WeaponEquip() as w:
-            return w.slot
-        case ArmorEquip() as a:
-            return a.slot
-        case CharmEquip():
-            return "heal"
-
-
-def equipment_is_equipable(spec: EquipmentSpec) -> bool:
-    """是否可装备"""
-    return isinstance(spec, (WeaponEquip, ArmorEquip))
-
-
 def equipment_hands(spec: EquipmentSpec) -> int:
-    """获取手数"""
+    """获取游戏机制手数 (1=单手, 2=双手)
+
+    武器: 从 weapon_hands.json 查询
+    盾牌: 固定单手
+    其他: 返回哑值 1
+    """
     match spec:
         case WeaponEquip() as w:
             return w.hands
+        case ArmorEquip(armor_type="shield"):
+            return 1
         case _:
             return 1
+
+
+def equipment_sprite_hands(spec: EquipmentSpec) -> int:
+    """获取角色贴图姿势 (1=单手, 2=双手)
+
+    与 equipment_hands 不同！bow/spear 等 hands=2 但 sprite_hands=1。
+    来源: gml_GlobalScript_scr_inv_weapon_get_hands.gml
+    """
+    match spec:
+        case WeaponEquip() as w:
+            return w.sprite_hands
+        case ArmorEquip(armor_type="shield"):
+            return 1  # 盾牌: 单手姿势
+        case _:
+            return 1
+
+
+def equipment_pose_index(spec: EquipmentSpec) -> int:
+    """获取贴图编辑器姿势索引 (0=单手, 1=双手)"""
+    return equipment_sprite_hands(spec) - 1
 
 
 # equipment_material 已删除 - material 现在是 HybridItemV2 的顶层字段
@@ -363,11 +362,6 @@ class SkillTrigger:
 TriggerSpec = Union[NoTrigger, EffectTrigger, SkillTrigger]
 
 
-def trigger_has_effect(spec: TriggerSpec) -> bool:
-    """是否有触发效果"""
-    return not isinstance(spec, NoTrigger)
-
-
 # ============================================================================
 # ChargeSpec - 使用次数规格
 # ============================================================================
@@ -393,9 +387,11 @@ class LimitedCharges:
     Attributes:
         max_charges: 最大使用次数
         draw_charges: 是否绘制次数条
+        delete_on_zero: 耗尽时是否删除物品
     """
     max_charges: int = 1
     draw_charges: bool = False
+    delete_on_zero: bool = False
 
 
 @dataclass
@@ -411,31 +407,6 @@ class UnlimitedCharges:
 ChargeSpec = Union[NoCharges, LimitedCharges, UnlimitedCharges]
 
 
-def charge_effective_value(spec: ChargeSpec) -> int:
-    """获取实际使用次数值"""
-    match spec:
-        case NoCharges():
-            return 0
-        case LimitedCharges(max_charges=n):
-            return n
-        case UnlimitedCharges():
-            return 1  # 游戏中无限次数表示为 1
-
-
-def charge_has_charges(spec: ChargeSpec) -> bool:
-    """是否有使用次数系统"""
-    return not isinstance(spec, NoCharges)
-
-
-def charge_draw_charges(spec: ChargeSpec) -> bool:
-    """是否绘制次数条"""
-    match spec:
-        case NoCharges():
-            return False
-        case LimitedCharges(draw_charges=d):
-            return d
-        case UnlimitedCharges(draw_charges=d):
-            return d
 
 
 # ============================================================================
@@ -468,18 +439,6 @@ class IntervalRecovery:
 ChargeRecoverySpec = Union[NoRecovery, IntervalRecovery]
 
 
-def recovery_has_recovery(spec: ChargeRecoverySpec) -> bool:
-    """是否有恢复"""
-    return isinstance(spec, IntervalRecovery)
-
-
-def recovery_interval(spec: ChargeRecoverySpec) -> int:
-    """获取恢复间隔"""
-    match spec:
-        case NoRecovery():
-            return 0
-        case IntervalRecovery(interval=i):
-            return i
 
 
 # ============================================================================
@@ -557,31 +516,6 @@ def spawn_effective_tags(spec: SpawnSpec) -> str:
             return s.build_tags()
 
 
-def spawn_is_excluded(spec: SpawnSpec) -> bool:
-    """是否排除随机生成"""
-    return isinstance(spec, ExcludedFromRandom)
-
-
-# ============================================================================
-# 辅助函数: Spec 类型判断
-# ============================================================================
-
-
-def is_weapon_mode(equipment: EquipmentSpec) -> bool:
-    """是否为武器模式"""
-    return isinstance(equipment, WeaponEquip)
-
-
-def is_armor_mode(equipment: EquipmentSpec) -> bool:
-    """是否为护甲模式"""
-    return isinstance(equipment, ArmorEquip)
-
-
-def is_charm_mode(equipment: EquipmentSpec) -> bool:
-    """是否为护符模式"""
-    return isinstance(equipment, CharmEquip)
-
-
 def needs_char_texture(equipment: EquipmentSpec) -> bool:
     """是否需要角色贴图"""
     match equipment:
@@ -596,9 +530,15 @@ def needs_char_texture(equipment: EquipmentSpec) -> bool:
 
 
 def needs_left_texture(equipment: EquipmentSpec) -> bool:
-    """是否需要左手贴图"""
+    """是否需要左手角色贴图 (数据驱动)
+
+    武器: 从 weapon_hands.json 查询 (仅单手武器 hands==1 需要)。
+    盾牌: 始终需要左手贴图 (盾牌持于副手)。
+    """
     match equipment:
-        case WeaponEquip(weapon_type=t) if t in WeaponEquip.LEFT_HAND_WEAPONS:
+        case WeaponEquip() as w:
+            return w._wh.needs_char_left
+        case ArmorEquip(armor_type="shield"):
             return True
         case _:
             return False

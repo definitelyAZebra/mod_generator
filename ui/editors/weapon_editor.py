@@ -33,7 +33,7 @@ from constants import (
     WEAPON_MATERIAL_LABELS,
     WEAPON_ATTR_GROUPS,
 )
-from models import Weapon, validate_item
+from core.models import Weapon, validate_item
 from ui.editors.common import (
     CARD_GAP,
     BREAKPOINT_PX,

@@ -214,7 +214,7 @@ def _draw_generate_button() -> None:
     Tailwind: btn-crystal rounded-sm
     """
     if (tw.btn_crystal | tw.rounded_sm | tw.frame_px_2 | tw.frame_py_1_5)(imgui.button)(f"{FA_DOWNLOAD} 生成模组"):
-        from generation import generate_mod_with_validation
+        from codegen.orchestrator import generate_mod_with_validation
         generate_mod_with_validation(ui_state.project)
     if imgui.is_item_hovered():
         imgui.set_tooltip("生成 Mod 文件到输出目录")

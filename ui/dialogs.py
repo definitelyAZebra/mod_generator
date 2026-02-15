@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 from ui import popups
 
 if TYPE_CHECKING:
-    from models import ModProject
+    from core.models import ModProject
 
 
 def file_dialog(
@@ -79,7 +79,7 @@ def new_project(directory: str) -> "ModProject | None":
     Returns:
         成功时返回创建的 ModProject 对象，失败时返回 None
     """
-    from models import ModProject
+    from core.models import ModProject
 
     if not directory:
         return None
@@ -121,7 +121,7 @@ def open_project_dialog() -> "ModProject | None":
     Returns:
         成功时返回加载的 ModProject 对象，取消或失败时返回 None
     """
-    from models import ModProject
+    from core.models import ModProject
     from migrations import MigrationError, FutureVersionError
 
     directory = select_directory_dialog()
@@ -149,6 +149,6 @@ def open_project_dialog() -> "ModProject | None":
     if migrated:
         # 迁移后自动保存
         project.save()
-        popups.success("项目已从旧版本迁移并保存")
+        popups.info("项目已从旧版本迁移并保存")
 
     return project

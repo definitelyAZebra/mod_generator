@@ -36,7 +36,7 @@ from constants import (
     ARMOR_SLOT_LABELS,
     ARMOR_ATTR_GROUPS,
 )
-from models import validate_item
+from core.models import validate_item
 from ui.editors.common import (
     CARD_GAP,
     BREAKPOINT_PX,

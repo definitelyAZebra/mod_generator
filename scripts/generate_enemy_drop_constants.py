@@ -251,9 +251,8 @@ if __name__ == "__main__":
     DROP_TABLE = build_drop_table(ENEMY_DROPS)
     print(f"  Generated {len(DROP_TABLE)} tier+slot combinations")
 
-    # Generate output Python file (in project root)
-    # Generate output Python file (in project root)
-    output_path = paths.PROJECT_ROOT / "enemy_drop_constants.py"
+    # Generate output Python file
+    output_path = paths.PROJECT_ROOT / "data" / "enemies.py"
 
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write('"""\n')

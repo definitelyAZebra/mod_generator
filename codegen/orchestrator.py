@@ -11,8 +11,9 @@ import os
 import traceback
 from pathlib import Path
 
-from generator import CodeGenerator, copy_item_textures_v2
-from models import (
+from codegen.generator import CodeGenerator
+from codegen.textures import copy_item_textures_v2
+from core.models import (
     Armor,
     ModProject,
     validate_item,
@@ -89,10 +90,10 @@ def generate_mod_files_to_disk(project: ModProject) -> list[str]:
         print("生成 hover 辅助脚本...")
 
         with open(codes_dir / "scr_hoversEnsureExtendedOrderLists.gml", "w", encoding="utf-8") as f:
-            f.write(generator._generate_ensure_extended_order_lists_gml())  # pyright: ignore[reportPrivateUsage]
+            f.write(generator.generate_ensure_extended_order_lists_gml())
 
         with open(codes_dir / "scr_hoversDrawHybridConsumAttributes.gml", "w", encoding="utf-8") as f:
-            f.write(generator._generate_draw_hybrid_consum_attrs_gml())  # pyright: ignore[reportPrivateUsage]
+            f.write(generator.generate_draw_hybrid_consum_attrs_gml())
 
     print("复制贴图文件...")
     texture_errors: list[str] = []
@@ -156,9 +157,14 @@ def generate_mod_with_validation(project: ModProject) -> None:
 
     if not project.file_path:
         def save_and_generate():
-            if project.file_path:
-                project.save()
-                generate_mod_and_show_result(project)
+            from ui.dialogs import select_directory_dialog
+            directory = select_directory_dialog()
+            if not directory:
+                return
+            project.file_path = os.path.join(directory, "project.json")
+            os.makedirs(os.path.join(directory, "assets"), exist_ok=True)
+            project.save()
+            generate_mod_and_show_result(project)
         popups.save_prompt(on_confirm=save_and_generate)
         return
 

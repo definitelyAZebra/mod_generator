@@ -14,7 +14,7 @@ icons/
 *.ttf
 *.otf
 
-# === codegen 产物 (可重新生成) ===
+# === 自动生成的 UI 文件 (可由 scripts/ 重新生成) ===
 ui/tw.py
 ui/font_config.py
 .font_metrics_cache.json
@@ -40,7 +40,7 @@ dist/
 
 # === 项目配置 (用户本地) ===
 config.json
-codegen/config_local.py
+scripts/config_local.py
 paths.json
 pyrightconfig.json
 
@@ -62,6 +62,15 @@ o_Dead_March.txt
 # === 压缩包 ===
 *.7z
 *.zip
+
+# === Datamine (下载的工具 + 提取产物 + 游戏数据) ===
+datamine/vendor/
+datamine/output/
+datamine/input/
+*.log
+
+# === 测试 fixtures (真实项目数据，体积较大) ===
+tests/fixtures/
 
 # === 废弃/归档 ===
 _archive/

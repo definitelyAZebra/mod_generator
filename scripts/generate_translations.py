@@ -241,7 +241,7 @@ def generate_python_module(translations: dict, descriptions: dict) -> str:
         '由 generate_translations.py 从 output_json/attributes.json 生成',
         '',
         '使用方式:',
-        '    from attribute_data import ATTRIBUTE_TRANSLATIONS, ATTRIBUTE_DESCRIPTIONS',
+        '    from data.attributes import ATTRIBUTE_TRANSLATIONS, ATTRIBUTE_DESCRIPTIONS',
         '"""',
         '',
         '# 属性名称翻译',
@@ -325,12 +325,12 @@ def main():
     code = generate_python_module(translations, descriptions)
 
     # 生成可直接导入的模块
-    output_path = paths.PROJECT_ROOT / "attribute_data.py"
+    output_path = paths.PROJECT_ROOT / "data" / "attributes.py"
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(code)
 
     print(f"已生成: {output_path}")
-    print("可直接使用: from attribute_data import ATTRIBUTE_TRANSLATIONS, ATTRIBUTE_DESCRIPTIONS")
+    print("可直接使用: from data.attributes import ATTRIBUTE_TRANSLATIONS, ATTRIBUTE_DESCRIPTIONS")
 
 
 if __name__ == "__main__":

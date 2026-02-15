@@ -9,9 +9,11 @@ Drop Slot 匹配数据模块
 from functools import lru_cache
 from typing import Any, Dict, List, Tuple, Set
 
-from drop_slot_index import SLOT_METADATA, TIER_INDEX, EQ_METADATA, EQ_TIER_INDEX
+from data.drop_index import SLOT_METADATA, TIER_INDEX, EQ_METADATA, EQ_TIER_INDEX
 
 # ============== 分类常量 ==============
+
+# --- 游戏全量 (用于匹配逻辑 / 翻译 / 序列化) ---
 
 ITEM_CATEGORIES = [
     # 暂不支持的分类已注释
@@ -29,7 +31,21 @@ ITEM_SUBCATEGORIES = [
     "mushroom", "pastry", "potion", "vegetable"
 ]
 
+# 子分类字段可填入主分类和细分子分类的并集
 ALL_SUBCATEGORY_OPTIONS = sorted(set(ITEM_CATEGORIES + ITEM_SUBCATEGORIES))
+
+# --- 受限分类 (仅系统分配, 用户不可手动选择) ---
+
+TREASURE_CATEGORY = "treasure"  # 由文物品质控制, cf. core.specs.ARTIFACT_CATEGORY
+
+RESTRICTED_CATEGORIES: frozenset[str] = frozenset({TREASURE_CATEGORY})
+
+# --- UI 可选列表 (排除受限分类) ---
+
+SELECTABLE_CATEGORIES = [c for c in ITEM_CATEGORIES if c not in RESTRICTED_CATEGORIES]
+SELECTABLE_SUBCATEGORY_OPTIONS = [
+    s for s in ALL_SUBCATEGORY_OPTIONS if s not in RESTRICTED_CATEGORIES
+]
 
 # 分类中文翻译 (来自 items.json["consum_type_hover"])
 CATEGORY_TRANSLATIONS: Dict[str, str] = {

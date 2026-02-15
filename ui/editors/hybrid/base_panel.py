@@ -25,26 +25,24 @@ from ui.fields import (
     toggle_field, readonly_field,
 )
 
-from hybrid_item_v2 import HybridItemV2
+from core.hybrid_item import HybridItemV2
 from constants import (
     HYBRID_QUALITY_LABELS,
     HYBRID_WEIGHT_LABELS,
     HYBRID_MATERIALS,
 )
-from drop_slot_data import (
-    ITEM_CATEGORIES,
-    ALL_SUBCATEGORY_OPTIONS,
+from data.drop_slots import (
+    SELECTABLE_CATEGORIES,
+    SELECTABLE_SUBCATEGORY_OPTIONS,
     CATEGORY_TRANSLATIONS,
     QUALITY_TAGS,
     DUNGEON_TAGS,
     COUNTRY_TAGS,
     EXTRA_TAGS,
 )
-from specs import (
-    quality_to_int, quality_from_int,
+from core.specs import (
+    QualitySpec, ARTIFACT_CATEGORY,
     ExcludedFromRandom, RandomSpawn, SpawnRuleType,
-    spawn_is_excluded,
-    NotEquipable,
 )
 from ui.scale import Sp, dp
 
@@ -99,9 +97,6 @@ def draw_base_panel(hybrid: HybridItemV2) -> None:
     Args:
         hybrid: 混合物品数据对象
     """
-    # 固定 parent_object
-    hybrid.parent_object = "o_inv_consum"
-
     # 1. 身份属性: ID / 品质 / 等级 / 价格 / 重量 / 材质 (field_flow)
     _draw_identity_flow(hybrid)
 
@@ -131,7 +126,7 @@ def _draw_identity_flow(hybrid: HybridItemV2) -> None:
     Tailwind: flex flex-wrap gap-2
     ID 较宽 (40tw=160px), 其他字段自然宽度 (25~35tw)
     """
-    quality_int = quality_to_int(hybrid.quality)
+    quality_int = hybrid.quality.value
 
     with field_flow(gap=Sp.S2, row_gap=Sp.S2, default_width=Sp.S28):
         # ID (较宽)
@@ -139,7 +134,7 @@ def _draw_identity_flow(hybrid: HybridItemV2) -> None:
                                 width=Sp.S40,
                                 tooltip_text="物品唯一标识符")
         if ch:
-            hybrid.id = new_id.lower()
+            hybrid.id = new_id
 
         # 品质
         ch, new_q = enum_field(
@@ -149,11 +144,10 @@ def _draw_identity_flow(hybrid: HybridItemV2) -> None:
             width=Sp.S28,
         )
         if ch:
-            hybrid.quality = quality_from_int(new_q)
-            _on_quality_changed(hybrid)
+            hybrid.set_quality(QualitySpec.from_int(new_q))
 
         # 等级
-        if quality_to_int(hybrid.quality) == 7:
+        if hybrid.quality == QualitySpec.ARTIFACT:
             readonly_field("等级", "T0 (文物固定)",
                            width=Sp.S28,
                            tooltip_text="文物品质固定为等级 0")
@@ -198,25 +192,15 @@ def _draw_category_section(hybrid: HybridItemV2) -> None:
 
     Tailwind: flex flex-wrap gap-2
     """
-    quality_int = quality_to_int(hybrid.quality)
-    is_treasure = quality_int == 7
+    is_artifact = hybrid.quality == QualitySpec.ARTIFACT
+    forced_cat = ARTIFACT_CATEGORY if is_artifact else None
 
-    # 文物强制 treasure 分类
-    if is_treasure:
-        hybrid.cat = "treasure"
-    elif hybrid.cat == "treasure":
-        hybrid.cat = ""
-
-    # 构建选项
-    available_cats = (
-        ["treasure"] if is_treasure
-        else [c for c in ITEM_CATEGORIES if c != "treasure"]
-    )
-    cat_options = (["treasure"] if is_treasure else [""]) + (
-        [] if is_treasure else available_cats
-    )
-    cat_labels = {"": "—"}
-    cat_labels.update({c: CATEGORY_TRANSLATIONS.get(c, c) for c in ITEM_CATEGORIES})
+    # 构建选项: 强制分类时锁定单选, 否则允许 "无" + 全部可选分类
+    if forced_cat is not None:
+        cat_options: list[str] = [forced_cat]
+    else:
+        cat_options = ["", *SELECTABLE_CATEGORIES]
+    cat_labels: dict[str, str] = {"": "—", **CATEGORY_TRANSLATIONS}
 
     tw.text_muted(imgui.text)("分类")
     ly.gap_y(Sp.S1)
@@ -225,7 +209,7 @@ def _draw_category_section(hybrid: HybridItemV2) -> None:
     with ly.wrap("cat_section", gap_x=Sp.S2, gap_y=Sp.S2) as w:
         # 主分类下拉
         w.next()
-        if is_treasure:
+        if forced_cat is not None:
             imgui.push_style_var(imgui.STYLE_ALPHA, 0.6)
 
         imgui.push_item_width(dp(Sp.S24))  # 96px
@@ -236,13 +220,13 @@ def _draw_category_section(hybrid: HybridItemV2) -> None:
                 for opt in cat_options:
                     display = str(cat_labels.get(opt, opt))
                     if imgui.selectable(display, opt == hybrid.cat)[0]:
-                        if not is_treasure:
+                        if forced_cat is None:
                             hybrid.cat = opt
                 imgui.end_combo()
 
         imgui.pop_item_width()
 
-        if is_treasure:
+        if forced_cat is not None:
             imgui.pop_style_var()
 
         tooltip("主分类 (Cat)\n用于掉落表匹配")
@@ -262,22 +246,13 @@ def _draw_category_section(hybrid: HybridItemV2) -> None:
                 break  # 避免在迭代时修改列表
 
     # 子分类 popup
-    _draw_subcats_popup(hybrid, is_treasure)
+    _draw_subcats_popup(hybrid)
 
 
-def _draw_subcats_popup(hybrid: HybridItemV2, is_treasure: bool) -> None:
+def _draw_subcats_popup(hybrid: HybridItemV2) -> None:
     """子分类选择弹窗"""
-    subcat_options = (
-        ALL_SUBCATEGORY_OPTIONS if is_treasure
-        else [s for s in ALL_SUBCATEGORY_OPTIONS if s != "treasure"]
-    )
-
-    # 清理无效子分类
-    if "treasure" in hybrid.subcats and not is_treasure:
-        hybrid.subcats.remove("treasure")
-
     if imgui.begin_popup("subcats_popup"):
-        for subcat in subcat_options:
+        for subcat in SELECTABLE_SUBCATEGORY_OPTIONS:
             is_selected = subcat in hybrid.subcats
             is_disabled = subcat == hybrid.cat
 
@@ -309,19 +284,19 @@ def _draw_tags_section(hybrid: HybridItemV2) -> None:
 
     Tailwind: flex flex-wrap gap-2
     """
-    # 品质标签自动更新
-    quality_int = quality_to_int(hybrid.quality)
-    hybrid.quality_tag = "unique" if quality_int == 6 else ""
-
     tw.text_muted(imgui.text)("标签")
     ly.gap_y(Sp.S1)
 
     # 特殊情况: 排除随机生成时只显示 special
-    if hybrid.exclude_from_random:
+    if isinstance(hybrid.spawn, ExcludedFromRandom):
         _locked_badge("special_only", EXTRA_TAGS.get("special", "特殊"), "已排除随机生成")
         return
 
     # 正常模式 - wrap 布局自动换行
+    if not isinstance(hybrid.spawn, RandomSpawn):
+        return
+    spawn = hybrid.spawn
+
     with ly.wrap("tags_section", gap_x=Sp.S2, gap_y=Sp.S2) as w:
         # 添加标签按钮 (方形，匹配徽章高度)
         w.next()
@@ -331,51 +306,51 @@ def _draw_tags_section(hybrid: HybridItemV2) -> None:
         tooltip("添加标签")
 
         # 品质标签 (锁定)
-        if hybrid.quality_tag:
+        if spawn.quality_tag:
             w.next()
             _locked_badge(
-                hybrid.quality_tag,
-                QUALITY_TAGS.get(hybrid.quality_tag, hybrid.quality_tag),
+                spawn.quality_tag,
+                QUALITY_TAGS.get(spawn.quality_tag, spawn.quality_tag),
                 "由品质自动设置",
             )
 
         # 地牢标签
-        if hybrid.dungeon_tag:
+        if spawn.dungeon_tag:
             w.next()
-            if _badge(f"dungeon_{hybrid.dungeon_tag}", DUNGEON_TAGS.get(hybrid.dungeon_tag, hybrid.dungeon_tag)):
-                hybrid.dungeon_tag = ""
+            if _badge(f"dungeon_{spawn.dungeon_tag}", DUNGEON_TAGS.get(spawn.dungeon_tag, spawn.dungeon_tag)):
+                spawn.dungeon_tag = ""
 
         # 国家标签
-        if hybrid.country_tag:
+        if spawn.country_tag:
             w.next()
-            if _badge(f"country_{hybrid.country_tag}", COUNTRY_TAGS.get(hybrid.country_tag, hybrid.country_tag)):
-                hybrid.country_tag = ""
+            if _badge(f"country_{spawn.country_tag}", COUNTRY_TAGS.get(spawn.country_tag, spawn.country_tag)):
+                spawn.country_tag = ""
 
         # 其他标签
-        for tag in list(hybrid.extra_tags):
+        for tag in list(spawn.extra_tags):
             w.next()
             if _badge(f"extra_{tag}", EXTRA_TAGS.get(tag, tag)):
-                hybrid.extra_tags.remove(tag)
+                spawn.extra_tags.remove(tag)
                 break  # 避免在迭代时修改列表
 
     # 标签选择 popup
-    _draw_tags_popup(hybrid)
+    _draw_tags_popup(spawn)
 
 
-def _draw_tags_popup(hybrid: HybridItemV2) -> None:
+def _draw_tags_popup(spawn: RandomSpawn) -> None:
     """标签选择弹窗"""
     if imgui.begin_popup("tags_popup"):
         tw.text_muted(imgui.text)("地牢")
         for tag_val, tag_label in DUNGEON_TAGS.items():
-            if imgui.radio_button(f"{tag_label}##dungeon", hybrid.dungeon_tag == tag_val):
-                hybrid.dungeon_tag = tag_val
+            if imgui.radio_button(f"{tag_label}##dungeon", spawn.dungeon_tag == tag_val):
+                spawn.dungeon_tag = tag_val
 
         imgui.separator()
 
         tw.text_muted(imgui.text)("国家/地区")
         for tag_val, tag_label in COUNTRY_TAGS.items():
-            if imgui.radio_button(f"{tag_label}##country", hybrid.country_tag == tag_val):
-                hybrid.country_tag = tag_val
+            if imgui.radio_button(f"{tag_label}##country", spawn.country_tag == tag_val):
+                spawn.country_tag = tag_val
 
         imgui.separator()
 
@@ -383,13 +358,13 @@ def _draw_tags_popup(hybrid: HybridItemV2) -> None:
         for tag_val, tag_label in EXTRA_TAGS.items():
             if tag_val == "special":
                 continue
-            is_selected = tag_val in hybrid.extra_tags
+            is_selected = tag_val in spawn.extra_tags
             changed, new_value = imgui.checkbox(f"{tag_label}##extra_{tag_val}", is_selected)
             if changed:
                 if new_value:
-                    hybrid.extra_tags.append(tag_val)
+                    spawn.extra_tags.append(tag_val)
                 else:
-                    hybrid.extra_tags.remove(tag_val)
+                    spawn.extra_tags.remove(tag_val)
 
         imgui.end_popup()
 
@@ -403,34 +378,24 @@ def _draw_spawn_section(hybrid: HybridItemV2) -> None:
 
     Tailwind: flex flex-wrap gap-2
     """
-    can_use_eq = not isinstance(hybrid.equipment, NotEquipable)
-    is_excluded = spawn_is_excluded(hybrid.spawn)
+    spawn_rules = hybrid.available_spawn_rules
 
     with field_flow(gap=Sp.S2, row_gap=Sp.S2, default_width=Sp.S28):
         ch, new_excluded = toggle_field(
-            "排除随机生成", "##exc_random", is_excluded,
+            "排除随机生成", "##exc_random", isinstance(hybrid.spawn, ExcludedFromRandom),
             width=Sp.S28,
             tooltip_text="排除随机生成：物品不会在宝箱/商店随机出现\n启用后其他标签设置不生效",
         )
         if ch:
             hybrid.spawn = ExcludedFromRandom() if new_excluded else RandomSpawn()
 
-        if not spawn_is_excluded(hybrid.spawn) and isinstance(hybrid.spawn, RandomSpawn):
+        if isinstance(hybrid.spawn, RandomSpawn):
             spawn = hybrid.spawn
 
             # 容器生成
-            container_opts = (
-                [SpawnRuleType.EQUIPMENT, SpawnRuleType.ITEM, SpawnRuleType.NONE]
-                if can_use_eq
-                else [SpawnRuleType.ITEM, SpawnRuleType.NONE]
-            )
-            current_container = hybrid.container_spawn
-            if current_container not in container_opts:
-                current_container = SpawnRuleType.NONE
-
             ch_c, new_c = enum_field(
                 "容器生成", "##container_spawn",
-                current_container, container_opts, _SPAWN_RULE_LABELS,
+                spawn.container_spawn, spawn_rules, _SPAWN_RULE_LABELS,
                 width=Sp.S28,
                 tooltip_text=(
                     "容器生成规则（宝箱/桶/尸体等）\n\n"
@@ -440,21 +405,12 @@ def _draw_spawn_section(hybrid: HybridItemV2) -> None:
                 ),
             )
             if ch_c:
-                object.__setattr__(spawn, "container_spawn", new_c)
+                spawn.container_spawn = new_c
 
             # 商店生成
-            shop_opts = (
-                [SpawnRuleType.EQUIPMENT, SpawnRuleType.ITEM, SpawnRuleType.NONE]
-                if can_use_eq
-                else [SpawnRuleType.ITEM, SpawnRuleType.NONE]
-            )
-            current_shop = hybrid.shop_spawn
-            if current_shop not in shop_opts:
-                current_shop = SpawnRuleType.NONE
-
             ch_s, new_s = enum_field(
                 "商店生成", "##shop_spawn",
-                current_shop, shop_opts, _SPAWN_RULE_LABELS,
+                spawn.shop_spawn, spawn_rules, _SPAWN_RULE_LABELS,
                 width=Sp.S28,
                 tooltip_text=(
                     "商店生成规则（商人进货时）\n\n"
@@ -464,27 +420,7 @@ def _draw_spawn_section(hybrid: HybridItemV2) -> None:
                 ),
             )
             if ch_s:
-                object.__setattr__(spawn, "shop_spawn", new_s)
-
-
-# =============================================================================
-# 业务逻辑
-# =============================================================================
-
-def _on_quality_changed(hybrid: HybridItemV2) -> None:
-    """品质变化时的副作用
-
-    - 文物 (quality=7) 自动设置 tier=0, cat="treasure"
-    - quality=6 (独特) 自动设置 quality_tag="unique"
-    """
-    quality_int = quality_to_int(hybrid.quality)
-    if quality_int == 7:
-        hybrid.tier = 0
-        hybrid.cat = "treasure"
-    elif quality_int == 6:
-        hybrid.quality_tag = "unique"
-    else:
-        hybrid.quality_tag = ""
+                spawn.shop_spawn = new_s
 
 
 # =============================================================================
