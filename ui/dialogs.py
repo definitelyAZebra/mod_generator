@@ -149,6 +149,6 @@ def open_project_dialog() -> "ModProject | None":
     if migrated:
         # 迁移后自动保存
         project.save()
-        popups.success("项目已从旧版本迁移并保存")
+        popups.info("项目已从旧版本迁移并保存")
 
     return project

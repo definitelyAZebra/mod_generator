@@ -157,9 +157,14 @@ def generate_mod_with_validation(project: ModProject) -> None:
 
     if not project.file_path:
         def save_and_generate():
-            if project.file_path:
-                project.save()
-                generate_mod_and_show_result(project)
+            from ui.dialogs import select_directory_dialog
+            directory = select_directory_dialog()
+            if not directory:
+                return
+            project.file_path = os.path.join(directory, "project.json")
+            os.makedirs(os.path.join(directory, "assets"), exist_ok=True)
+            project.save()
+            generate_mod_and_show_result(project)
         popups.save_prompt(on_confirm=save_and_generate)
         return
 

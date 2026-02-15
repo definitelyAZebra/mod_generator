@@ -4,24 +4,71 @@
 使用方式:
     from ui import popups
     popups.error("发生错误")
-    popups.success("/path/to/mod")
+    popups.success(mod_dir="/path/to/mod")
+    popups.info("项目已迁移")
     popups.save_prompt(on_confirm=my_callback)
 
 主循环中调用 popups.draw()
+
+⚠️ ImGui 弹窗 ID 规则:
+    open_popup() 和 begin_popup_modal() 必须在同一个窗口上下文内调用。
+    因此公开 API 只设置 pending 标记，由 draw() 统一在同一上下文中
+    调用 open_popup + begin_popup_modal。
 """
 
+from __future__ import annotations
+
 import os
-from typing import Callable
+from contextlib import contextmanager
+from dataclasses import dataclass, field
+from typing import Any, Callable, Generator
 
 from ui import imgui_shim as imgui
 from ui import tw
+from ui import layout as ly
+from ui.scale import Sp, Cn, dp
+from ui.icons import (
+    FA_CIRCLE_CHECK,
+    FA_CIRCLE_EXCLAMATION,
+    FA_CIRCLE_INFO,
+    FA_CIRCLE_XMARK,
+    FA_FOLDER_OPEN,
+)
 
 
-# ==================== 模块级状态 ====================
+# ==================== 状态管理 ====================
 
-_error_msg: str | None = None
-_success_dir: str | None = None
-_save_callback: Callable[[], None] | None = None
+
+@dataclass
+class _PopupSlot:
+    """单个弹窗的完整状态 (pending + active)"""
+    popup_id: str
+    pending: bool = False
+    active_data: dict[str, Any] = field(default_factory=lambda: {})
+    pending_data: dict[str, Any] = field(default_factory=lambda: {})
+
+    def request(self, **data: Any) -> None:
+        """排队打开弹窗 (下帧 draw() 时执行 open_popup)"""
+        self.pending = True
+        self.pending_data = data
+
+    def flush(self) -> None:
+        """在 draw() 中消费 pending, 执行 open_popup"""
+        if self.pending:
+            self.active_data = self.pending_data
+            self.pending_data = {}
+            self.pending = False
+            imgui.open_popup(self.popup_id)
+
+    def close(self) -> None:
+        self.active_data = {}
+        imgui.close_current_popup()
+
+
+_error_slot = _PopupSlot("##popup_error")
+_success_slot = _PopupSlot("##popup_success")
+_info_slot = _PopupSlot("##popup_info")
+_save_slot = _PopupSlot("##popup_save")
 
 
 # ==================== 公开 API ====================
@@ -29,107 +76,163 @@ _save_callback: Callable[[], None] | None = None
 
 def error(message: str) -> None:
     """显示错误弹窗"""
-    global _error_msg
     print(f"错误: {message.split(chr(10))[0]}")
-    _error_msg = message
-    imgui.open_popup("错误")
+    _error_slot.request(message=message)
 
 
 def success(mod_dir: str) -> None:
-    """显示生成成功弹窗"""
-    global _success_dir
-    _success_dir = mod_dir
-    imgui.open_popup("生成成功")
+    """显示生成成功弹窗 (带 "打开目录" 按钮)"""
+    _success_slot.request(mod_dir=mod_dir)
+
+
+def info(message: str) -> None:
+    """显示信息弹窗 (纯文字提示)"""
+    _info_slot.request(message=message)
 
 
 def save_prompt(on_confirm: Callable[[], None] | None = None) -> None:
     """显示保存确认弹窗"""
-    global _save_callback
-    _save_callback = on_confirm
-    imgui.open_popup("保存项目")
+    _save_slot.request(callback=on_confirm)
+
+
+# ==================== 渲染 ====================
 
 
 def draw() -> None:
-    """绘制弹窗（主循环每帧调用）"""
+    """绘制弹窗 (主循环每帧调用)"""
+    # flush pending → open_popup (与 begin_popup_modal 同上下文)
+    _error_slot.flush()
+    _success_slot.flush()
+    _info_slot.flush()
+    _save_slot.flush()
+
     _draw_error_popup()
     _draw_success_popup()
+    _draw_info_popup()
     _draw_save_popup()
 
 
-# ==================== 内部实现 ====================
+# ==================== 内部 helpers ====================
+
+
+@contextmanager
+def _modal(
+    slot: _PopupSlot,
+    width: Sp | Cn = Cn.CMD,
+) -> Generator[bool, None, None]:
+    """弹窗脚手架: set_next_window_size → begin_popup_modal → end_popup
+
+    Yields:
+        True 如果弹窗已打开, False 如果未打开 (调用方可 early-return)
+    """
+    imgui.set_next_window_size(dp(width), 0, imgui.ONCE)
+    result = imgui.begin_popup_modal(
+        slot.popup_id,
+        flags=imgui.WINDOW_ALWAYS_AUTO_RESIZE | imgui.WINDOW_NO_TITLE_BAR,
+    )
+    opened = bool(result)
+    try:
+        yield opened
+    finally:
+        if opened:
+            imgui.end_popup()
+
+
+def _popup_header(icon: str, text: str, icon_style: tw.StyleContext) -> None:
+    """弹窗标题行: icon + 文字"""
+    ly.gap_y(Sp.S2)
+    ly.icon_label(icon, text, gap=Sp.S2, icon_style=icon_style, text_style=tw.text_bright)
+
+
+def _popup_footer_buttons(
+    slot: _PopupSlot,
+    buttons: list[tuple[str, tw.StyleContext, Callable[[], None] | None]],
+) -> None:
+    """弹窗底部按钮行 (右对齐)
+
+    Args:
+        buttons: [(label, style, on_click | None)]  None 表示仅关闭弹窗
+    """
+    ly.gap_y(Sp.S4)
+    with ly.auto_hcenter():
+        for i, (label, style, on_click) in enumerate(buttons):
+            if i > 0:
+                imgui.same_line(spacing=dp(Sp.S2))
+            if (style | tw.btn_sm)(imgui.button)(label):
+                slot.close()
+                if on_click:
+                    on_click()
+
+
+# ==================== 各弹窗实现 ====================
 
 
 def _draw_error_popup() -> None:
-    global _error_msg
-    imgui.set_next_window_size(450, 0, imgui.ONCE)
-    if imgui.begin_popup_modal("错误", flags=imgui.WINDOW_ALWAYS_AUTO_RESIZE)[0]:
-        imgui.dummy(0, 4)
-        tw.text_error(imgui.text)("[X] 发生错误")
-        imgui.dummy(0, 8)
-        imgui.text_wrapped(_error_msg or "发生未知错误")
-        imgui.dummy(0, 12)
-
-        button_width = 80
-        imgui.set_cursor_pos_x(imgui.get_window_width() - button_width - 12)
-        if imgui.button("确定", width=button_width):
-            _error_msg = None
-            imgui.close_current_popup()
-        imgui.end_popup()
+    with tw.bg_elevated | tw.p_4 | tw.rounded_lg:
+        with _modal(_error_slot, width=Cn.CMD) as opened:
+            if not opened:
+                return
+            msg = _error_slot.active_data.get("message", "发生未知错误")
+            _popup_header(FA_CIRCLE_XMARK, "发生错误", tw.text_error)
+            ly.gap_y(Sp.S2)
+            with tw.text_default:
+                imgui.text_wrapped(msg)
+            _popup_footer_buttons(_error_slot, [
+                ("确定", tw.btn_secondary, None),
+            ])
 
 
 def _draw_success_popup() -> None:
-    global _success_dir
-    imgui.set_next_window_size(450, 180, imgui.ONCE)
-    if imgui.begin_popup_modal("生成成功", flags=imgui.WINDOW_NO_RESIZE)[0]:
-        mod_dir = _success_dir or "."
+    with tw.bg_elevated | tw.p_4 | tw.rounded_lg:
+        with _modal(_success_slot, width=Cn.CMD) as opened:
+            if not opened:
+                return
+            mod_dir = _success_slot.active_data.get("mod_dir", ".")
+            _popup_header(FA_CIRCLE_CHECK, "模组生成成功！", tw.text_success)
+            ly.gap_y(Sp.S2)
+            tw.text_muted(imgui.text)("输出目录:")
+            with tw.text_default:
+                imgui.text_wrapped(mod_dir)
 
-        imgui.dummy(0, 8)
-        tw.text_success(imgui.text)("[OK] 模组生成成功！")
-        imgui.dummy(0, 8)
+            def open_dir() -> None:
+                try:
+                    os.startfile(mod_dir)
+                except Exception:
+                    pass
 
-        tw.text_muted(imgui.text)("输出目录:")
-        imgui.text_wrapped(mod_dir)
+            _popup_footer_buttons(_success_slot, [
+                (f"{FA_FOLDER_OPEN} 打开目录", tw.btn_primary, open_dir),
+                ("确定", tw.btn_secondary, None),
+            ])
 
-        imgui.dummy(0, 16)
 
-        button_width = 100
-        imgui.set_cursor_pos_x(imgui.get_window_width() - button_width * 2 - 24)
-        if imgui.button("打开目录", width=button_width):
-            try:
-                os.startfile(mod_dir)
-            except Exception:
-                pass
-
-        imgui.same_line()
-        if imgui.button("确定", width=button_width):
-            _success_dir = None
-            imgui.close_current_popup()
-        imgui.end_popup()
+def _draw_info_popup() -> None:
+    with tw.bg_elevated | tw.p_4 | tw.rounded_lg:
+        with _modal(_info_slot, width=Cn.CSM) as opened:
+            if not opened:
+                return
+            msg = _info_slot.active_data.get("message", "")
+            _popup_header(FA_CIRCLE_INFO, "提示", tw.text_info)
+            ly.gap_y(Sp.S2)
+            with tw.text_default:
+                imgui.text_wrapped(msg)
+            _popup_footer_buttons(_info_slot, [
+                ("确定", tw.btn_secondary, None),
+            ])
 
 
 def _draw_save_popup() -> None:
-    global _save_callback
-    imgui.set_next_window_size(350, 0, imgui.ONCE)
-    if imgui.begin_popup_modal("保存项目", flags=imgui.WINDOW_ALWAYS_AUTO_RESIZE)[0]:
-        imgui.dummy(0, 4)
-        tw.text_warning(imgui.text)("[!] 需要保存项目")
-        imgui.dummy(0, 8)
-        imgui.text("生成模组前需要先保存项目。")
-        imgui.text("是否现在保存？")
-        imgui.dummy(0, 12)
-
-        button_width = 80
-        imgui.set_cursor_pos_x(imgui.get_window_width() - button_width * 2 - 20)
-        if imgui.button("保存", width=button_width):
-            callback = _save_callback
-            _save_callback = None
-            imgui.close_current_popup()
-            if callback:
-                callback()
-
-        imgui.same_line()
-        if imgui.button("取消", width=button_width):
-            _save_callback = None
-            imgui.close_current_popup()
-
-        imgui.end_popup()
+    with tw.bg_elevated | tw.p_4 | tw.rounded_lg:
+        with _modal(_save_slot, width=Cn.CSM) as opened:
+            if not opened:
+                return
+            callback = _save_slot.active_data.get("callback")
+            _popup_header(FA_CIRCLE_EXCLAMATION, "需要保存项目", tw.text_warning)
+            ly.gap_y(Sp.S2)
+            with tw.text_default:
+                imgui.text("生成模组前需要先保存项目。")
+                imgui.text("是否现在保存？")
+            _popup_footer_buttons(_save_slot, [
+                ("保存", tw.btn_primary, callback),
+                ("取消", tw.btn_secondary, None),
+            ])
