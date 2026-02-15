@@ -21,6 +21,7 @@ def run_git(*args):
         ["git"] + list(args),
         capture_output=True,
         text=True,
+        encoding="utf-8",
         cwd=Path(__file__).parent
     )
     return result.returncode, result.stdout.strip(), result.stderr.strip()
@@ -209,6 +210,17 @@ def main():
     extra_files = ["CHANGELOG.md"]
     extra_dirs = ["resources", "fonts"]
 
+    # datamine 运行时数据文件 (代码通过 Path(__file__) 相对路径加载)
+    datamine_data_files = [
+        "datamine/output/attribute_sources.json",
+        "datamine/output/weapon_hands.json",
+    ]
+    datamine_data_globs = [
+        "datamine/output/textloader/attributes/attribute_decimals.json",
+        "datamine/output/textloader/attributes/attribute_percent_normalized.json",
+        "datamine/output/textloader/attributes/attribute_order_*.json",
+    ]
+
     # 复制额外文件到 dist 目录，方便检查发行内容
     print("\n📋 复制额外文件到 dist/...")
     for filename in extra_files:
@@ -225,6 +237,29 @@ def main():
                 shutil.rmtree(dst_dir)
             shutil.copytree(src_dir, dst_dir)
             print(f"  ✓ 已复制 {dirname}/")
+
+    # 复制 datamine 运行时数据
+    print("\n📋 复制 datamine 数据文件到 dist/...")
+    for filepath in datamine_data_files:
+        src = project_dir / filepath
+        dst = dist_dir / filepath
+        if src.exists():
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
+            print(f"  ✓ 已复制 {filepath}")
+        else:
+            print(f"  ⚠️  找不到 {filepath}")
+
+    for glob_pattern in datamine_data_globs:
+        matches = sorted(project_dir.glob(glob_pattern))
+        if not matches:
+            print(f"  ⚠️  未匹配到文件: {glob_pattern}")
+        for src in matches:
+            rel = src.relative_to(project_dir)
+            dst = dist_dir / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
+            print(f"  ✓ 已复制 {rel}")
 
     print(f"\n📦 创建压缩包: {zip_name}")
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
