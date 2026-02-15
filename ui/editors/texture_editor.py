@@ -339,20 +339,23 @@ def _draw_pose_slot(
     # 预览（使用 resolve 获取实际显示的贴图） — 与编辑按钮间加间距
     if resolved_slot.has_texture():
         ly.gap_y(Sp.S1)
-        # 使用 fallback 时用自己的 origin，否则用 resolved 的 origin
-        preview_origin = slot.origin if fallback_from else resolved_slot.origin
         with _canvas_frame:
             texture_preview(
                 f"{id_suffix}_{slot_name}_preview",
                 resolved_slot.path,
-                origin=preview_origin,
+                origin=resolved_slot.origin,
                 model_path=model_path,
                 size=(canvas_size, canvas_size),
             )
 
-    # Origin（仅当有自己的贴图时显示）
+    # Origin — 有自己的贴图时可编辑，fallback 时显示只读文本
     if slot.has_texture():
         slot.origin = origin_input(f"{id_suffix}_{slot_name}_origin", slot.origin)
+    elif fallback_from and resolved_slot.has_texture():
+        fallback_label = _POSE_SLOTS.get(fallback_from, (fallback_from,))[0]
+        o = resolved_slot.origin
+        tw.text_faint(imgui.text)(f"Origin (← {fallback_label})")
+        tw.text_faint(imgui.text)(f"{o.x} X  {o.y} Y")
 
 
 def draw_multi_pose_armor_textures(
