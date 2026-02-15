@@ -135,16 +135,16 @@ _ORDER_FILE_TO_GROUP: dict[str, str] = {
 # --- Group ID → 中文显示标签 (唯一中文来源) ---
 GROUP_LABELS: dict[str, str] = {
     "damage":           "伤害类型",
-    "effect_chances":   "状态效果",
+    "effect_chances":   "状态几率",
     "defence":          "防护属性",
     "attack":           "战斗属性",
     "health_energy":    "生命与精力",
     "abilities":        "技能消耗",
     "magic":            "魔法属性",
-    "miscast":          "元素法力失误",
-    "resist_general":   "抗性（综合）",
-    "resist_damage":    "抗性（伤害）",
-    "resist_effect":    "抗性（状态）",
+    "miscast":          "元素法术失误",
+    "resist_general":   "综合抗性",
+    "resist_damage":    "伤害抗性",
+    "resist_effect":    "状态抗性",
     "resist_survival":  "生存抗性",
     "basic_needs":      "基本需求",
     "survival_changes": "生存变化",
@@ -179,16 +179,16 @@ _EXTRA_ATTR_GROUPS: dict[str, list[str]] = {
         # BlockPowerBonus: scr_inv_buff_atr 读取但 tooltip 不单独显示
         "BlockPowerBonus",
     ],
+    "attack": [
+        # Range: order file 中拼为 "Rng", sources 中为 "Range", 因名称不匹配成为 EXTRA
+        "Range",
+    ],
     "survival_changes": [
         # MoraleTemporary: 游戏 order file 中拼为 "MoralTemporary" (少了 e),
         # attribute_sources 中为 "MoraleTemporary", 因拼写不匹配成为 EXTRA
         "MoraleTemporary",
         # Immunity_Influence: 免疫影响系数, 与 Immunity_Change 同属生存系统
         "Immunity_Influence",
-    ],
-    "other": [
-        # Range: order file 中拼为 "Rng", sources 中为 "Range", 因名称不匹配成为 EXTRA
-        "Range",
     ],
     "buff_only": [
         # === buff 数据层独有的变体属性 (仅 scr_buff_param 读取) ===
