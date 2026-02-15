@@ -32,8 +32,8 @@ Layer 3 — EquipSlot (实际装备栏位):
     SlotGroup 仍然是 GML 函数行为的抽象 — 比如 ACC_SLOT 实际读了
     "饰品4槽 + 武器手2槽" (scr_inv_buff_param_ext 内部)，这个 "武器也贡献"
     的事实在 SlotGroup 中是隐式的。EquipSlot 把它显式化：
-        ACC_SLOT → WEAPON | ACCESSORY。
-    这样消费者只需查 EquipSlot.WEAPON，不需要知道 ACC_SLOT 内部有武器手。
+        ACC_SLOT → HAND | ACCESSORY。
+    这样消费者只需查 EquipSlot.HAND，不需要知道 ACC_SLOT 内部有手持槽。
 
 === GML 函数嵌套关系 (核心领域知识) ===
 
@@ -308,16 +308,16 @@ class EquipSlot(enum.Flag):
     ┌─────────────────────────────────────────────────────────────┐
     │ 游戏装备栏位分组                                            │
     │                                                             │
-    │ WEAPON     = 右手 + 左手 (武器/盾牌)                        │
+    │ HAND       = 右手 + 左手 (武器/盾牌/工具)                   │
     │ ARMOR      = 头部 + 胸部 + 手套 + 腿部                      │
     │ ACCESSORY  = 戒指×2 + 项链 + 腰带 + 背部                    │
     │ PASSIVE_CONSUM = 被动消耗品 (check_inventory_data=true)      │
     │ BUFF       = buff 数据层 (消耗品持续效果/技能 buff)           │
     │                                                             │
-    │ ALL_EQUIP  = WEAPON | ARMOR | ACCESSORY | PASSIVE_CONSUM    │
+    │ ALL_EQUIP  = HAND | ARMOR | ACCESSORY | PASSIVE_CONSUM      │
     └─────────────────────────────────────────────────────────────┘
     """
-    WEAPON         = enum.auto()  # 右手/左手
+    HAND           = enum.auto()  # 右手/左手 (武器/盾牌/工具，与 slot="hand" 对应)
     ARMOR          = enum.auto()  # 头/胸/手/腿 (4 armor slots)
     ACCESSORY      = enum.auto()  # 戒指/项链/腰带/背部 (4 accessory slots)
     PASSIVE_CONSUM = enum.auto()  # 被动消耗品
@@ -334,18 +334,18 @@ E = EquipSlot
 # 编码 "每种函数行为模式，最终触及了哪些装备栏位"。
 #
 # ⚠️ 关键非直觉映射:
-#   ACC_SLOT → ACCESSORY | WEAPON
+#   ACC_SLOT → ACCESSORY | HAND
 #   因为 scr_inv_buff_param_ext 内部逐槽位读取时，除了 4 个饰品槽，
 #   还读了 rhand(4488) 和 lhand(4490)。所以抗性类属性中，
-#   武器也贡献数值 — 只是不经过效率 (Efficiency) 加成。
+#   手持物品也贡献数值 — 只是不经过效率 (Efficiency) 加成。
 
 EQUIP_RESOLVE_MAP: dict[SlotGroup, EquipSlot] = {
     # scr_inv_param() 遍历 o_inv_slot 所有子类
-    # → 武器、护甲、饰品、被动消耗品全部命中
-    SlotGroup.INV_ALL:        E.WEAPON | E.ARMOR | E.ACCESSORY | E.PASSIVE_CONSUM,
+    # → 手持、护甲、饰品、被动消耗品全部命中
+    SlotGroup.INV_ALL:        E.HAND | E.ARMOR | E.ACCESSORY | E.PASSIVE_CONSUM,
 
-    # scr_inv_param(attr, _mainHandItem) — 仅读武器手物品
-    SlotGroup.HAND_EFF:       E.WEAPON,
+    # scr_inv_param(attr, _mainHandItem) — 仅读手持物品
+    SlotGroup.HAND_EFF:       E.HAND,
 
     # scr_inv_param(attr, 4479, true) — 跳过 rhand+lhand
     # → 护甲 + 饰品 + 被动消耗品
@@ -356,9 +356,9 @@ EQUIP_RESOLVE_MAP: dict[SlotGroup, EquipSlot] = {
 
     # scr_inv_buff_param_ext 的逐槽位读取:
     #   戒指1(4493), 戒指2(5219), 背部(4492), 腰带(4499), 项链(4495)
-    #   + 右手(4488), 左手(4490)  ← 武器手也在这里！
-    # → ACCESSORY + WEAPON (不含护甲，不含被动消耗品 — 那个是单独的)
-    SlotGroup.ACC_SLOT:       E.ACCESSORY | E.WEAPON,
+    #   + 右手(4488), 左手(4490)  ← 手持物品也在这里！
+    # → ACCESSORY + HAND (不含护甲，不含被动消耗品 — 那个是单独的)
+    SlotGroup.ACC_SLOT:       E.ACCESSORY | E.HAND,
 
     # scr_inv_param_consum — 被动消耗品
     SlotGroup.PASSIVE_CONSUM: E.PASSIVE_CONSUM,
@@ -391,8 +391,11 @@ class AttrMeta:
     clamp:          从 clamp(expr, min, max) 调用中提取的范围
     """
     surface_calls: set[SurfaceCall] = field(default_factory=set)
-    has_efficiency: bool = False
-    has_body_parts: bool = False
+    has_efficiency: bool = False   # 隐含 → 仅对 HAND slot 有意义 (HAND_EFF slot group)
+    has_body_parts: bool = False   # 隐含 → 仅对 ARMOR slot 有意义 (ARMOR_SLOT slot group)
+    # TODO: 如果需要显式化 efficiency/body_parts 对哪些 EquipSlot 起作用，
+    #       可扩展为 efficiency_slots: set[EquipSlot] / body_part_slots: set[EquipSlot]。
+    #       当前一对一映射 (efficiency→HAND, body_parts→ARMOR) 足够用。
     clamp: tuple[float, float] | None = None
 
     @property
@@ -405,7 +408,7 @@ class AttrMeta:
         """Layer 3: 由 slot_groups 经 EQUIP_RESOLVE_MAP 展开得到。
 
         这是消费者应该使用的终端 flag。
-        例: WEAPON in meta.equip_slots → 武器可以提供该属性
+        例: HAND in meta.equip_slots → 手持物品可以提供该属性
         """
         return resolve_equip_slots(self.slot_groups)
 
@@ -685,51 +688,79 @@ def derive_legacy_groups(registry: dict[str, AttrMeta]) -> dict[str, list[str]]:
 # 验证
 # ═══════════════════════════════════════════════════════════════════
 
-def validate_against_existing(legacy: dict[str, list[str]]) -> bool:
-    """将提取结果与 constants/attributes.py 中的硬编码列表对比。"""
+def validate_against_existing(registry: dict[str, AttrMeta]) -> bool:
+    """将提取结果的 equip_slots 与 constants/attributes.py 的查询函数对比。
+
+    对每个槽位调用 get_equip_attrs_for_slot, 验证结果与本次提取
+    的 equip_slots 集合一致。
+    """
     sys.path.insert(0, str(ROOT))
     from constants.attributes import (
-        HYBRID_COMMON_ATTRS,
-        HYBRID_COMBAT_ATTRS,
-        HYBRID_DAMAGE_ATTRS,
-        HYBRID_RESISTANCE_ATTRS,
-        HYBRID_DEF_ATTRS,
-        HYBRID_BUFF_ONLY_ATTRS,
+        get_equip_attrs_for_slot,
+        get_consumable_buff_attrs,
+        _SOURCES_BLACKLIST,
     )
 
-    existing = {
-        "HYBRID_COMMON_ATTRS": HYBRID_COMMON_ATTRS,
-        "HYBRID_COMBAT_ATTRS": HYBRID_COMBAT_ATTRS,
-        "HYBRID_DAMAGE_ATTRS": HYBRID_DAMAGE_ATTRS,
-        "HYBRID_RESISTANCE_ATTRS": HYBRID_RESISTANCE_ATTRS,
-        "HYBRID_DEF_ATTRS": HYBRID_DEF_ATTRS,
-        "HYBRID_BUFF_ONLY_ATTRS": HYBRID_BUFF_ONLY_ATTRS,
+    # 从本次提取的 registry 构建 equip_slots 查询: slot_key → set[attr]
+    extracted: dict[str, set[str]] = {
+        "hand": set(), "armor": set(), "accessory": set(),
+        "passive_consum": set(), "buff": set(),
     }
+    for attr, meta in registry.items():
+        if attr in _SOURCES_BLACKLIST:
+            continue
+        for flag, name in _EQUIP_SLOT_SHORT.items():
+            if meta.equip_slots & flag:
+                extracted[name].add(attr)
+
+    # 槽位 → get_equip_attrs_for_slot 参数
+    slot_checks = [
+        ("hand",           "hand",  False),
+        ("armor",          "Head",  False),
+        ("accessory",      "Ring",  False),
+        ("passive_consum", "heal",  True),
+    ]
 
     print("\n" + "=" * 70)
-    print("VALIDATION: Extracted vs Existing constants")
+    print("VALIDATION: Extracted equip_slots vs get_equip_attrs_for_slot()")
     print("=" * 70)
 
     all_ok = True
-    for key in existing:
-        ext_set = set(legacy.get(key, []))
-        cur_set = set(existing[key])
+    for slot_key, slot_arg, has_passive in slot_checks:
+        ext_set = extracted[slot_key]
+        cur_set = set(get_equip_attrs_for_slot(slot_arg, has_passive))
         added = sorted(ext_set - cur_set)
         removed = sorted(cur_set - ext_set)
 
         if not added and not removed:
-            print(f"\n  ✅ {key}: MATCH ({len(cur_set)} attrs)")
+            print(f"\n  ✅ {slot_key}: MATCH ({len(cur_set)} attrs)")
         else:
             all_ok = False
-            print(f"\n  ⚠️  {key}:")
+            print(f"\n  ⚠️  {slot_key}:")
             print(f"     Existing: {len(cur_set)} | Extracted: {len(ext_set)}")
             if added:
                 print(f"     ➕ New:     {added}")
             if removed:
                 print(f"     ➖ Missing: {removed}")
 
+    # buff 验证
+    ext_buff = extracted["buff"]
+    cur_buff = set(get_consumable_buff_attrs())
+    added = sorted(ext_buff - cur_buff)
+    removed = sorted(cur_buff - ext_buff)
+    if not added and not removed:
+        print(f"\n  ✅ buff: MATCH ({len(cur_buff)} attrs)")
+    else:
+        all_ok = False
+        print(f"\n  ⚠️  buff:")
+        print(f"     Existing: {len(cur_buff)} | Extracted: {len(ext_buff)}")
+        if added:
+            print(f"     ➕ New:     {added}")
+        if removed:
+            print(f"     ➖ Missing: {removed}")
+
     if all_ok:
-        print("\n  🎉 All categories match perfectly!")
+        print("\n  🎉 All slot queries match perfectly!")
     return all_ok
 
 
@@ -748,7 +779,7 @@ _SLOT_GROUP_SHORT: dict[SlotGroup, str] = {
 }
 
 _EQUIP_SLOT_SHORT: dict[EquipSlot, str] = {
-    EquipSlot.WEAPON:         "weapon",
+    EquipSlot.HAND:           "hand",
     EquipSlot.ARMOR:          "armor",
     EquipSlot.ACCESSORY:      "accessory",
     EquipSlot.PASSIVE_CONSUM: "passive_consum",
@@ -772,7 +803,7 @@ def serialize_registry(registry: dict[str, AttrMeta]) -> dict[str, object]:
       "attr_name": {
         "surface_calls": ["inv_buff_atr", ...],      ← Layer 1 (GML 写了什么)
         "slot_groups":   ["inv_all", "buff", ...],    ← Layer 2 (函数做了什么)
-        "equip_slots":   ["weapon", "armor", ...],    ← Layer 3 (哪些栏位生效)
+        "equip_slots":   ["hand", "armor", ...],    ← Layer 3 (哪些栏位生效)
         "has_efficiency": false,
         "has_body_parts": false,
         "clamp": [min, max] | null
@@ -884,7 +915,7 @@ def main():
     legacy = derive_legacy_groups(registry)
     instant = extract_consumable_instant_attrs()
 
-    validate_against_existing(legacy)
+    validate_against_existing(registry)
 
     # Summary
     print(f"\n{'=' * 70}")

@@ -45,7 +45,7 @@ def emit_ensure_extended_order_lists_gml() -> str:
     group_order_map = {g: i for i, g in enumerate(DEFAULT_GROUP_ORDER)}
 
     def get_sort_key(attr: str) -> int:
-        group = ATTRIBUTE_TO_GROUP.get(attr, "其他")
+        group = ATTRIBUTE_TO_GROUP.get(attr, "other")
         return group_order_map.get(group, len(DEFAULT_GROUP_ORDER))
 
     sorted_attrs = sorted(EXTRA_ORDER_ATTRS, key=get_sort_key)

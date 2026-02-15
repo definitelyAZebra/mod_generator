@@ -21,7 +21,7 @@ from ui.scale import Sp, dp
 from ui.state import dpi_scale
 
 from data.attributes import ATTRIBUTE_TRANSLATIONS, ATTRIBUTE_DESCRIPTIONS
-from constants.attributes import get_attr_format
+from constants.attributes import get_attr_format, GROUP_LABELS
 
 # =============================================================================
 # 常量 (single source of truth)
@@ -193,7 +193,7 @@ def draw_attribute_full_grid(
         imgui.push_id(f"{id_prefix}_{group_name}")
         try:
             # 分组标题
-            tw.text_accent(imgui.text)(group_name)
+            tw.text_accent(imgui.text)(GROUP_LABELS.get(group_name, group_name))
             ly.gap_y(Sp.S0_5)
 
             # 紧凑属性表格
