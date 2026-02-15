@@ -20,12 +20,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from constants._base import PROJECT_ROOT
+
 
 # =============================================================================
 # §1 DATAMINED DATA — 直接从 JSON 加载
 # =============================================================================
 
-_DATAMINE_DIR = Path(__file__).resolve().parent.parent / "datamine" / "output"
+_DATAMINE_DIR = PROJECT_ROOT / "datamine" / "output"
 _ATTR_ORDER_DIR = _DATAMINE_DIR / "textloader" / "attributes"
 
 

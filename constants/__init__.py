@@ -6,6 +6,8 @@
 通过 re-export 保持 `from constants import X` 兼容。
 """
 
+from constants._base import PROJECT_ROOT as PROJECT_ROOT
+
 # ruff: noqa: F401, F403 — wildcard re-exports for backward compatibility
 
 from constants.items import *

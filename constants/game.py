@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+
+from constants._base import PROJECT_ROOT
 from typing import NamedTuple
 
 # ============== 渲染与动画常量 ==============
@@ -119,7 +121,7 @@ def _load_weapon_hands() -> tuple[
     dict[str, WeaponHandsEntry],         # type_rules
 ]:
     """从 weapon_hands.json 加载武器手数数据。"""
-    data_path = Path(__file__).resolve().parent.parent / "datamine" / "output" / "weapon_hands.json"
+    data_path = PROJECT_ROOT / "datamine" / "output" / "weapon_hands.json"
     with open(data_path, encoding="utf-8") as f:
         data = json.load(f)
 
