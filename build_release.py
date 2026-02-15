@@ -29,53 +29,32 @@ def run_git(*args):
 
 def check_version_updated():
     """
-    检查 version.py 修改后是否有新的代码提交
+    检查 HEAD 是否打了 v{VERSION_STRING} 的 tag
     返回: (is_ok, message)
     """
-    # 获取 version.py 最后修改的 commit
-    code, version_commit, _ = run_git("log", "-1", "--format=%H", "--", "version.py")
-    if code != 0 or not version_commit:
-        return True, "⚠️  无法获取 version.py 的 git 历史，跳过检查"
+    expected_tag = f"v{VERSION_STRING}"
 
-    # 获取当前 HEAD commit
-    code, head_commit, _ = run_git("rev-parse", "HEAD")
+    # 获取指向 HEAD 的所有 tag
+    code, tags_on_head, _ = run_git("tag", "--points-at", "HEAD")
     if code != 0:
-        return True, "⚠️  无法获取当前 commit，跳过检查"
+        return True, "⚠️  无法获取 HEAD 的 tag 信息，跳过检查"
 
-    # 如果 version.py 最后修改就是当前 commit，说明已更新
-    if version_commit == head_commit:
-        return True, "✓ version.py 在最新 commit 中已更新"
+    head_tags = [t.strip() for t in tags_on_head.splitlines() if t.strip()]
 
-    # 计算 version.py 修改后有多少新 commit
-    code, commits_after, _ = run_git(
-        "rev-list", "--count", f"{version_commit}..HEAD"
+    if expected_tag in head_tags:
+        return True, f"✓ HEAD 已打 tag: {expected_tag}"
+
+    if head_tags:
+        return False, (
+            f"⚠️  HEAD 上有 tag {head_tags}，但不包含 {expected_tag}\n"
+            f"请执行: git tag {expected_tag}"
+        )
+
+    return False, (
+        f"⚠️  HEAD 没有 tag，当前版本 v{VERSION_STRING}\n"
+        f"请执行: git tag {expected_tag}\n"
+        f"使用 --force 参数可以强制继续打包。"
     )
-
-    if code != 0:
-        return True, "⚠️  无法统计 commit，跳过检查"
-
-    num_commits = int(commits_after)
-    if num_commits == 0:
-        return True, "✓ version.py 已是最新"
-
-    # 获取这些 commit 的简要信息
-    code, commit_log, _ = run_git(
-        "log", "--oneline", f"{version_commit}..HEAD", "-n", "5"
-    )
-
-    warning = f"""
-⚠️  警告: version.py 修改后还有 {num_commits} 个新 commit!
-
-最近的提交:
-{commit_log}
-{"..." if num_commits > 5 else ""}
-
-当前版本: v{VERSION_STRING}
-你可能忘记更新版本号了！
-
-使用 --force 参数可以强制继续打包。
-"""
-    return False, warning
 
 
 def check_changelog_updated():
@@ -107,8 +86,8 @@ def main():
     print(f"🚀 开始打包 mod_generator v{VERSION_STRING}")
     print("=" * 50)
 
-    # Step 0: 检查版本和 changelog 是否已更新
-    print("\n🔍 检查版本号...")
+    # Step 0: 检查版本 tag 和 changelog 是否已更新
+    print("\n🔍 检查版本 tag...")
     version_ok, message = check_version_updated()
     print(message)
 
