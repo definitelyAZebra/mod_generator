@@ -712,8 +712,10 @@ function scr_shop_spawn_unified_item() {
          var _hid = _res.id;
          var _h_obj = asset_get_index(""o_inv_"" + _hid);
          if (object_exists(_h_obj)) {
-             // Use scr_inventory_add_item to handle instantiation and adding to shop owner
-             return scr_inventory_add_item(_h_obj, _npc);
+             var _hdata = variable_struct_get(global.hybrid_item_registry, _hid);
+             // quality 7 = artifact/treasure → 走 vanilla arg6 处理 (specialItemsPool + lootedTreasures)
+             var _isTreasure = (_hdata.quality == 7);
+             return scr_inventory_add_item(_h_obj, _npc, -4, true, -4, true, _isTreasure);
          }
          return -4;
     } else {
@@ -805,7 +807,10 @@ function scr_inventory_add_item_wrapper() {
     if (is_string(_item) && variable_struct_exists(global.hybrid_item_registry, _item)) {
          var _h_obj = asset_get_index(""o_inv_"" + _item);
          if (object_exists(_h_obj)) {
-             return scr_inventory_add_item(_h_obj);
+             var _hdata = variable_struct_get(global.hybrid_item_registry, _item);
+             // quality 7 = artifact/treasure → 走 vanilla arg6 处理 (specialItemsPool + lootedTreasures)
+             var _isTreasure = (_hdata.quality == 7);
+             return scr_inventory_add_item(_h_obj, id, -4, true, -4, true, _isTreasure);
          }
          return -4;
     }
@@ -901,7 +906,9 @@ call.i gml_Script_scr_shop_spawn_unified_item(argc=6)")
                 .MatchFrom("with (scr_guiCreateInteractive(global.guiBaseContainerVisible, argument0))")
                 .InsertAbove(@"
 var _isHybridUnique = false;
-if (!is_undefined(argument0) && variable_struct_exists(global.hybrid_item_registry, _idName)) {
+// argument3 = true 时为新建物品; false 时为存档加载 (scr_load_player / scr_loadContainerContent)
+// 仅在新建时检查 specialItemsPool，避免读档时把已拥有的唯一物品误删
+if (argument3 && !is_undefined(argument0) && variable_struct_exists(global.hybrid_item_registry, _idName)) {
     var _hdata = variable_struct_get(global.hybrid_item_registry, _idName);
     if (_hdata.quality == 6) {
         _isHybridUnique = true;
