@@ -37,8 +37,6 @@ Card-based responsive layout。宽屏双列(身份+装备并排)，窄屏单列�
 """
 
 from __future__ import annotations
-
-from __future__ import annotations
 from typing import Any
 
 from ui import imgui_shim as imgui
@@ -57,7 +55,7 @@ from ui.editors.common import (
 from ui.scale import Sp  # noqa: F401  # pyright: ignore[reportUnusedImport]
 from ui.state import dpi_scale
 from core.hybrid_item import HybridItemV2
-from core.specs import EffectTrigger, SpawnRuleType, RandomSpawn, WeaponEquip, ArmorEquip, CharmEquip, NotEquipable
+from core.specs import EffectTrigger, SpawnRuleType, RandomSpawn, WeaponEquip, ArmorEquip, NotEquipable
 from core.models import validate_hybrid_item
 from ui.state import state as ui_state
 from data.drop_slots import find_matching_slots, find_matching_eq_slots
@@ -74,6 +72,11 @@ def draw_hybrid_editor(hybrid: HybridItemV2) -> None:
     Args:
         hybrid: 混合物品数据对象
     """
+    with ly.scoped_id(id(hybrid)):
+        _draw_hybrid_editor_inner(hybrid)
+
+
+def _draw_hybrid_editor_inner(hybrid: HybridItemV2) -> None:
     from ui.editors.hybrid.base_panel import draw_base_panel
     from ui.editors.hybrid.behavior_panel import draw_behavior_panel
     from ui.editors.hybrid.stats_panel import draw_stats_panel

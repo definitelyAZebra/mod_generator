@@ -345,6 +345,23 @@ def item_width(width: float):
         imgui.pop_item_width()
 
 
+@contextmanager
+def scoped_id(key: object):
+    """创建 ImGui ID 作用域，隔离同名控件在不同对象间的状态。
+
+    常用于列表编辑器中：切换到另一条目时，避免 InputText/InputInt 复用
+    上一条目的内部编辑缓冲区。
+
+    Args:
+        key: 作用域键。应传入当前条目的稳定唯一标识。
+    """
+    imgui.push_id(str(key))
+    try:
+        yield
+    finally:
+        imgui.pop_id()
+
+
 def tooltip(text: str):
     """在前一个控件悬停时显示提示，简化 is_item_hovered + set_tooltip 模式"""
     if text and imgui.is_item_hovered():
@@ -2885,7 +2902,7 @@ __all__ = [
     'next_line', 'divider', 'hr',
     'window_size', 'content_region', 'clear_layout_cache',
     # 便利函数
-    'item_width', 'tooltip',
+    'item_width', 'tooltip', 'scoped_id',
 
     # ===== Flex 布局 =====
     'hstack', 'vstack', 'item', 'slot', 'spacer',

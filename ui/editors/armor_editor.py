@@ -60,6 +60,13 @@ def draw_armor_editor() -> None:
     """装备编辑器 - 响应式卡片布局"""
     armor = ui_state.project.armors[ui_state.current_armor_index]
 
+    with ly.scoped_id(id(armor)):
+        _draw_armor_editor_content(armor)
+
+
+def _draw_armor_editor_content(armor) -> None:
+    """绘制装备编辑器内容（在 scoped_id 作用域内）。"""
+
     avail_w = imgui.get_content_region_available_width()
     is_wide = avail_w > BREAKPOINT_PX * dpi_scale()
 

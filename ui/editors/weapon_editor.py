@@ -56,6 +56,13 @@ def draw_weapon_editor() -> None:
     weapon = ui_state.project.weapons[ui_state.current_weapon_index]
     weapon.markup = 1
 
+    with ly.scoped_id(id(weapon)):
+        _draw_weapon_editor_content(weapon)
+
+
+def _draw_weapon_editor_content(weapon: Weapon) -> None:
+    """绘制武器编辑器内容（在 scoped_id 作用域内）。"""
+
     avail_w = imgui.get_content_region_available_width()
     is_wide = avail_w > BREAKPOINT_PX * dpi_scale()
 
