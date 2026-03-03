@@ -3,5 +3,5 @@
 编辑器版本信息
 """
 
-VERSION = (0, 9, 7)
+VERSION = (0, 9, 8)
 VERSION_STRING = ".".join(map(str, VERSION))
