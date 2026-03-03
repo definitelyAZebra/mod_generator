@@ -437,6 +437,8 @@ def _emit_create_gml(item: HybridItemV2) -> str:
     lines.append("rest_char_sprite = -4;")
     lines.append("rest_char_upper_sprite = -4;")
     lines.append("")
+    if item.needs_multi_pose_textures():
+        lines.append(f"rest_char_sprite = s_char3_{item.id};")
 
     # ===== data map =====
     lines.append("// data map 元数据")
