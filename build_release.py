@@ -9,6 +9,7 @@ import subprocess
 import shutil
 import sys
 import zipfile
+import ast
 from pathlib import Path
 
 # 动态导入版本信息
@@ -75,6 +76,47 @@ def check_changelog_updated():
         return True, f"✓ CHANGELOG.md 包含 v{VERSION_STRING} 的记录"
 
     return False, f"⚠️  CHANGELOG.md 中没有找到 [{VERSION_STRING}] 的条目，请先更新 changelog"
+
+
+def get_active_font_files(project_dir: Path) -> list[Path]:
+    """读取 ui/font_config.py，返回当前配置使用的字体文件列表。"""
+    font_config = project_dir / "ui" / "font_config.py"
+    if not font_config.exists():
+        return []
+
+    target_names = {"ENGLISH_FONT", "CHINESE_FONT", "ICON_FONT"}
+    font_files: list[Path] = []
+
+    try:
+        tree = ast.parse(font_config.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+
+    for node in tree.body:
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+
+        target = node.targets[0]
+        if not isinstance(target, ast.Name):
+            continue
+        if target.id not in target_names:
+            continue
+
+        value = node.value
+        if isinstance(value, ast.Constant) and isinstance(value.value, str) and value.value.strip():
+            font_files.append(project_dir / value.value)
+
+    # 去重，保持顺序
+    unique_files: list[Path] = []
+    seen: set[Path] = set()
+    for file_path in font_files:
+        normalized = file_path.resolve() if file_path.exists() else file_path
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        unique_files.append(file_path)
+
+    return unique_files
 
 
 def main():
@@ -216,6 +258,26 @@ def main():
                 shutil.rmtree(dst_dir)
             shutil.copytree(src_dir, dst_dir)
             print(f"  ✓ 已复制 {dirname}/")
+
+    # 额外确保打包当前实际使用的字体（支持字体路径不在 fonts/ 下的场景）
+    print("\n📋 检查并补充复制当前使用的字体...")
+    active_fonts = get_active_font_files(project_dir)
+    if not active_fonts:
+        print("  ⚠️  未从 ui/font_config.py 解析到字体配置，跳过补充复制")
+    for font_path in active_fonts:
+        if not font_path.exists():
+            print(f"  ⚠️  配置字体不存在: {font_path}")
+            continue
+        try:
+            rel = font_path.relative_to(project_dir)
+        except ValueError:
+            print(f"  ⚠️  字体不在项目目录内，跳过: {font_path}")
+            continue
+
+        dst = dist_dir / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(font_path, dst)
+        print(f"  ✓ 已确保字体: {rel}")
 
     # 复制 datamine 运行时数据
     print("\n📋 复制 datamine 数据文件到 dist/...")

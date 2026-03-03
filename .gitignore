@@ -19,6 +19,10 @@ ui/tw.py
 ui/font_config.py
 .font_metrics_cache.json
 
+# === Node.js (TypeSpec toolchain) ===
+node_modules/
+package-lock.json
+
 # === Python ===
 __pycache__/
 *.pyc
@@ -67,7 +71,25 @@ o_Dead_March.txt
 datamine/vendor/
 datamine/output/
 datamine/input/
+datamine/acquire/input/
+datamine/decompile/output/
 *.log
+
+# === gml_analyzer (.NET F# 项目构建产物 + 提取输出) ===
+datamine/gml_analyzer/bin/
+datamine/gml_analyzer/obj/
+datamine/gml_analyzer/output/
+
+# === F# emit 管线 (StonesModEmit 构建产物) ===
+emit/StonesModEmit/bin/
+emit/StonesModEmit/obj/
+
+# === TypeSpec (生成输出 + 构建缓存) ===
+typespec/tsp-output/
+typespec/fsharp-emitter/tsconfig.tsbuildinfo
+
+# === Datamine notes (生成的 HTML，源 .md 保留) ===
+datamine/notes/*.html
 
 # === 测试 fixtures (真实项目数据，体积较大) ===
 tests/fixtures/
@@ -81,3 +103,5 @@ tools/
 
 # === GitHub (本地配置) ===
 .github/
+
+.fake

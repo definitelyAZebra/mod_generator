@@ -5,7 +5,7 @@
 使用缓存机制避免重复测定未变化的字体。
 
 使用方法:
-    python codegen/generate_font_config.py
+    python scripts/generate_font_config.py
 
 工作流程:
     1. 读取下方 FONT_PATHS 配置
@@ -20,11 +20,15 @@
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import os
 import random
+import re
 import sys
+import tokenize
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
@@ -42,10 +46,10 @@ except ImportError:
 
 FONT_PATHS = {
     # 英文字体 (主字体，决定 baseline)
-    "english": "fonts/english/PlaywriteGBS-Regular.ttf",
+    "english": "fonts/english/Handlee-Regular.ttf",
 
     # 中文字体 (合并到英文字体)
-    "chinese": "fonts/chinese/WenYue_GuDianMingChaoTi_JRFC.otf",
+    "chinese": "fonts/chinese/HanyiSentyYongleEncyclopedia-2020.ttf",
 
     # 图标字体 (FA Solid 完整字体)
     "icon": "fonts/icons/fa-solid-900.ttf",
@@ -62,6 +66,21 @@ ICON_SCALE = 1.0
 OUTPUT_FILE = "ui/font_config.py"
 CACHE_FILE = ".font_metrics_cache.json"
 BASE_FONT_SIZE = 16.0  # 测定时使用的基准字号
+
+
+# ==================== 样本集策略 ====================
+
+# 中文样本: 从项目真实 UI 文案中提取高频字符 + core/stress 兜底
+CHINESE_TOP_N = 400
+CHINESE_CORE_WORDS = [
+    "项目", "打开", "保存", "生成", "目录", "文件", "模组", "成功", "失败", "错误", "提示", "警告",
+    "武器", "护甲", "道具", "标签", "分类", "品质", "等级", "价格", "重量", "材质", "删除", "复制",
+]
+CHINESE_STRESS_CHARS = "，。！？；：、“”‘’（）《》【】·—"
+
+# 图标样本: 从项目真实 FA_* 使用中提取高频图标
+ICON_TOP_N = 32
+MAX_WEIGHT_REPEAT = 5
 
 
 # ==================== 缓存管理 ====================
@@ -233,22 +252,175 @@ def get_gb2312_codepoints() -> list[int]:
 
 
 def get_icon_codepoints() -> list[int]:
-    """获取图标字体码点范围 (Font Awesome PUA)"""
+    """获取图标样本码点
+
+    优先使用项目中真实出现的 FA_* 常量（按频次加权）。
+    若提取失败，回退到 Font Awesome PUA 全范围。
+    """
+    icon_map = load_icon_constant_map()
+    usage = collect_project_icon_usage()
+
+    if icon_map and usage:
+        weighted_codepoints: list[int] = []
+        for icon_name, count in usage.most_common(ICON_TOP_N):
+            cp = icon_map.get(icon_name)
+            if cp is None:
+                continue
+            repeat = min(MAX_WEIGHT_REPEAT, 1 + count // 2)
+            weighted_codepoints.extend([cp] * repeat)
+
+        if weighted_codepoints:
+            return weighted_codepoints
+
     return list(range(0xE000, 0xF8FF + 1))
 
 
 def get_english_codepoints() -> list[int]:
     """获取英文对齐参照字符码点
 
-    使用大写字母和数字，因为这些和中文混排最常见
-    (例如 "JSON 文件"、"100% 完成")
+    使用大小写字母、数字和常见 UI 符号，覆盖更真实的混排场景。
     """
     codepoints = []
+
     # 大写字母 A-Z
     codepoints.extend(range(ord('A'), ord('Z') + 1))
+
+    # 小写字母 a-z
+    codepoints.extend(range(ord('a'), ord('z') + 1))
+
     # 数字 0-9
     codepoints.extend(range(ord('0'), ord('9') + 1))
+
+    # 常见 UI 符号
+    for ch in "_%+-/.:()[]":
+        codepoints.append(ord(ch))
+
     return codepoints
+
+
+def iter_project_python_files() -> list[Path]:
+    """枚举用于样本提取的项目 Python 文件"""
+    files: list[Path] = []
+
+    ui_dir = Path("ui")
+    if ui_dir.exists():
+        files.extend(sorted(ui_dir.rglob("*.py")))
+
+    root_entry = Path("mod_generator.py")
+    if root_entry.exists():
+        files.append(root_entry)
+
+    return files
+
+
+def extract_python_string_literals(file_path: Path) -> list[str]:
+    """提取 Python 文件中的字符串字面量（解码后）"""
+    literals: list[str] = []
+
+    try:
+        with tokenize.open(file_path) as f:
+            tokens = tokenize.generate_tokens(f.readline)
+            for token in tokens:
+                if token.type != tokenize.STRING:
+                    continue
+                try:
+                    value = ast.literal_eval(token.string)
+                except Exception:
+                    continue
+                if isinstance(value, str) and value:
+                    literals.append(value)
+    except Exception:
+        return []
+
+    return literals
+
+
+def collect_project_chinese_char_freq() -> Counter[str]:
+    """统计项目 UI 文案中的中文字符频次"""
+    freq: Counter[str] = Counter()
+
+    for file_path in iter_project_python_files():
+        for text in extract_python_string_literals(file_path):
+            for ch in text:
+                if "\u4e00" <= ch <= "\u9fff":
+                    freq[ch] += 1
+
+    return freq
+
+
+def get_chinese_codepoints() -> list[int]:
+    """获取中文样本码点（频次加权）
+
+    策略:
+    1. 项目真实文案高频字（主权重）
+    2. 核心领域词（稳定兜底）
+    3. 压力标点（防回归）
+    """
+    freq = collect_project_chinese_char_freq()
+    weighted: list[int] = []
+
+    for ch, count in freq.most_common(CHINESE_TOP_N):
+        repeat = min(MAX_WEIGHT_REPEAT, 1 + count // 5)
+        weighted.extend([ord(ch)] * repeat)
+
+    for word in CHINESE_CORE_WORDS:
+        for ch in word:
+            if "\u4e00" <= ch <= "\u9fff":
+                weighted.extend([ord(ch)] * 3)
+
+    for ch in CHINESE_STRESS_CHARS:
+        weighted.append(ord(ch))
+
+    if weighted:
+        return weighted
+
+    # 极端情况下提取失败，回退到 GB2312 全量
+    return get_gb2312_codepoints()
+
+
+def load_icon_constant_map() -> dict[str, int]:
+    """从 ui/icons.py 读取 FA_* 常量映射 (常量名 -> 码点)"""
+    icons_file = Path("ui/icons.py")
+    if not icons_file.exists():
+        return {}
+
+    try:
+        source = icons_file.read_text(encoding="utf-8")
+        tree = ast.parse(source)
+    except Exception:
+        return {}
+
+    icon_map: dict[str, int] = {}
+
+    for node in tree.body:
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+
+        target = node.targets[0]
+        if not isinstance(target, ast.Name):
+            continue
+        if not target.id.startswith("FA_"):
+            continue
+
+        if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str) and node.value.value:
+            icon_map[target.id] = ord(node.value.value[0])
+
+    return icon_map
+
+
+def collect_project_icon_usage() -> Counter[str]:
+    """统计项目中 FA_* 常量的使用频次"""
+    pattern = re.compile(r"\bFA_[A-Z0-9_]+\b")
+    usage: Counter[str] = Counter()
+
+    for file_path in iter_project_python_files():
+        try:
+            source = file_path.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        usage.update(pattern.findall(source))
+
+    return usage
 
 
 # ==================== 主流程 ====================
@@ -344,10 +516,10 @@ def generate_python_file(
         "# -*- coding: utf-8 -*-",
         '"""字体配置 (自动生成)',
         "",
-        "由 codegen/generate_font_config.py 自动生成，请勿手动编辑。",
+        "由 scripts/generate_font_config.py 自动生成，请勿手动编辑。",
         f"生成时间: {timestamp}",
         "",
-        "修改字体配置请编辑 codegen/generate_font_config.py 中的 FONT_PATHS 和 ICON_SCALE。",
+        "修改字体配置请编辑 scripts/generate_font_config.py 中的 FONT_PATHS 和 ICON_SCALE。",
         '"""',
         "",
         "from __future__ import annotations",
@@ -442,23 +614,33 @@ def main():
     # 测定各字体 (包括字形中心采样)
     print("\n测定 metrics:")
 
+    # 样本集 (方法论核心): 优先项目真实文案/图标，减少手工拍脑袋
+    english_samples = get_english_codepoints()
+    chinese_samples = get_chinese_codepoints()
+    icon_samples = get_icon_codepoints()
+
+    print("\n样本集:")
+    print(f"  english: {len(english_samples)} 码点")
+    print(f"  chinese: {len(chinese_samples)} 码点 (去重后 {len(set(chinese_samples))})")
+    print(f"  icon: {len(icon_samples)} 码点 (去重后 {len(set(icon_samples))})")
+
     english_metrics = measure_font(
         "english",
         FONT_PATHS["english"],
         cache,
-        sample_codepoints=get_english_codepoints(),  # 采样英文字形中心
+        sample_codepoints=english_samples,
     )
     chinese_metrics = measure_font(
         "chinese",
         FONT_PATHS["chinese"],
         cache,
-        sample_codepoints=get_gb2312_codepoints(),
+        sample_codepoints=chinese_samples,
     )
     icon_metrics = measure_font(
         "icon",
         FONT_PATHS["icon"],
         cache,
-        sample_codepoints=get_icon_codepoints(),
+        sample_codepoints=icon_samples,
     )
 
     # 保存缓存
