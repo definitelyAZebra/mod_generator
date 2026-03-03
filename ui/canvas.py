@@ -2,9 +2,8 @@
 """无限画布组件
 
 提供类似专业绘图软件的可缩放、可平移画布，支持：
-- 鼠标滚轮缩放（以鼠标位置为中心）
+- Ctrl + 鼠标滚轮缩放（以鼠标位置为中心）
 - 中键拖拽平移视口
-- 空格+左键拖拽平移（备选）
 - 项的点击选中
 - 项的拖拽移动（释放时提交）
 - 穿透点击循环选择堆叠项
@@ -165,6 +164,8 @@ class InfiniteCanvas:
         self.checker_color_light: tuple[float, float, float, float] = (0.30, 0.30, 0.33, 1.0)  # ~#4D4D54
         self.selection_color: tuple[float, float, float, float] = (0.0, 0.6, 1.0, 1.0)  # 选中框颜色（蓝色更专业）
         self.selection_thickness: float = 1.0
+        self.gesture_hint_text: str = "缩放: Ctrl+滚轮  |  平移: 中键拖拽"
+        self.gesture_hint_alpha: float = 0.6
 
         # === 内部状态 ===
         # 视口信息（每帧更新）
@@ -341,6 +342,7 @@ class InfiniteCanvas:
 
         # 绘制棋盘格背景
         self._draw_checkerboard(draw_list)
+        self._draw_gesture_hint(draw_list)
 
         # 按 z_order 排序绘制
         sorted_items = sorted(
@@ -444,6 +446,31 @@ class InfiniteCanvas:
             thickness=self.selection_thickness,
         )
 
+    def _draw_gesture_hint(self, draw_list: Any) -> None:
+        """在画布右下角绘制手势提示，提高交互可发现性。"""
+        text = self.gesture_hint_text
+        if not text:
+            return
+
+        text_w, text_h = imgui.calc_text_size(text)
+        pad_x = 8
+        pad_y = 4
+        x = self._viewport_pos[0] + self._viewport_size[0] - text_w - pad_x - 8
+        y = self._viewport_pos[1] + self._viewport_size[1] - text_h - pad_y - 8
+
+        bg = imgui.get_color_u32_rgba(0.08, 0.08, 0.1, min(max(self.gesture_hint_alpha, 0.0), 1.0))
+        fg = imgui.get_color_u32_rgba(0.92, 0.92, 0.95, min(max(self.gesture_hint_alpha + 0.2, 0.0), 1.0))
+
+        draw_list.add_rect_filled(
+            x - pad_x,
+            y - pad_y,
+            x + text_w + pad_x,
+            y + text_h + pad_y,
+            bg,
+            4.0,
+        )
+        draw_list.add_text(x, y, fg, text)
+
     # ========================================================================
     # 内部方法 - 交互
     # ========================================================================
@@ -453,9 +480,9 @@ class InfiniteCanvas:
         io = imgui.get_io()
         mouse_pos = imgui.get_mouse_pos()
 
-        # 滚轮缩放（以鼠标位置为中心）
+        # Ctrl + 滚轮缩放（以鼠标位置为中心，避免页面滚动误触）
         wheel = io.mouse_wheel
-        if wheel != 0:
+        if wheel != 0 and io.key_ctrl:
             # 缩放前的鼠标世界坐标
             world_x, world_y = self.screen_to_world(*mouse_pos)
 
@@ -476,18 +503,10 @@ class InfiniteCanvas:
             self._pan_start_mouse = mouse_pos
             self._pan_start_center = (self.center_x, self.center_y)
 
-        # 空格 + 左键拖拽平移（备选）
-        space_pressed = imgui.is_key_down(imgui.KEY_SPACE)  # type: ignore[arg-type]
-        if space_pressed and not self._dragging_id and not self._is_panning:
-            if imgui.is_mouse_clicked(0):
-                self._is_panning = True
-                self._pan_start_mouse = mouse_pos
-                self._pan_start_center = (self.center_x, self.center_y)
-
         # 平移进行中
         if self._is_panning:
-            # 中键或左键持续按下
-            panning_active = imgui.is_mouse_down(2) or (space_pressed and imgui.is_mouse_down(0))
+            # 中键持续按下
+            panning_active = imgui.is_mouse_down(2)
             if panning_active:
                 if self._pan_start_mouse and self._pan_start_center:
                     # 计算平移量
