@@ -266,6 +266,17 @@ _POSE_SLOTS = {
     "rest_female": ("休息 (女)", False),
 }
 
+# 护甲多姿势槽位对应的模特姿势索引
+# 0=单手, 1=双手, 2=护甲专用
+_ARMOR_SLOT_MODEL_INDEX = {
+    "standing0": 0,
+    "standing1": 1,
+    "rest": 2,
+    "standing0_female": 0,
+    "standing1_female": 1,
+    "rest_female": 2,
+}
+
 
 def _draw_pose_slot(
     char: MultiPoseCharTexture,
@@ -396,8 +407,6 @@ def draw_multi_pose_armor_textures(
     female_model_key = get_model_key(selected_race, True)
     male_model_files = CHARACTER_MODELS.get(male_model_key, [])
     female_model_files = CHARACTER_MODELS.get(female_model_key, [])
-    male_model_path = os.path.join("resources", male_model_files[0]) if male_model_files else None
-    female_model_path = os.path.join("resources", female_model_files[0]) if female_model_files else None
 
     # 每列 3 行: standing0 → standing1 → rest
     male_slots = ["standing0", "standing1", "rest"]
@@ -410,12 +419,22 @@ def draw_multi_pose_armor_textures(
             for i, slot_name in enumerate(male_slots):
                 if i > 0:
                     ly.gap_y(Sp.S2)
+                pose_index = _ARMOR_SLOT_MODEL_INDEX[slot_name]
+                male_model_path = (
+                    os.path.join("resources", male_model_files[pose_index])
+                    if pose_index < len(male_model_files) else None
+                )
                 _draw_pose_slot(char, slot_name, id_suffix, male_model_path, canvas_sz, importer)
 
         with c.col(1):
             for i, slot_name in enumerate(female_slots):
                 if i > 0:
                     ly.gap_y(Sp.S2)
+                pose_index = _ARMOR_SLOT_MODEL_INDEX[slot_name]
+                female_model_path = (
+                    os.path.join("resources", female_model_files[pose_index])
+                    if pose_index < len(female_model_files) else None
+                )
                 _draw_pose_slot(char, slot_name, id_suffix, female_model_path, canvas_sz, importer)
 
     return selected_race
