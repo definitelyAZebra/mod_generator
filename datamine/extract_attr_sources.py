@@ -400,8 +400,17 @@ class AttrMeta:
 
     @property
     def slot_groups(self) -> SlotGroup:
-        """Layer 2: 由 surface_calls 经 CALL_RESOLVE_MAP 展开得到。"""
-        return resolve_slot_groups(self.surface_calls)
+        """Layer 2: 由 surface_calls 经 CALL_RESOLVE_MAP 展开得到。
+
+        has_body_parts 隐含 ARMOR_SLOT: 有 _Head/_Tors/_Hands/_Legs 部位
+        分离计算的属性，其部位值来自 scr_inv_param_slot(attr, 护甲槽位ID)，
+        这些调用直接出现在 player_block 或 scr_resistance_calc 内部，
+        但不在 INV_BUFF_PARAM_EXT 的读取范围内。
+        """
+        result = resolve_slot_groups(self.surface_calls)
+        if self.has_body_parts:
+            result |= SlotGroup.ARMOR_SLOT
+        return result
 
     @property
     def equip_slots(self) -> EquipSlot:
@@ -605,6 +614,12 @@ def extract_attr_registry() -> dict[str, AttrMeta]:
     for attr in body_part_attrs:
         if attr in registry:
             registry[attr].has_body_parts = True
+
+    # scr_resistance_calc 内部也创建 _Head/_Tors/_Hands/_Legs 变量，
+    # 但因为在函数体内，_detect_body_part_attrs 无法从 player_block 检测到
+    for attr, meta in registry.items():
+        if SurfaceCall.RESISTANCE_CALC in meta.surface_calls:
+            meta.has_body_parts = True
 
     # clamp 范围
     for attr in list(registry):
